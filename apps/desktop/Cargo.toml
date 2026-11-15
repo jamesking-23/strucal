@@ -1,5 +1,10 @@
 [package]
-name="strucal-desktop"
-version.workspace=true
-edition.workspace=true
+name = "strucal-desktop"
+version.workspace = true
+edition.workspace = true
+
 [dependencies]
+strucal-engine = { path = "../../crates/engine" }
+eframe = { version = "0.31", default-features = false, features = ["glow", "default_fonts", "wayland", "x11"] }
+ureq = { version = "2", features = ["json"] }
+serde_json = "1"

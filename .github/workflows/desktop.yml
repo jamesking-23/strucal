@@ -1,0 +1,32 @@
+name: Desktop release
+on:
+  push:
+    branches: [main]
+    paths: ["apps/desktop/**", "crates/engine/**", "Cargo.toml", ".github/workflows/desktop.yml"]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Test engine
+        run: cargo test -p strucal-engine
+      - name: Build desktop
+        env:
+          STRUCAL_VERSION: 0.1.${{ github.run_number }}
+        run: cargo build -p strucal-desktop --release
+      - name: Package
+        shell: bash
+        run: cp target/release/strucal-desktop.exe strucal-desktop-windows-x64.exe
+      - name: Publish release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v0.1.${{ github.run_number }}" strucal-desktop-windows-x64.exe \
+            --title "StruCal Desktop 0.1.${{ github.run_number }}" \
+            --notes "Preview build from commit ${GITHUB_SHA::7}. Use Settings > Check updates in the app to upgrade."
