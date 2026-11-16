@@ -6,7 +6,7 @@ export default function Home() {
   return (
     <>
       <header className="nav"><div className="wrap">
-        <div className="brand"><span className="mark">S</span>STRUCAL</div>
+        <div className="brand" aria-label="StruCal"><span className="mark">S</span></div>
         <nav><a href="#platform">Platform</a><a href="#trust">Verification</a><a href="#scope">Coverage</a><a href="#roadmap">Roadmap</a><a href="#desktop">Desktop</a></nav>
         <Link href="/workspace" className="btn gold">Open workspace</Link>
       </div></header>

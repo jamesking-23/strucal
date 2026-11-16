@@ -79,7 +79,7 @@ export default function Workspace() {
   const tag = res?.trace_hash?.slice(0, 8) ?? "calc";
   const print = () => { const w = window.open("", "_blank"); if (w) { w.document.write(eng.report_html(mid, payload())); w.document.close(); setTimeout(() => w.print(), 400); } setMenu(false); };
   const ok = res?.ok;
-  if (!def || !f) return <div className="wk"><div className="wk-title"><Link href="/" className="wk-logo"><i>S</i>StruCal</Link></div><div className="wk-splash"><div className="wk-spin" /><div>{err || "Loading calculation engine..."}</div></div></div>;
+  if (!def || !f) return <div className="wk"><div className="wk-title"><Link href="/" className="wk-logo" aria-label="StruCal">S</Link></div><div className="wk-splash"><div className="wk-spin" /><div>{err || "Loading calculation engine..."}</div></div></div>;
   const verified = sets.find((s) => s.id === f.param_set)?.status ?? "";
   const groups: string[] = []; for (const x of def.fields) { if (x.check_only && f.mode !== "check") continue; if (!groups.includes(x.group)) groups.push(x.group); }
   let n = 0, cur = "";
@@ -91,7 +91,7 @@ export default function Workspace() {
   return (
     <div className="wk">
       <div className="wk-title">
-        <Link href="/" className="wk-logo" title="Back to home"><i>S</i></Link>
+        <Link href="/" className="wk-logo" title="StruCal - back to home">S</Link>
         <div className="qa"><button title="Reset inputs" onClick={() => setF(initFor(def))}>↺</button><button title="Export" disabled={!ok} onClick={() => setMenu(!menu)}>⤓</button></div>
         <div className="wk-wt">StruCal — {def.name} — EN 1992-1-1:2004</div>
       </div>

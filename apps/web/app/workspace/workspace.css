@@ -5,8 +5,7 @@
 .wk button,.wk select,.wk input{font:inherit}
 /* title bar */
 .wk-title{height:26px;background:#fff;display:flex;align-items:center;gap:8px;padding:0 6px;border-bottom:1px solid var(--ln2);flex:none}
-.wk-logo{display:flex;align-items:center;color:#fff;font-weight:700}
-.wk-logo i{width:18px;height:18px;background:#d32f2f;display:grid;place-items:center;font-style:normal;font-size:11px}
+.wk-logo{display:grid;place-items:center;width:22px;height:22px;color:var(--blue);font:700 20px/1 "Segoe UI","IBM Plex Sans",sans-serif}
 .wk-title .qa{display:flex;gap:2px}.wk-title .qa button{width:22px;height:20px;border:0;background:none;cursor:pointer;color:#444;font-size:13px}.wk-title .qa button:hover:not(:disabled){background:var(--hov)}.wk-title .qa button:disabled{opacity:.35}
 .wk-wt{flex:1;text-align:center;color:#333;padding-right:90px}
 .wk-splash{flex:1;display:grid;place-content:center;justify-items:center;gap:12px;color:var(--mt);background:#aeaeb2}

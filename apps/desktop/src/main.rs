@@ -159,6 +159,8 @@ impl eframe::App for App {
         egui::TopBottomPanel::top("tabs").exact_height(26.0).frame(egui::Frame::new().fill(Color32::WHITE).inner_margin(egui::Margin::ZERO)).show(ctx, |ui| {
             ui.spacing_mut().item_spacing.x = 0.0;
             ui.horizontal_centered(|ui| {
+                let (m, _) = ui.allocate_exact_size(egui::vec2(30.0, 26.0), egui::Sense::hover());
+                ui.painter().text(m.center(), egui::Align2::CENTER_CENTER, "S", FontId::proportional(21.0), BLUE);
                 let (r, _) = ui.allocate_exact_size(egui::vec2(64.0, 26.0), egui::Sense::hover());
                 ui.painter().rect_filled(r, 0.0, BLUE); ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, "FILE", FontId::proportional(12.0), Color32::WHITE);
                 for (p, n) in [(Page::Workspace, "WORKSPACE"), (Page::Standards, "STANDARDS"), (Page::Settings, "SETTINGS")] {
@@ -353,6 +355,6 @@ impl eframe::App for App {
 }
 
 fn main() -> eframe::Result<()> {
-    let opts = eframe::NativeOptions { viewport: egui::ViewportBuilder::default().with_inner_size([1440.0, 860.0]).with_min_inner_size([1100.0, 650.0]).with_title("StruCal"), ..Default::default() };
+    let opts = eframe::NativeOptions { viewport: egui::ViewportBuilder::default().with_inner_size([1440.0, 860.0]).with_min_inner_size([1100.0, 650.0]).with_title("StruCal").with_icon(std::sync::Arc::new(egui::IconData { rgba: include_bytes!("../assets/icon.rgba").to_vec(), width: 64, height: 64 })), ..Default::default() };
     eframe::run_native("StruCal", opts, Box::new(|cc| Ok(Box::new(App::new(cc)))))
 }
