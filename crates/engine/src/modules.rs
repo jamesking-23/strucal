@@ -13,9 +13,9 @@ pub fn beam_def() -> ModDef {
 }
 
 pub struct Upcoming { pub name: &'static str, pub note: &'static str }
-pub fn upcoming() -> Vec<Upcoming> { vec![Upcoming { name: "RC wall", note: "Stage 3 - next" },  Upcoming { name: "Two-way / flat slab", note: "Stage 3" }] }
+pub fn upcoming() -> Vec<Upcoming> { vec![ Upcoming { name: "Two-way slab", note: "Needs a verified method source" }] }
 
-pub fn defs() -> Vec<ModDef> { vec![beam_def(), crate::column::def(), crate::slab::def(), crate::stairs::def(), crate::pad::def(), crate::strip::def()] }
+pub fn defs() -> Vec<ModDef> { vec![beam_def(), crate::column::def(), crate::wall::def(), crate::slab::def(), crate::stairs::def(), crate::pad::def(), crate::strip::def()] }
 
 fn beam(v: &Value) -> ModResult {
     let i: BeamInput = match serde_json::from_value(v.clone()) { Ok(i) => i, Err(e) => return fail(vec![format!("Invalid input: {}", e)]) };
@@ -27,7 +27,7 @@ fn beam(v: &Value) -> ModResult {
 }
 
 pub fn run(id: &str, v: &Value) -> ModResult {
-    match id { "beam" => beam(v), "slab" => crate::slab::run(v), "stairs" => crate::stairs::run(v), "strip" => crate::strip::run(v), "pad" => crate::pad::run(v), "column" => crate::column::run(v), _ => fail(vec![format!("Module '{}' is not available yet", id)]) }
+    match id { "beam" => beam(v), "slab" => crate::slab::run(v), "stairs" => crate::stairs::run(v), "strip" => crate::strip::run(v), "pad" => crate::pad::run(v), "column" => crate::column::run(v), "wall" => crate::wall::run(v), _ => fail(vec![format!("Module '{}' is not available yet", id)]) }
 }
 pub fn run_json(id: &str, input: &str) -> String {
     match serde_json::from_str::<Value>(input) { Ok(v) => serde_json::to_string(&run(id, &v)).unwrap(), Err(e) => serde_json::to_string(&fail(vec![format!("Invalid input: {}", e)])).unwrap() }

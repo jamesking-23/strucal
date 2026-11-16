@@ -41,6 +41,13 @@ fn drawing_svg(d: &Drawing) -> String {
             while x < ox + w { s += &format!("<circle cx='{x}' cy='{yb}' r='{}' fill='#111'/>", (bar_dia * sc / 2.0).max(2.0)); x += spacing * sc; }
             s + &format!("<text x='{}' y='{}' font-size='10' text-anchor='middle'>h = {} / T{} @ {}</text></svg>", ox + w / 2.0, oy + hh + 18.0, h, bar_dia, spacing)
         }
+        Drawing::Wall { h, cover, bar_dia, spacing } => {
+            let sc = 180.0 / 400.0_f64.max(*h); let (pw, ph) = (h * sc, 400.0 * sc); let (ox, oy) = (20.0, 10.0);
+            let mut s = format!("<svg width='{}' height='{}' xmlns='http://www.w3.org/2000/svg'><rect x='{ox}' y='{oy}' width='{pw}' height='{ph}' fill='#f4f5f7' stroke='#222' stroke-width='1.5'/>", pw + 60.0, ph + 30.0);
+            let xs = [ox + (cover + 10.0) * sc, ox + pw - (cover + 10.0) * sc]; let mut y = oy + spacing * sc / 2.0;
+            while y < oy + ph { for x in xs { s += &format!("<circle cx='{x}' cy='{y}' r='{}' fill='#111'/>", (bar_dia * sc / 2.0).max(2.0)); } y += spacing * sc; }
+            s + &format!("<text x='{}' y='{}' font-size='10' text-anchor='middle'>h = {} / T{} @ {}</text></svg>", ox + pw / 2.0, oy + ph + 18.0, h, bar_dia, spacing)
+        }
         Drawing::Strip { width, t, h } => {
             let sc = 170.0 / width.max(1.0); let (pw, ph) = (width * sc, h * sc); let (ox, oy) = (20.0, 10.0); let sh = 60.0;
             format!("<svg width='{}' height='{}' xmlns='http://www.w3.org/2000/svg'><rect x='{}' y='{oy}' width='{}' height='{sh}' fill='#555'/><rect x='{ox}' y='{}' width='{pw}' height='{ph}' fill='#f4f5f7' stroke='#222' stroke-width='1.5'/><text x='{}' y='{}' font-size='10' text-anchor='middle'>B = {} / h = {}</text></svg>", pw + 40.0, ph + sh + 30.0, ox + (pw - t * sc) / 2.0, t * sc, oy + sh, ox + pw / 2.0, oy + sh + ph + 18.0, width, h)

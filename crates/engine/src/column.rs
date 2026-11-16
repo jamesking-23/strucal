@@ -18,11 +18,11 @@ pub fn def() -> ModDef {
     ] }
 }
 
-struct S { b: f64, h: f64, d2: f64, a: f64, fcd: f64, fyd: f64 }
-fn eps(s: &S, x: f64, y: f64) -> f64 { if x <= s.h { 0.0035 * (x - y) / x } else { 0.002 * (x - y) / (x - 3.0 * s.h / 7.0) } }
-fn sig(e: f64, fyd: f64) -> f64 { (ES * e).clamp(-fyd, fyd) }
+pub(crate) struct S { pub b: f64, pub h: f64, pub d2: f64, pub a: f64, pub fcd: f64, pub fyd: f64 }
+pub(crate) fn eps(s: &S, x: f64, y: f64) -> f64 { if x <= s.h { 0.0035 * (x - y) / x } else { 0.002 * (x - y) / (x - 3.0 * s.h / 7.0) } }
+pub(crate) fn sig(e: f64, fyd: f64) -> f64 { (ES * e).clamp(-fyd, fyd) }
 /// Axial force (N, compression +) and moment about the centroid (Nmm) for neutral axis depth x.
-fn nm(s: &S, x: f64) -> (f64, f64) {
+pub(crate) fn nm(s: &S, x: f64) -> (f64, f64) {
     let blk = (0.8 * x).min(s.h); let fc = s.b * blk * s.fcd; let yc = blk / 2.0;
     let (ysc, yst) = (s.d2, s.h - s.d2);
     let mut ssc = sig(eps(s, x, ysc), s.fyd); if ysc < blk { ssc -= s.fcd; }
@@ -30,8 +30,8 @@ fn nm(s: &S, x: f64) -> (f64, f64) {
     let (fsc, fst) = (s.a * ssc, s.a * sst);
     (fc + fsc + fst, fc * (s.h / 2.0 - yc) + fsc * (s.h / 2.0 - ysc) + fst * (s.h / 2.0 - yst))
 }
-fn n_rd0(s: &S) -> f64 { nm(s, 10.0 * s.h).0 }
-fn mrd(s: &S, n: f64) -> Option<(f64, f64)> {
+pub(crate) fn n_rd0(s: &S) -> f64 { nm(s, 10.0 * s.h).0 }
+pub(crate) fn mrd(s: &S, n: f64) -> Option<(f64, f64)> {
     if n > n_rd0(s) { return None; }
     let (mut lo, mut hi) = (1e-3, 10.0 * s.h);
     for _ in 0..200 { let mid = 0.5 * (lo + hi); if nm(s, mid).0 < n { lo = mid; } else { hi = mid; } }

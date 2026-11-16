@@ -35,3 +35,14 @@ mod more_tests {
     #[test] fn stairs_design() { let r = run("stairs", &json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","span":3000,"h":150,"rise":175,"going":250,"cover":25,"bar_dia":12,"fck":30,"fyk":500,"gk":1.5,"qk":4})); assert!(r.ok, "{:?}", r.errors); assert!(r.trace.steps.iter().any(|s| s.title.contains("per m² of plan"))); }
     #[test] fn stairs_overloaded_fails() { let r = run("stairs", &json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","span":6000,"h":120,"rise":175,"going":250,"cover":25,"bar_dia":12,"fck":30,"fyk":500,"gk":1.5,"qk":4})); assert!(!r.ok || !r.overall_pass); }
 }
+
+#[cfg(test)]
+mod wall_tests {
+    use crate::modules::*;
+    use serde_json::json;
+    fn w() -> serde_json::Value { json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","h":200,"len":3000,"beta":1.0,"cover":30,"bar_dia":12,"hbar_dia":10,"fck":30,"fyk":500,"phi_ef":1.0,"n_ed":600,"m02":12,"m01":6}) }
+    #[test] fn wall_designs_and_passes() { let r = run("wall", &w()); assert!(r.ok, "{:?}", r.errors); assert!(r.overall_pass, "{:?}", r.checks); }
+    #[test] fn wall_overloaded_fails() { let mut v = w(); v["n_ed"] = json!(5000); let r = run("wall", &v); assert!(!r.ok || !r.overall_pass); }
+    #[test] fn wall_check_sparse_fails_min_steel() { let mut v = w(); v["mode"] = json!("check"); v["spacing"] = json!(400); v["bar_dia"] = json!(8); let r = run("wall", &v); assert!(r.ok && !r.overall_pass); }
+    #[test] fn tall_wall_gets_second_order() { let mut v = w(); v["len"] = json!(6000); let r = run("wall", &v); assert!(r.ok); assert!(r.trace.steps.iter().any(|s| s.title.contains("nominal curvature"))); }
+}
