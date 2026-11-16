@@ -41,6 +41,15 @@ fn drawing_svg(d: &Drawing) -> String {
             while x < ox + w { s += &format!("<circle cx='{x}' cy='{yb}' r='{}' fill='#111'/>", (bar_dia * sc / 2.0).max(2.0)); x += spacing * sc; }
             s + &format!("<text x='{}' y='{}' font-size='10' text-anchor='middle'>h = {} / T{} @ {}</text></svg>", ox + w / 2.0, oy + hh + 18.0, h, bar_dia, spacing)
         }
+        Drawing::Column { b, h, cover, link_dia, bar_dia, n_face } => {
+            let sc = 170.0 / h.max(*b); let (pw, ph) = (b * sc, h * sc); let (ox, oy) = (20.0, 10.0);
+            let mut s = format!("<svg width='{}' height='{}' xmlns='http://www.w3.org/2000/svg'><rect x='{ox}' y='{oy}' width='{pw}' height='{ph}' fill='#f4f5f7' stroke='#222' stroke-width='1.5'/>", pw + 40.0, ph + 30.0);
+            let off = (cover + link_dia / 2.0) * sc;
+            s += &format!("<rect x='{}' y='{}' width='{}' height='{}' fill='none' stroke='#222'/>", ox + off, oy + off, pw - 2.0 * off, ph - 2.0 * off);
+            let ed = (cover + link_dia + bar_dia / 2.0) * sc; let n = (*n_face).max(2) as f64; let br = (bar_dia * sc / 2.0).max(2.2);
+            for row in [oy + ed, oy + ph - ed] { for k in 0..(n as u32) { s += &format!("<circle cx='{}' cy='{row}' r='{br}' fill='#111'/>", ox + ed + (pw - 2.0 * ed) * k as f64 / (n - 1.0)); } }
+            s + &format!("<text x='{}' y='{}' font-size='10' text-anchor='middle'>{} × {}</text></svg>", ox + pw / 2.0, oy + ph + 18.0, b, h)
+        }
         Drawing::Pad { bx, by, cx, cy, h } => {
             let sc = 150.0 / bx.max(*by); let (pw, ph) = (bx * sc, by * sc); let (ox, oy) = (20.0, 10.0);
             format!("<svg width='{}' height='{}' xmlns='http://www.w3.org/2000/svg'><rect x='{ox}' y='{oy}' width='{pw}' height='{ph}' fill='#f4f5f7' stroke='#222' stroke-width='1.5'/><rect x='{}' y='{}' width='{}' height='{}' fill='#555'/><text x='{}' y='{}' font-size='10' text-anchor='middle'>{} × {} × h {}</text></svg>", pw + 40.0, ph + 30.0, ox + (pw - cx * sc) / 2.0, oy + (ph - cy * sc) / 2.0, cx * sc, cy * sc, ox + pw / 2.0, oy + ph + 18.0, bx, by, h)

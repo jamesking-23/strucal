@@ -24,6 +24,14 @@ function Drawing({ d }: { d: any }) {
       <text x={ox + W / 2} y={oy + H + 22} fontSize="10" textAnchor="middle" fill="#2563eb" fontFamily="IBM Plex Mono">b = {b}</text>
       <text x={8} y={oy + H / 2} fontSize="10" fill="#2563eb" fontFamily="IBM Plex Mono" transform={`rotate(-90 8 ${oy + H / 2})`} textAnchor="middle">h = {h}</text></svg>);
   }
+  if (d.kind === "column") {
+    const sc = Math.min(170 / d.b, 250 / d.h), W = d.b * sc, H = d.h * sc, ox = 25, oy = 15, off = (d.cover + d.link_dia / 2) * sc, ed = (d.cover + d.link_dia + d.bar_dia / 2) * sc, n = Math.max(2, d.n_face), br = Math.max(2.4, (d.bar_dia * sc) / 2);
+    return (<svg viewBox={`0 0 ${W + 50} ${H + 40}`}>
+      <rect x={ox} y={oy} width={W} height={H} fill="#fff" stroke="#0f172a" strokeWidth="2" />
+      <rect x={ox + off} y={oy + off} width={W - 2 * off} height={H - 2 * off} fill="none" stroke="#334155" strokeWidth="1.2" />
+      {[oy + ed, oy + H - ed].map((y, r) => Array.from({ length: n }).map((_, i) => <circle key={r + "-" + i} cx={ox + ed + ((W - 2 * ed) * i) / (n - 1)} cy={y} r={br} fill="#0f172a" />))}
+      <text x={ox + W / 2} y={oy + H + 22} fontSize="10" textAnchor="middle" fill="#2563eb" fontFamily="IBM Plex Mono">{d.b} × {d.h}</text></svg>);
+  }
   if (d.kind === "slab") {
     const sc = 0.55, W = 400 * sc, H = d.h * sc, ox = 20, oy = 20, bars: number[] = [];
     for (let x = d.spacing / 2; x < 400; x += d.spacing) bars.push(x);

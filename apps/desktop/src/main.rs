@@ -98,6 +98,18 @@ impl App {
                 lab(&p, egui::pos2(rect.center().x, o.y + hh + 16.0), format!("b = {b}"));
                 lab(&p, egui::pos2(o.x - 12.0, rect.center().y - 8.0), format!("h = {h}"));
             }
+            Drawing::Column { b, h, cover, link_dia, bar_dia, n_face } => {
+                let sc = (170.0 / b).min(250.0 / h) as f32;
+                let (w, hh) = (*b as f32 * sc, *h as f32 * sc);
+                let o = egui::pos2(rect.center().x - w / 2.0, rect.center().y - hh / 2.0 - 8.0);
+                let outer = egui::Rect::from_min_size(o, egui::vec2(w, hh));
+                p.rect_filled(outer, 0.0, Color32::WHITE); p.rect_stroke(outer, 0.0, Stroke::new(2.0, TX), StrokeKind::Inside);
+                p.rect_stroke(outer.shrink(((cover + link_dia / 2.0) as f32) * sc), 0.0, Stroke::new(1.2, Color32::from_rgb(51, 65, 85)), StrokeKind::Inside);
+                let ed = ((cover + link_dia + bar_dia / 2.0) as f32) * sc; let n = (*n_face).max(2);
+                let br = ((*bar_dia as f32 * sc) / 2.0).max(2.4);
+                for y in [o.y + ed, o.y + hh - ed] { for k in 0..n { p.circle_filled(egui::pos2(o.x + ed + (w - 2.0 * ed) * k as f32 / (n - 1) as f32, y), br, TX); } }
+                lab(&p, egui::pos2(rect.center().x, o.y + hh + 16.0), format!("{b} × {h}"));
+            }
             Drawing::Slab { h, cover, bar_dia, spacing } => {
                 let sc = 0.5f32; let (w, hh) = (400.0 * sc, *h as f32 * sc);
                 let o = egui::pos2(rect.center().x - w / 2.0, rect.center().y - hh / 2.0 - 8.0);
