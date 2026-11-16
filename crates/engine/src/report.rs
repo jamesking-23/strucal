@@ -41,6 +41,10 @@ fn drawing_svg(d: &Drawing) -> String {
             while x < ox + w { s += &format!("<circle cx='{x}' cy='{yb}' r='{}' fill='#111'/>", (bar_dia * sc / 2.0).max(2.0)); x += spacing * sc; }
             s + &format!("<text x='{}' y='{}' font-size='10' text-anchor='middle'>h = {} / T{} @ {}</text></svg>", ox + w / 2.0, oy + hh + 18.0, h, bar_dia, spacing)
         }
+        Drawing::Strip { width, t, h } => {
+            let sc = 170.0 / width.max(1.0); let (pw, ph) = (width * sc, h * sc); let (ox, oy) = (20.0, 10.0); let sh = 60.0;
+            format!("<svg width='{}' height='{}' xmlns='http://www.w3.org/2000/svg'><rect x='{}' y='{oy}' width='{}' height='{sh}' fill='#555'/><rect x='{ox}' y='{}' width='{pw}' height='{ph}' fill='#f4f5f7' stroke='#222' stroke-width='1.5'/><text x='{}' y='{}' font-size='10' text-anchor='middle'>B = {} / h = {}</text></svg>", pw + 40.0, ph + sh + 30.0, ox + (pw - t * sc) / 2.0, t * sc, oy + sh, ox + pw / 2.0, oy + sh + ph + 18.0, width, h)
+        }
         Drawing::Column { b, h, cover, link_dia, bar_dia, n_face } => {
             let sc = 170.0 / h.max(*b); let (pw, ph) = (b * sc, h * sc); let (ox, oy) = (20.0, 10.0);
             let mut s = format!("<svg width='{}' height='{}' xmlns='http://www.w3.org/2000/svg'><rect x='{ox}' y='{oy}' width='{pw}' height='{ph}' fill='#f4f5f7' stroke='#222' stroke-width='1.5'/>", pw + 40.0, ph + 30.0);

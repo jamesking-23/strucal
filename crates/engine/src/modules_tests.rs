@@ -25,3 +25,13 @@ mod column_tests {
     #[test] fn rejects_bad_end_moments() { let mut v = col(); v["m01"] = json!(100); assert!(!run("column", &v).ok); }
     #[test] fn slender_gets_second_order() { let mut v = col(); v["len"] = json!(7000); let r = run("column", &v); assert!(r.ok); assert!(r.trace.steps.iter().any(|s| s.title.contains("nominal curvature"))); }
 }
+
+#[cfg(test)]
+mod more_tests {
+    use crate::modules::*;
+    use serde_json::json;
+    #[test] fn strip_width_from_bearing() { let r = run("strip", &json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","n_ed":300,"n_k":220,"q_allow":150,"t":225,"h":400,"cover":50,"bar_dia":12,"fck":30,"fyk":500})); assert!(r.ok, "{:?}", r.errors); assert!(r.summary[0].value.starts_with("1600"), "{}", r.summary[0].value); assert!(r.overall_pass, "{:?}", r.checks); }
+    #[test] fn strip_check_narrow_fails() { let r = run("strip", &json!({"mode":"check","param_set":"EN1992-1-1:2004/RECOMMENDED","n_ed":300,"n_k":220,"q_allow":150,"t":225,"h":400,"cover":50,"bar_dia":12,"fck":30,"fyk":500,"width":1000,"bar_spacing":300})); assert!(r.ok && !r.overall_pass); }
+    #[test] fn stairs_design() { let r = run("stairs", &json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","span":3000,"h":150,"rise":175,"going":250,"cover":25,"bar_dia":12,"fck":30,"fyk":500,"gk":1.5,"qk":4})); assert!(r.ok, "{:?}", r.errors); assert!(r.trace.steps.iter().any(|s| s.title.contains("per m² of plan"))); }
+    #[test] fn stairs_overloaded_fails() { let r = run("stairs", &json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","span":6000,"h":120,"rise":175,"going":250,"cover":25,"bar_dia":12,"fck":30,"fyk":500,"gk":1.5,"qk":4})); assert!(!r.ok || !r.overall_pass); }
+}

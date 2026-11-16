@@ -127,6 +127,15 @@ impl App {
                 for y in [o.y + ed, o.y + hh - ed] { for k in 0..n { p.circle_filled(egui::pos2(o.x + ed + (w - 2.0 * ed) * k as f32 / (n - 1) as f32, y), br, TX); } }
                 lab(&p, egui::pos2(rect.center().x, o.y + hh + 16.0), format!("{b} × {h}"));
             }
+            Drawing::Strip { width, t, h } => {
+                let sc = (190.0 / width) as f32; let (w, hh, tw) = (*width as f32 * sc, *h as f32 * sc, *t as f32 * sc);
+                let o = egui::pos2(rect.center().x - w / 2.0, rect.center().y - hh / 2.0 - 8.0);
+                p.rect_filled(egui::Rect::from_min_size(egui::pos2(o.x + (w - tw) / 2.0, o.y - 50.0), egui::vec2(tw, 50.0)), 0.0, Color32::from_rgb(51, 65, 85));
+                let outer = egui::Rect::from_min_size(o, egui::vec2(w, hh));
+                p.rect_filled(outer, 0.0, Color32::WHITE); p.rect_stroke(outer, 0.0, Stroke::new(2.0, TX), StrokeKind::Inside);
+                p.line_segment([egui::pos2(o.x + 8.0, o.y + hh - 8.0), egui::pos2(o.x + w - 8.0, o.y + hh - 8.0)], Stroke::new(2.5, TX));
+                lab(&p, egui::pos2(rect.center().x, o.y + hh + 16.0), format!("B = {width}, h = {h}"));
+            }
             Drawing::Slab { h, cover, bar_dia, spacing } => {
                 let sc = 0.5f32; let (w, hh) = (400.0 * sc, *h as f32 * sc);
                 let o = egui::pos2(rect.center().x - w / 2.0, rect.center().y - hh / 2.0 - 8.0);

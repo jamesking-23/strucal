@@ -32,6 +32,14 @@ function Drawing({ d }: { d: any }) {
       {[oy + ed, oy + H - ed].map((y, r) => Array.from({ length: n }).map((_, i) => <circle key={r + "-" + i} cx={ox + ed + ((W - 2 * ed) * i) / (n - 1)} cy={y} r={br} fill="#0f172a" />))}
       <text x={ox + W / 2} y={oy + H + 22} fontSize="10" textAnchor="middle" fill="#2563eb" fontFamily="IBM Plex Mono">{d.b} × {d.h}</text></svg>);
   }
+  if (d.kind === "strip") {
+    const sc = 190 / d.width, W = d.width * sc, H = d.h * sc, ox = 20, oy = 15, T = d.t * sc;
+    return (<svg viewBox={`0 0 ${W + 40} ${H + 100}`}>
+      <rect x={ox + (W - T) / 2} y={oy} width={T} height={60} fill="#334155" />
+      <rect x={ox} y={oy + 60} width={W} height={H} fill="#fff" stroke="#0f172a" strokeWidth="2" />
+      <line x1={ox + 8} x2={ox + W - 8} y1={oy + 60 + H - 8} y2={oy + 60 + H - 8} stroke="#0f172a" strokeWidth="2.5" />
+      <text x={ox + W / 2} y={oy + 60 + H + 22} fontSize="10" textAnchor="middle" fill="#2563eb" fontFamily="IBM Plex Mono">B = {d.width}, h = {d.h}</text></svg>);
+  }
   if (d.kind === "slab") {
     const sc = 0.55, W = 400 * sc, H = d.h * sc, ox = 20, oy = 20, bars: number[] = [];
     for (let x = d.spacing / 2; x < 400; x += d.spacing) bars.push(x);

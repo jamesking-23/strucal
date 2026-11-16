@@ -10,6 +10,8 @@ pub mod module;
 pub mod slab;
 pub mod pad;
 pub mod column;
+pub mod stairs;
+pub mod strip;
 pub mod modules;
 
 pub const ENGINE_VERSION: &str = env!("CARGO_PKG_VERSION");
