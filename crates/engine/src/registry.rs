@@ -16,5 +16,11 @@ pub fn formulas() -> Vec<Formula> {
         Formula { id: "EC2-ASMAX", name: "Maximum reinforcement", standard: "EN 1992-1-1:2004", clause: "9.2.1.1(3)", module_version: "0.1.0", verification: v },
         Formula { id: "EC2-VRDMAX", name: "Shear, compression strut resistance", standard: "EN 1992-1-1:2004", clause: "6.2.3(3) Eq 6.9", module_version: "0.1.0", verification: v },
         Formula { id: "EC2-ASW", name: "Shear links, variable strut inclination", standard: "EN 1992-1-1:2004", clause: "6.2.3(3) Eq 6.8", module_version: "0.1.0", verification: v },
+        Formula { id: "EC2-VRDC", name: "Shear resistance without shear reinforcement", standard: "EN 1992-1-1:2004", clause: "6.2.2(1) Eq 6.2a/6.3N", module_version: "0.2.0", verification: v },
+        Formula { id: "EC2-SPAN-DEPTH", name: "Basic span/effective depth ratio", standard: "EN 1992-1-1:2004", clause: "7.4.2 Eq 7.16a/b", module_version: "0.2.0", verification: v },
+        Formula { id: "EC2-PUNCH-MAX", name: "Punching, maximum resistance at column face", standard: "EN 1992-1-1:2004", clause: "6.4.5(3) Eq 6.53", module_version: "0.2.0", verification: v },
+        Formula { id: "EC2-PUNCH-C", name: "Punching resistance without shear reinforcement", standard: "EN 1992-1-1:2004", clause: "6.4.4(1) Eq 6.47", module_version: "0.2.0", verification: v },
+        Formula { id: "EC1997-BEARING-ALLOW", name: "Bearing by allowable pressure", standard: "EN 1997-1:2004", clause: "6.5.2", module_version: "0.2.0", verification: v },
+        Formula { id: "EC0-ULS-6.10", name: "ULS combination, persistent situation", standard: "EN 1990:2002", clause: "6.4.3.2 Eq 6.10", module_version: "0.2.0", verification: v },
     ]
 }

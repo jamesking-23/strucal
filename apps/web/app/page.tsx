@@ -16,7 +16,7 @@ export default function Home() {
           <div className="eyebrow">Structural calculation &amp; verification platform</div>
           <h1>Calculations you can defend in front of a checking engineer.</h1>
           <p className="lead">StruCal produces deterministic, fully traceable Eurocode calculations with clause references, substituted values and independent Check Mode. No black boxes. No invented numbers.</p>
-          <div className="cta"><Link href="/workspace" className="btn gold">Launch the RC beam module</Link><a href="#desktop" className="btn ghost">Get the desktop edition</a></div>
+          <div className="cta"><Link href="/workspace" className="btn gold">Open the workspace</Link><a href="#desktop" className="btn ghost">Get the desktop edition</a></div>
         </div>
         <div className="sheet" aria-label="Sample calculation sheet">
           <div className="h"><span>RC BEAM - FLEXURE</span><span>EN 1992-1-1</span></div>
@@ -69,7 +69,7 @@ export default function Home() {
         <div className="road">
           <div><b>Stage 0-1</b><span>Repository, unit-safe engine, formula registry, parameter framework, calculation trace</span><span className="pill live">In preview</span></div>
           <div><b>Stage 2</b><span>RC beam: flexure, shear, min/max steel, Check Mode, calculation sheet</span><span className="pill live">In preview</span></div>
-          <div><b>Stage 3</b><span>Slabs, columns, walls, stairs, pad and strip footings</span><span className="pill next">Next</span></div>
+          <div><b>Stage 3</b><span>Slabs, columns, walls, stairs, pad and strip footings</span><span className="pill next">In progress</span></div>
           <div><b>Stage 4-8</b><span>Steel, timber, retaining walls, enterprise governance, AI assistant, integrations</span><span className="pill plan">Planned</span></div>
         </div>
       </div></section>
