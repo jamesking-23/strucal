@@ -59,6 +59,10 @@ export default function Workspace() {
   const [res, setRes] = useState<any>(null);
   const [err, setErr] = useState("");
   const [menu, setMenu] = useState(false);
+  const [tab, setTab] = useState("HOME");
+  const [showL, setShowL] = useState(true);
+  const [showR, setShowR] = useState(true);
+  const [showM, setShowM] = useState(true);
 
   useEffect(() => { loadEngine().then((m) => {
     setEng(m); setSets(JSON.parse(m.param_sets())); setSoon(JSON.parse(m.upcoming()));
@@ -75,38 +79,75 @@ export default function Workspace() {
   const tag = res?.trace_hash?.slice(0, 8) ?? "calc";
   const print = () => { const w = window.open("", "_blank"); if (w) { w.document.write(eng.report_html(mid, payload())); w.document.close(); setTimeout(() => w.print(), 400); } setMenu(false); };
   const ok = res?.ok;
-  if (!def || !f) return <div className="wk"><header className="wk-top"><Link href="/" className="wk-logo"><i>S</i>StruCal</Link></header><div className="wk-c">{err || "Loading engine..."}</div></div>;
+  if (!def || !f) return <div className="wk"><div className="wk-title"><Link href="/" className="wk-logo"><i>S</i>StruCal</Link></div><div className="wk-splash"><div className="wk-spin" /><div>{err || "Loading calculation engine..."}</div></div></div>;
   const verified = sets.find((s) => s.id === f.param_set)?.status ?? "";
   const groups: string[] = []; for (const x of def.fields) { if (x.check_only && f.mode !== "check") continue; if (!groups.includes(x.group)) groups.push(x.group); }
   let n = 0, cur = "";
 
+  const Btn = ({ ic, label, onClick, dis, on }: any) => (<button className={`rb${on ? " on" : ""}`} onClick={onClick} disabled={dis}><span className="ic">{ic}</span><span className="lb">{label}</span></button>);
+  const nChecks = res?.checks?.length ?? 0, nPass = res?.checks?.filter((c: any) => c.pass).length ?? 0;
+  const tabs = ["HOME", "VIEW", "HELP"];
+
   return (
     <div className="wk">
-      <header className="wk-top">
-        <Link href="/" className="wk-logo"><i>S</i>StruCal</Link>
-        <span className="wk-crumb">/ <b>EN 1992-1-1:2004</b></span>
-        <select className="wk-sel" style={{ marginLeft: 8 }} value={mid} onChange={(e) => { setMid(e.target.value); setRes(null); }}>
-          {defs.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-          {soon.map((u) => <option key={u.name} disabled>{u.name} - {u.note}</option>)}
-        </select>
-        <div className="wk-seg"><button className={f.mode === "design" ? "on" : ""} onClick={() => setF({ ...f, mode: "design" })}>Design</button><button className={f.mode === "check" ? "on" : ""} onClick={() => setF({ ...f, mode: "check" })}>Check Mode</button></div>
-        <div className="wk-sp" />
-        <select className="wk-sel" value={f.param_set} onChange={(e) => setF({ ...f, param_set: e.target.value })}>{sets.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</select>
-        <button className="wk-btn" onClick={() => setF(initFor(def))}>Reset</button>
-        <button className="wk-btn w" onClick={() => setMenu(!menu)} disabled={!ok}>Export ▾</button>
-        {menu && <div className="wk-menu">
-          <button onClick={() => save(`StruCal-${mid}-${tag}.html`, "text/html")}>Calculation sheet (.html)<small>Full step-by-step working</small></button>
-          <button onClick={() => save(`StruCal-${mid}-${tag}.doc`, "application/msword")}>Word document (.doc)<small>Opens and edits in Microsoft Word</small></button>
-          <button onClick={print}>Print / save as PDF<small>Use your browser&apos;s print dialog</small></button>
-        </div>}
-      </header>
-      <div className="wk-body">
-        <aside className="wk-l">
-          {groups.map((g) => (<div key={g}><div className="wk-gh">{g}</div>
-            <div className="wk-2">{def.fields.filter((x: any) => x.group === g && (!x.check_only || f.mode === "check")).map((x: any) => <Inp key={x.key} {...{ f, setF }} k={x.key} label={x.label} unit={x.unit} />)}</div></div>))}
-        </aside>
+      <div className="wk-title">
+        <Link href="/" className="wk-logo" title="Back to home"><i>S</i></Link>
+        <div className="qa"><button title="Reset inputs" onClick={() => setF(initFor(def))}>↺</button><button title="Export" disabled={!ok} onClick={() => setMenu(!menu)}>⤓</button></div>
+        <div className="wk-wt">StruCal — {def.name} — EN 1992-1-1:2004</div>
+      </div>
+      <div className="wk-tabs">
+        <span className="file">FILE</span>
+        {tabs.map((t) => <button key={t} className={tab === t ? "on" : ""} onClick={() => setTab(t)}>{t}</button>)}
+      </div>
+      <div className="wk-ribbon">
+        {tab === "HOME" && (<>
+          <div className="grp"><div className="cmds">
+            <Btn ic="⟳" label="Reset" onClick={() => setF(initFor(def))} />
+            <div className="rel"><Btn ic="⤓" label="Export" onClick={() => setMenu(!menu)} dis={!ok} />
+              {menu && <div className="wk-menu">
+                <button onClick={() => save(`StruCal-${mid}-${tag}.html`, "text/html")}>Calculation sheet (.html)<small>Full step-by-step working</small></button>
+                <button onClick={() => save(`StruCal-${mid}-${tag}.doc`, "application/msword")}>Word document (.doc)<small>Opens and edits in Microsoft Word</small></button>
+                <button onClick={print}>Print / save as PDF<small>Use your browser&apos;s print dialog</small></button>
+              </div>}
+            </div>
+          </div><div className="gl">Document</div></div>
+          <div className="grp"><div className="cmds">
+            <Btn ic="▤" label="Design" on={f.mode === "design"} onClick={() => setF({ ...f, mode: "design" })} />
+            <Btn ic="✓" label="Check Mode" on={f.mode === "check"} onClick={() => setF({ ...f, mode: "check" })} />
+          </div><div className="gl">Mode</div></div>
+          <div className="grp"><div className="cmds col">
+            <label className="rf">Module<select value={mid} onChange={(e) => { setMid(e.target.value); setRes(null); }}>
+              {defs.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+              {soon.map((u) => <option key={u.name} disabled>{u.name} - {u.note}</option>)}
+            </select></label>
+            <label className="rf">Parameters<select value={f.param_set} onChange={(e) => setF({ ...f, param_set: e.target.value })}>{sets.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</select></label>
+          </div><div className="gl">Design basis</div></div>
+        </>)}
+        {tab === "VIEW" && (<div className="grp"><div className="cmds">
+          <Btn ic="☰" label="Modules" on={showM} onClick={() => setShowM(!showM)} />
+          <Btn ic="⌸" label="Input data" on={showL} onClick={() => setShowL(!showL)} />
+          <Btn ic="◧" label="Verification" on={showR} onClick={() => setShowR(!showR)} />
+        </div><div className="gl">Panels</div></div>)}
+        {tab === "HELP" && (<div className="grp"><div className="cmds">
+          <Btn ic="⌂" label="Home page" onClick={() => (window.location.href = "/")} />
+          <Btn ic="ⓘ" label="Scope" onClick={() => setTab("HOME")} />
+        </div><div className="gl">Support</div></div>)}
+      </div>
+
+      <div className="wk-body" style={{ gridTemplateColumns: `${showL || showM ? "280px" : "0"} minmax(0,1fr) ${showR ? "320px" : "0"}` }}>
+        <div className="wk-dock l" style={{ display: showL || showM ? undefined : "none" }}>
+          {showM && <section className="pn"><header>Project Manager<button onClick={() => setShowM(false)} title="Close">×</button></header>
+            <ul className="tree"><li className="root">▾ Reinforced concrete</li>
+              {defs.map((d) => <li key={d.id} className={d.id === mid ? "on" : ""} onClick={() => { setMid(d.id); setRes(null); }}>{d.name}</li>)}
+              {soon.map((u) => <li key={u.name} className="dis" title={u.note}>{u.name}</li>)}</ul></section>}
+          {showL && <section className="pn grow"><header>Input data — {f.mode === "check" ? "Check" : "Design"}<button onClick={() => setShowL(false)} title="Close">×</button></header>
+            <div className="pb">{groups.map((g) => (<div key={g}><div className="wk-gh">{g}</div>
+              <div className="wk-2">{def.fields.filter((x: any) => x.group === g && (!x.check_only || f.mode === "check")).map((x: any) => <Inp key={x.key} {...{ f, setF }} k={x.key} label={x.label} unit={x.unit} />)}</div></div>))}</div></section>}
+        </div>
 
         <main className="wk-c">
+          <div className="wk-doctabs"><span className="on">{def.name}</span><span>Calculation sheet</span></div>
+          <div className="wk-doc">
           <h1 className="wk-h">{def.title} — {f.mode === "check" ? "independent check" : "design"}</h1>
           <div className="wk-st">{def.subtitle}</div>
           {err && <div className="wk-err">{err}</div>}
@@ -131,24 +172,29 @@ export default function Workspace() {
             </div>
             {res.scope_notes.map((t: string, i: number) => <div className="wk-nt" key={i}>{t}</div>)}
           </>)}
+          </div>
         </main>
 
-        <aside className="wk-r">
-          {ok && (<>
-            <div className="wk-gh">Verification status</div>
-            <div className={`wk-pass ${res.overall_pass ? "" : "f"}`}>
-              <div className="a"><span>{res.overall_pass ? "PASS" : "FAIL"}</span><small>Max {(res.max_util * 100).toFixed(0)}%</small></div>
-              <p>{res.checks.filter((c: any) => c.pass).length}/{res.checks.length} checks satisfied. Implemented checks only; not an engineer&apos;s approval.</p>
-            </div>
-            <div className="wk-gh"><span>Utilisation ratios</span><span>E<sub>d</sub> / R<sub>d</sub></span></div>
-            {res.checks.map((c: any, i: number) => { const col = !c.pass ? "#b42318" : c.utilisation > 0.85 ? "#d98a00" : "#0f9d6a"; return (
-              <div className="wk-u" key={i}><div className="h"><span>{c.name}</span><b style={{ color: col }}>{c.utilisation >= 9.99 ? "n/a" : c.utilisation.toFixed(2)}</b></div>
-                <div className="d">{c.demand} vs {c.capacity}</div><div className="b"><i style={{ width: Math.min(100, c.utilisation * 100) + "%", background: col }} /></div></div>); })}
-            <div className="wk-gh"><span>Observations</span><span>{res.observations.length} open</span></div>
-            {res.observations.map((o: any) => <div className="wk-ob" key={o.id}><b>{o.id}</b><span className={`lv ${o.level}`}>{o.level}</span><div style={{ marginTop: 5 }}>{o.text}</div></div>)}
-          </>)}
-        </aside>
+        <div className="wk-dock r" style={{ display: showR ? undefined : "none" }}>
+          <section className="pn grow"><header>Verification<button onClick={() => setShowR(false)} title="Close">×</button></header>
+            <div className="pb">{ok && (<>
+              <div className={`wk-pass ${res.overall_pass ? "" : "f"}`}>
+                <div className="a"><span>{res.overall_pass ? "PASS" : "FAIL"}</span><small>Max {(res.max_util * 100).toFixed(0)}%</small></div>
+                <p>{nPass}/{nChecks} checks satisfied. Implemented checks only; not an engineer&apos;s approval.</p>
+              </div>
+              <div className="wk-gh"><span>Utilisation ratios</span><span>E<sub>d</sub> / R<sub>d</sub></span></div>
+              {res.checks.map((c: any, i: number) => { const col = !c.pass ? "#b42318" : c.utilisation > 0.85 ? "#d98a00" : "#0f9d6a"; return (
+                <div className="wk-u" key={i}><div className="h"><span>{c.name}</span><b style={{ color: col }}>{c.utilisation >= 9.99 ? "n/a" : c.utilisation.toFixed(2)}</b></div>
+                  <div className="d">{c.demand} vs {c.capacity}</div><div className="b"><i style={{ width: Math.min(100, c.utilisation * 100) + "%", background: col }} /></div></div>); })}
+              <div className="wk-gh"><span>Observations</span><span>{res.observations.length} open</span></div>
+              {res.observations.map((o: any) => <div className="wk-ob" key={o.id}><b>{o.id}</b><span className={`lv ${o.level}`}>{o.level}</span><div style={{ marginTop: 4 }}>{o.text}</div></div>)}
+            </>)}</div></section>
+        </div>
       </div>
+      <footer className="wk-status">
+        <span>{ok ? (res.overall_pass ? "● All checks satisfied" : "● Checks failing") : "● Not calculated"}</span>
+        <span>{f.param_set}</span><span className="sp" /><span>{tag !== "calc" ? `Trace ${tag}` : ""}</span><span>{res ? `Engine v${res.engine_version}` : ""}</span><span>Preview build</span>
+      </footer>
     </div>
   );
 }
