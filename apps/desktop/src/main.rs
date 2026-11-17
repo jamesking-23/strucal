@@ -127,6 +127,14 @@ impl App {
                 for y in [o.y + ed, o.y + hh - ed] { for k in 0..n { p.circle_filled(egui::pos2(o.x + ed + (w - 2.0 * ed) * k as f32 / (n - 1) as f32, y), br, TX); } }
                 lab(&p, egui::pos2(rect.center().x, o.y + hh + 16.0), format!("{b} × {h}"));
             }
+            Drawing::Raft { l, w, n, spacing, edge } => {
+                let sc = (200.0 / l.max(*w)) as f32; let (ww, hh) = (*l as f32 * sc, *w as f32 * sc);
+                let o = egui::pos2(rect.center().x - ww / 2.0, rect.center().y - hh / 2.0 - 8.0);
+                let outer = egui::Rect::from_min_size(o, egui::vec2(ww, hh));
+                p.rect_filled(outer, 0.0, Color32::WHITE); p.rect_stroke(outer, 0.0, Stroke::new(2.0, TX), StrokeKind::Inside);
+                for i in 0..*n { p.rect_filled(egui::Rect::from_center_size(egui::pos2(o.x + ((edge + i as f64 * spacing) as f32) * sc, o.y + hh / 2.0), egui::vec2(10.0, 10.0)), 0.0, Color32::from_rgb(51, 65, 85)); }
+                lab(&p, egui::pos2(rect.center().x, o.y + hh + 16.0), format!("L = {:.0} / w = {w} (plan)", l));
+            }
             Drawing::Retain { hs, tb, ts, lt, b } => {
                 let sc = (190.0 / (hs + tb).max(*b)) as f32; let (w, hh) = (*b as f32 * sc, (*hs + *tb) as f32 * sc);
                 let o = egui::pos2(rect.center().x - w / 2.0, rect.center().y - hh / 2.0 - 8.0); let steel = Color32::from_rgb(51, 65, 85);

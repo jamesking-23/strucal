@@ -17,6 +17,7 @@ pub enum Drawing {
     Beam { b: f64, h: f64, cover: f64, link_dia: f64, bar_dia: f64, n_bars: u32 },
     Slab { h: f64, cover: f64, bar_dia: f64, spacing: f64 },
     Pad { bx: f64, by: f64, cx: f64, cy: f64, h: f64 },
+    Raft { l: f64, w: f64, n: u32, spacing: f64, edge: f64 },
     Retain { hs: f64, tb: f64, ts: f64, lt: f64, b: f64 },
     ISection { h: f64, b: f64, tw: f64, tf: f64 },
     Wall { h: f64, cover: f64, bar_dia: f64, spacing: f64 },
@@ -89,4 +90,25 @@ pub fn vrd_c(t: &mut Trace, sec: &str, b: f64, d: f64, fck: f64, gamma_c: f64, a
     t.step(sec, &format!("Shear resistance without shear reinforcement{}", label), "EN 1992-1-1 cl. 6.2.2(1), Eq 6.2a, 6.3N", "k = 1 + √(200/d) ≤ 2;  ρ_l = A_{s}/(b·d) ≤ 0.02;  C_{Rd,c} = 0.18/γ_c;  v_{min} = 0.035·k^{3/2}·√f_{ck};  V_{Rd,c} = max[C_{Rd,c}·k·(100ρ_l f_{ck})^{1/3} ; v_{min}]·b·d",
         &format!("k = 1 + √(200/{:.1}) = {:.3};  ρ_l = {:.0}/({} × {:.1}) = {:.5};  C_Rd,c = 0.18/{:.2} = {:.4};  v_min = {:.3};  first term = {:.3} MPa", d, k, as_prov, b, d, rho, gamma_c, crd, vmin, v1), &format!("V_{{Rd,c}} = {:.1} kN", v / 1e3), "");
     (v, k, rho)
+}
+
+/// Singly reinforced one-way member per metre width: flexure design, bar spacing, resistance, shear. Used by slab-type members.
+/// Returns (As,prov mm2/m, spacing mm, d mm) and appends flexure and shear checks.
+#[allow(clippy::too_many_arguments)]
+pub fn slab_member(t: &mut Trace, sec: &str, name: &str, m_knm: f64, v_kn: f64, h_mm: f64, cover: f64, bar: f64, fck: f64, fcd: f64, fyd: f64, fyk: f64, gamma_c: f64, checks: &mut Vec<Check>) -> Result<(f64, f64, f64), String> {
+    let d = h_mm - cover - bar / 2.0; let b = 1000.0;
+    let m_use = m_knm.max(0.0);
+    let (as_req, _, _) = flex_single(t, sec, b, d, fck, fcd, fyd, m_use * 1e6, &format!(" ({})", name))?;
+    let fctm = 0.30 * fck.powf(2.0 / 3.0);
+    let as_min = (0.26 * fctm / fyk * b * d).max(0.0013 * b * d);
+    let as_des = as_req.max(as_min); let a1 = std::f64::consts::PI * bar * bar / 4.0; let s_max = (3.0 * h_mm).min(400.0);
+    let s = ((1000.0 * a1 / as_des).min(s_max) / 25.0).floor() * 25.0;
+    if s < 50.0 { return Err(format!("{}: required bar spacing below 50 mm - increase bar size or thickness", name)); }
+    let as_prov = 1000.0 * a1 / s;
+    let xx = as_prov * fyd / (0.8 * b * fcd); let mrd = as_prov * fyd * (d - 0.4 * xx);
+    t.step(sec, &format!("Reinforcement ({})", name), "EN 1992-1-1 cl. 9.2.1.1, 9.3.1.1(3)", "A_{s,min} = max[0.26·(f_{ctm}/f_{yk})·b·d ; 0.0013·b·d];   s ≤ 1000·A_{bar}/A_{s,design};  s ≤ min(3h ; 400);   M_{Rd} = A_{s,prov}·f_{yd}·(d − 0.4x)", &format!("d = {:.1} mm;  A_s,min = {:.0};  A_s,req = {:.0};  A_bar = {:.1} mm^{{2}};  s = {:.0} mm;  A_s,prov = {:.0} mm^{{2}}/m;  x = {:.1} mm", d, as_min, as_req, a1, s, as_prov, xx), &format!("T{} @ {:.0} mm c/c;  M_{{Rd}} = {:.1} kNm/m", bar, s, mrd / 1e6), "");
+    checks.push(chk(&format!("{}: flexure", name), "EN 1992-1-1 6.1", format!("{:.1} kNm/m", m_use), format!("{:.1} kNm/m", mrd / 1e6), m_use * 1e6 / mrd, m_use * 1e6 <= mrd && xx / d <= 0.45 + 1e-9));
+    let (vrdc, _, _) = vrd_c(t, sec, b, d, fck, gamma_c, as_prov, &format!(" ({})", name));
+    checks.push(chk(&format!("{}: shear", name), "EN 1992-1-1 6.2.2(1)", format!("{:.1} kN/m", v_kn), format!("{:.1} kN/m", vrdc / 1e3), v_kn * 1e3 / vrdc, v_kn * 1e3 <= vrdc));
+    Ok((as_prov, s, d))
 }

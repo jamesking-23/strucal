@@ -33,6 +33,8 @@ pub fn formulas() -> Vec<Formula> {
         Formula { id: "EC7-RANKINE-KA", name: "Rankine active earth pressure", standard: "EN 1997-1:2004", clause: "Annex C.1", module_version: "0.9.0", verification: v },
         Formula { id: "EC7-SLIDING", name: "Sliding resistance of a gravity/cantilever wall", standard: "EN 1997-1:2004", clause: "6.5.3, 9.7.4 (DA1 recommended factors)", module_version: "0.9.0", verification: v },
         Formula { id: "EC7-OVERTURNING", name: "Overturning (EQU) and base pressure", standard: "EN 1997-1:2004", clause: "2.4.7.2, 9.7.5, 6.5.2", module_version: "0.9.0", verification: v },
+        Formula { id: "RAFT-RIGID-STRIP", name: "Conventional rigid method, column-line strip statics", standard: "Equilibrium (no code clause)", clause: "Statics of V(x), M(x)", module_version: "0.10.0", verification: "METHOD PENDING REVIEW" },
+        Formula { id: "EC2-PUNCH-BETA", name: "Punching, interior column eccentricity factor", standard: "EN 1992-1-1:2004", clause: "6.4.3(6) beta = 1.15", module_version: "0.10.0", verification: v },
         Formula { id: "EC2-VRDC", name: "Shear resistance without shear reinforcement", standard: "EN 1992-1-1:2004", clause: "6.2.2(1) Eq 6.2a/6.3N", module_version: "0.2.0", verification: v },
         Formula { id: "EC2-SPAN-DEPTH", name: "Basic span/effective depth ratio", standard: "EN 1992-1-1:2004", clause: "7.4.2 Eq 7.16a/b", module_version: "0.2.0", verification: v },
         Formula { id: "EC2-PUNCH-MAX", name: "Punching, maximum resistance at column face", standard: "EN 1992-1-1:2004", clause: "6.4.5(3) Eq 6.53", module_version: "0.2.0", verification: v },

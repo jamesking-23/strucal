@@ -120,3 +120,22 @@ mod retaining_tests {
     #[test] fn rejects_delta_above_phi() { let mut v = r(); v["delta"] = json!(35); assert!(!run("retaining", &v).ok); }
     #[test] fn deterministic() { assert_eq!(run("retaining", &r()).trace_hash, run("retaining", &r()).trace_hash); }
 }
+
+#[cfg(test)]
+mod raft_tests {
+    use crate::modules::*;
+    use serde_json::json;
+    fn r() -> serde_json::Value { json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","n_cols":3,"spacing":5000,"edge":1000,"width":5000,"n_ed":1500,"n_k":1100,"q_allow":150,"cx":400,"cy":400,"h":800,"cover":50,"bar_dia":20,"fck":30,"fyk":500}) }
+    fn kvv(res: &crate::module::ModResult, label: &str) -> String { res.summary.iter().find(|k| k.label.starts_with(label)).unwrap().value.clone() }
+    #[test] fn strip_statics_match_independent_calc() {
+        let x = run("raft", &r()); assert!(x.ok, "{:?}", x.errors);
+        let sag: f64 = kvv(&x, "Max sagging").split_whitespace().next().unwrap().parse().unwrap();
+        let hog: f64 = kvv(&x, "Max hogging").split_whitespace().next().unwrap().parse().unwrap();
+        assert!((sag - 187.0).abs() < 1.5, "{}", sag); assert!((hog - 1500.0).abs() < 2.0, "{}", hog);
+    }
+    #[test] fn pressure_matches() { let x = run("raft", &r()); assert!(kvv(&x, "Service").starts_with("75.0 / 75.0"), "{}", kvv(&x, "Service")); }
+    #[test] fn default_passes() { let x = run("raft", &r()); assert!(x.overall_pass, "{:?}", x.checks.iter().filter(|c| !c.pass).map(|c| (&c.name, c.utilisation)).collect::<Vec<_>>()); }
+    #[test] fn weak_soil_fails_bearing() { let mut v = r(); v["q_allow"] = json!(50); let x = run("raft", &v); assert!(!x.overall_pass); }
+    #[test] fn two_columns_has_no_punching_check() { let mut v = r(); v["n_cols"] = json!(2); let x = run("raft", &v); assert!(x.ok); assert!(!x.checks.iter().any(|c| c.name.starts_with("Punching"))); }
+    #[test] fn rejects_fractional_columns() { let mut v = r(); v["n_cols"] = json!(3.5); assert!(!run("raft", &v).ok); }
+}

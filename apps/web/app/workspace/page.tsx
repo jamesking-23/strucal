@@ -32,6 +32,13 @@ function Drawing({ d }: { d: any }) {
       {[oy + ed, oy + H - ed].map((y, r) => Array.from({ length: n }).map((_, i) => <circle key={r + "-" + i} cx={ox + ed + ((W - 2 * ed) * i) / (n - 1)} cy={y} r={br} fill="#0f172a" />))}
       <text x={ox + W / 2} y={oy + H + 22} fontSize="10" textAnchor="middle" fill="#2563eb" fontFamily="IBM Plex Mono">{d.b} × {d.h}</text></svg>);
   }
+  if (d.kind === "raft") {
+    const sc = 200 / Math.max(d.l, d.w), W = d.l * sc, H = d.w * sc, ox = 20, oy = 15;
+    return (<svg viewBox={`0 0 ${W + 40} ${H + 50}`}>
+      <rect x={ox} y={oy} width={W} height={H} fill="#fff" stroke="#0f172a" strokeWidth="2" />
+      {Array.from({ length: d.n }).map((_, i) => <rect key={i} x={ox + (d.edge + i * d.spacing) * sc - 5} y={oy + H / 2 - 5} width="10" height="10" fill="#334155" />)}
+      <text x={ox + W / 2} y={oy + H + 22} fontSize="10" textAnchor="middle" fill="#2563eb" fontFamily="IBM Plex Mono">L = {Math.round(d.l)} / w = {d.w} (plan)</text></svg>);
+  }
   if (d.kind === "retain") {
     const sc = 190 / Math.max(d.hs + d.tb, d.b), W = d.b * sc, H = (d.hs + d.tb) * sc, ox = 20, oy = 15, steel = "#334155";
     return (<svg viewBox={`0 0 ${W + 40} ${H + 50}`}>

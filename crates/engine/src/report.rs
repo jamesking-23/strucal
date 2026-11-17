@@ -41,6 +41,12 @@ fn drawing_svg(d: &Drawing) -> String {
             while x < ox + w { s += &format!("<circle cx='{x}' cy='{yb}' r='{}' fill='#111'/>", (bar_dia * sc / 2.0).max(2.0)); x += spacing * sc; }
             s + &format!("<text x='{}' y='{}' font-size='10' text-anchor='middle'>h = {} / T{} @ {}</text></svg>", ox + w / 2.0, oy + hh + 18.0, h, bar_dia, spacing)
         }
+        Drawing::Raft { l, w, n, spacing, edge } => {
+            let sc = 180.0 / l.max(*w); let (pw, ph) = (l * sc, w * sc); let (ox, oy) = (20.0, 10.0);
+            let mut s = format!("<svg width='{}' height='{}' xmlns='http://www.w3.org/2000/svg'><rect x='{ox}' y='{oy}' width='{pw}' height='{ph}' fill='#f4f5f7' stroke='#222' stroke-width='1.5'/>", pw + 40.0, ph + 30.0);
+            for i in 0..*n { s += &format!("<rect x='{}' y='{}' width='8' height='8' fill='#333'/>", ox + (edge + i as f64 * spacing) * sc - 4.0, oy + ph / 2.0 - 4.0); }
+            s + &format!("<text x='{}' y='{}' font-size='10' text-anchor='middle'>L = {:.0} / w = {}</text></svg>", ox + pw / 2.0, oy + ph + 18.0, l, w)
+        }
         Drawing::Retain { hs, tb, ts, lt, b } => {
             let sc = 170.0 / (hs + tb).max(*b); let (ox, oy) = (20.0, 10.0); let hh = (hs + tb) * sc;
             format!("<svg width='{}' height='{}' xmlns='http://www.w3.org/2000/svg'><rect x='{ox}' y='{}' width='{}' height='{}' fill='#555'/><rect x='{}' y='{oy}' width='{}' height='{}' fill='#555'/><text x='{}' y='{}' font-size='10' text-anchor='middle'>H = {} / B = {}</text></svg>", b * sc + 40.0, hh + 30.0, oy + hs * sc, b * sc, tb * sc, ox + lt * sc, ts * sc, hs * sc + tb * sc, ox + b * sc / 2.0, oy + hh + 18.0, hs + tb, b)
