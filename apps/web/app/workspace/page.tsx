@@ -129,7 +129,7 @@ export default function Workspace() {
           </div><div className="gl">Document</div></div>
           <div className="grp"><div className="cmds">
             <Btn ic="▤" label="Design" on={f.mode === "design"} onClick={() => setF({ ...f, mode: "design" })} />
-            <Btn ic="✓" label="Check Mode" on={f.mode === "check"} onClick={() => setF({ ...f, mode: "check" })} />
+            {def.has_check_mode && <Btn ic="✓" label="Check Mode" on={f.mode === "check"} onClick={() => setF({ ...f, mode: "check" })} />}
           </div><div className="gl">Mode</div></div>
           <div className="grp"><div className="cmds col">
             <label className="rf">Module<select value={mid} onChange={(e) => { setMid(e.target.value); setRes(null); }}>
@@ -194,11 +194,11 @@ export default function Workspace() {
         <div className="wk-dock r" style={{ display: showR ? undefined : "none" }}>
           <section className="pn grow"><header>Verification<button onClick={() => setShowR(false)} title="Close">×</button></header>
             <div className="pb">{ok && (<>
-              <div className={`wk-pass ${res.overall_pass ? "" : "f"}`}>
+              {nChecks === 0 ? (<div className="wk-pass"><div className="a"><span>RESULTS</span></div><p>Combined action effects. This tool gives design values, not a PASS/FAIL verdict.</p></div>) : (<div className={`wk-pass ${res.overall_pass ? "" : "f"}`}>
                 <div className="a"><span>{res.overall_pass ? "PASS" : "FAIL"}</span><small>Max {(res.max_util * 100).toFixed(0)}%</small></div>
                 <p>{nPass}/{nChecks} checks satisfied. Implemented checks only; not an engineer&apos;s approval.</p>
-              </div>
-              <div className="wk-gh"><span>Utilisation ratios</span><span>E<sub>d</sub> / R<sub>d</sub></span></div>
+              </div>)}
+              {nChecks > 0 && <div className="wk-gh"><span>Utilisation ratios</span><span>E<sub>d</sub> / R<sub>d</sub></span></div>}
               {res.checks.map((c: any, i: number) => { const col = !c.pass ? "#b42318" : c.utilisation > 0.85 ? "#d98a00" : "#0f9d6a"; return (
                 <div className="wk-u" key={i}><div className="h"><span>{c.name}</span><b style={{ color: col }}>{c.utilisation >= 9.99 ? "n/a" : c.utilisation.toFixed(2)}</b></div>
                   <div className="d">{c.demand} vs {c.capacity}</div><div className="b"><i style={{ width: Math.min(100, c.utilisation * 100) + "%", background: col }} /></div></div>); })}
@@ -208,7 +208,7 @@ export default function Workspace() {
         </div>
       </div>
       <footer className="wk-status">
-        <span>{ok ? (res.overall_pass ? "● All checks satisfied" : "● Checks failing") : "● Not calculated"}</span>
+        <span>{ok ? (nChecks === 0 ? "● Calculated" : res.overall_pass ? "● All checks satisfied" : "● Checks failing") : "● Not calculated"}</span>
         <span>{f.param_set}</span><span className="sp" /><span>{tag !== "calc" ? `Trace ${tag}` : ""}</span><span>{res ? `Engine v${res.engine_version}` : ""}</span><span>Preview build</span>
       </footer>
     </div>

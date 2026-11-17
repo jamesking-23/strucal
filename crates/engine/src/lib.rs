@@ -10,6 +10,7 @@ pub mod module;
 pub mod slab;
 pub mod pad;
 pub mod column;
+pub mod combos;
 pub mod wall;
 pub mod stairs;
 pub mod strip;

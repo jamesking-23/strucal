@@ -46,3 +46,17 @@ mod wall_tests {
     #[test] fn wall_check_sparse_fails_min_steel() { let mut v = w(); v["mode"] = json!("check"); v["spacing"] = json!(400); v["bar_dia"] = json!(8); let r = run("wall", &v); assert!(r.ok && !r.overall_pass); }
     #[test] fn tall_wall_gets_second_order() { let mut v = w(); v["len"] = json!(6000); let r = run("wall", &v); assert!(r.ok); assert!(r.trace.steps.iter().any(|s| s.title.contains("nominal curvature"))); }
 }
+
+#[cfg(test)]
+mod combo_tests {
+    use crate::modules::*;
+    use serde_json::json;
+    fn c() -> serde_json::Value { json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","gk":100,"q1":50,"p01":0.7,"p11":0.5,"p21":0.3,"q2":30,"p02":0.6,"p12":0.5,"p22":0.3,"q3":0,"p03":0.5,"p13":0.2,"p23":0}) }
+    fn val(r: &crate::module::ModResult, label: &str) -> f64 { r.summary.iter().find(|k| k.label.starts_with(label)).unwrap().value.split_whitespace().next().unwrap().parse().unwrap() }
+    #[test] fn uls_610() { let r = run("combos", &c()); assert!(r.ok, "{:?}", r.errors); assert!((val(&r, "ULS design value, Eq 6.10") - 237.0).abs() < 0.01); }
+    #[test] fn uls_610ab() { let r = run("combos", &c()); assert!((val(&r, "ULS design value, 6.10a/b") - 216.75).abs() < 0.01); }
+    #[test] fn sls_combinations() { let r = run("combos", &c()); assert!((val(&r, "SLS characteristic") - 168.0).abs() < 0.01); assert!((val(&r, "SLS frequent") - 134.0).abs() < 0.01); assert!((val(&r, "SLS quasi-permanent") - 124.0).abs() < 0.01); }
+    #[test] fn rejects_psi_order() { let mut v = c(); v["p11"] = json!(0.9); assert!(!run("combos", &v).ok); }
+    #[test] fn needs_a_variable_action() { let mut v = c(); v["q1"] = json!(0); v["q2"] = json!(0); assert!(!run("combos", &v).ok); }
+    #[test] fn report_renders_without_checks() { let h = crate::report::html_json("combos", &c().to_string()); assert!(h.contains("RESULTS") && !h.contains("Summary of checks")); }
+}

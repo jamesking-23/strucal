@@ -198,6 +198,7 @@ impl eframe::App for App {
                     group(ui, "Document", |ui| { ui.add_enabled_ui(self.result.as_ref().map_or(false, |r| r.ok), |ui| { if rbtn(ui, "Export", false).clicked() { do_export = true; } }); });
                     group(ui, "Mode", |ui| {
                         for (m, n) in [("design", "Design"), ("check", "Check Mode")] {
+                        if m == "check" && !self.defs[self.mi].has_check_mode { continue; }
                             let on = self.st[self.mi].mode == m;
                             if rbtn(ui, n, on).clicked() { self.st[self.mi].mode = m.into(); mode_changed = true; }
                         }
@@ -222,7 +223,7 @@ impl eframe::App for App {
         egui::TopBottomPanel::bottom("status").exact_height(22.0).frame(egui::Frame::new().fill(BLUE).inner_margin(egui::Margin::symmetric(10, 0))).show(ctx, |ui| {
             ui.horizontal_centered(|ui| {
                 let t = |s: String| RichText::new(s).size(11.0).color(Color32::WHITE);
-                match &self.result { Some(r) if r.ok => { ui.label(t(if r.overall_pass { "● All checks satisfied".into() } else { "● Checks failing".into() })); ui.add_space(14.0); ui.label(t(self.st[self.mi].param.clone())); ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| { ui.label(t("Preview build".into())); ui.add_space(14.0); ui.label(t(format!("Engine v{}", r.engine_version))); ui.add_space(14.0); ui.label(t(format!("Trace {}", &r.trace_hash[..8]))); }); }
+                match &self.result { Some(r) if r.ok => { ui.label(t(if r.checks.is_empty() { "● Calculated".into() } else if r.overall_pass { "● All checks satisfied".into() } else { "● Checks failing".into() })); ui.add_space(14.0); ui.label(t(self.st[self.mi].param.clone())); ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| { ui.label(t("Preview build".into())); ui.add_space(14.0); ui.label(t(format!("Engine v{}", r.engine_version))); ui.add_space(14.0); ui.label(t(format!("Trace {}", &r.trace_hash[..8]))); }); }
                     _ => { ui.label(t("● Not calculated".into())); } }
             });
         });
@@ -250,13 +251,13 @@ impl eframe::App for App {
                     egui::ScrollArea::vertical().show(ui, |ui| {
                         panel_header(ui, "Verification");
                         if let Some(r) = &self.result { if r.ok {
-                            let (t, c, bg) = if r.overall_pass { ("PASS", GREEN, GREEN_BG) } else { ("FAIL", RED, RED_BG) };
+                            let (t, c, bg) = if r.checks.is_empty() { ("RESULTS", BLUE, Color32::from_rgb(232, 240, 253)) } else if r.overall_pass { ("PASS", GREEN, GREEN_BG) } else { ("FAIL", RED, RED_BG) };
                             egui::Frame::new().fill(bg).stroke(Stroke::new(1.0, c.gamma_multiply(0.45))).corner_radius(CornerRadius::ZERO).inner_margin(egui::Margin::same(14)).show(ui, |ui| {
                                 ui.set_width(ui.available_width());
-                                ui.horizontal(|ui| { ui.label(RichText::new(t).font(FontId::monospace(22.0)).strong().color(c)); ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| ui.label(RichText::new(format!("Max {:.0}%", r.max_util * 100.0)).strong().color(c))); });
-                                ui.label(RichText::new(format!("{}/{} checks satisfied. Implemented checks only; not an engineer's approval.", r.checks.iter().filter(|k| k.pass).count(), r.checks.len())).size(12.0).color(c));
+                                ui.horizontal(|ui| { ui.label(RichText::new(t).font(FontId::monospace(22.0)).strong().color(c)); ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| ui.label(RichText::new(if r.checks.is_empty() { String::new() } else { format!("Max {:.0}%", r.max_util * 100.0) }).strong().color(c))); });
+                                ui.label(RichText::new(if r.checks.is_empty() { "Combined action effects. Design values only, no PASS/FAIL verdict.".to_string() } else { format!("{}/{} checks satisfied. Implemented checks only; not an engineer's approval.", r.checks.iter().filter(|k| k.pass).count(), r.checks.len()) }).size(12.0).color(c));
                             });
-                            heading(ui, "Utilisation ratios");
+                            if !r.checks.is_empty() { heading(ui, "Utilisation ratios"); }
                             for k in &r.checks {
                                 let col = if !k.pass { RED } else if k.utilisation > 0.85 { AMBER } else { Color32::from_rgb(15, 157, 106) };
                                 ui.horizontal(|ui| { ui.label(&k.name); ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| ui.label(RichText::new(if k.utilisation >= 9.99 { "n/a".to_string() } else { format!("{:.2}", k.utilisation) }).font(FontId::monospace(13.0)).strong().color(col))); });
