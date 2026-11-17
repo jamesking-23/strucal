@@ -17,6 +17,7 @@ pub enum Drawing {
     Beam { b: f64, h: f64, cover: f64, link_dia: f64, bar_dia: f64, n_bars: u32 },
     Slab { h: f64, cover: f64, bar_dia: f64, spacing: f64 },
     Pad { bx: f64, by: f64, cx: f64, cy: f64, h: f64 },
+    ISection { h: f64, b: f64, tw: f64, tf: f64 },
     Wall { h: f64, cover: f64, bar_dia: f64, spacing: f64 },
     Strip { width: f64, t: f64, h: f64 },
     Column { b: f64, h: f64, cover: f64, link_dia: f64, bar_dia: f64, n_face: u32 },

@@ -60,3 +60,22 @@ mod combo_tests {
     #[test] fn needs_a_variable_action() { let mut v = c(); v["q1"] = json!(0); v["q2"] = json!(0); assert!(!run("combos", &v).ok); }
     #[test] fn report_renders_without_checks() { let h = crate::report::html_json("combos", &c().to_string()); assert!(h.contains("RESULTS") && !h.contains("Summary of checks")); }
 }
+
+#[cfg(test)]
+mod steel_tests {
+    use crate::modules::*;
+    use serde_json::json;
+    fn s() -> serde_json::Value { json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","span":6000,"lcr":6000,"load_level":1,"h":300,"b":150,"tw":7.1,"tf":10.7,"r":15,"fy":275,"gk":10,"qk":12,"defl_ratio":360}) }
+    #[test] fn ipe300_properties_match_published() {
+        // IPE 300 published (ArcelorMittal): A = 53.81 cm2, Iy = 8356 cm4, Iz = 603.8 cm4, Wpl,y = 628.4 cm3
+        let p = crate::steel_beam::props(300.0, 150.0, 7.1, 10.7, 15.0);
+        assert!((p.a - 5381.0).abs() / 5381.0 < 0.005, "A {}", p.a);
+        assert!((p.iy - 83.56e6).abs() / 83.56e6 < 0.01, "Iy {}", p.iy);
+        assert!((p.iz - 6.038e6).abs() / 6.038e6 < 0.02, "Iz {}", p.iz);
+        assert!((p.wpl - 628.4e3).abs() / 628.4e3 < 0.01, "Wpl {}", p.wpl);
+    }
+    #[test] fn steel_beam_runs() { let r = run("steelbeam", &s()); assert!(r.ok, "{:?}", r.errors); assert_eq!(r.checks.len(), 5); }
+    #[test] fn short_lcr_improves_ltb() { let a = run("steelbeam", &s()); let mut v = s(); v["lcr"] = json!(2000); let b = run("steelbeam", &v); let u = |r: &crate::module::ModResult| r.checks.iter().find(|c| c.name.starts_with("Lateral")).unwrap().utilisation; assert!(u(&b) < u(&a)); }
+    #[test] fn overloaded_fails() { let mut v = s(); v["qk"] = json!(60); assert!(!run("steelbeam", &v).overall_pass); }
+    #[test] fn class4_rejected() { let r = run("steelbeam", &json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","span":6000,"lcr":6000,"load_level":1,"h":600,"b":200,"tw":4,"tf":8,"r":0.5,"fy":355,"gk":10,"qk":12,"defl_ratio":360})); assert!(!r.ok); }
+}

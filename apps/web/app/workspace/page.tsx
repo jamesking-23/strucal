@@ -32,6 +32,12 @@ function Drawing({ d }: { d: any }) {
       {[oy + ed, oy + H - ed].map((y, r) => Array.from({ length: n }).map((_, i) => <circle key={r + "-" + i} cx={ox + ed + ((W - 2 * ed) * i) / (n - 1)} cy={y} r={br} fill="#0f172a" />))}
       <text x={ox + W / 2} y={oy + H + 22} fontSize="10" textAnchor="middle" fill="#2563eb" fontFamily="IBM Plex Mono">{d.b} × {d.h}</text></svg>);
   }
+  if (d.kind === "isection") {
+    const sc = Math.min(160 / d.b, 250 / d.h), W = d.b * sc, H = d.h * sc, ox = 25, oy = 15, tw = d.tw * sc, tf = d.tf * sc;
+    return (<svg viewBox={`0 0 ${W + 50} ${H + 40}`}>
+      <rect x={ox} y={oy} width={W} height={tf} fill="#334155" /><rect x={ox} y={oy + H - tf} width={W} height={tf} fill="#334155" /><rect x={ox + (W - tw) / 2} y={oy} width={tw} height={H} fill="#334155" />
+      <text x={ox + W / 2} y={oy + H + 22} fontSize="10" textAnchor="middle" fill="#2563eb" fontFamily="IBM Plex Mono">{d.h} × {d.b} × {d.tw} / {d.tf}</text></svg>);
+  }
   if (d.kind === "wall") {
     const sc = Math.min(120 / d.h, 1), W = d.h * sc, H = 260, ox = 60, oy = 15, ys: number[] = [];
     for (let y = d.spacing / 2; y < 400; y += d.spacing) ys.push(y);
