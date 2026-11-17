@@ -127,6 +127,15 @@ impl App {
                 for y in [o.y + ed, o.y + hh - ed] { for k in 0..n { p.circle_filled(egui::pos2(o.x + ed + (w - 2.0 * ed) * k as f32 / (n - 1) as f32, y), br, TX); } }
                 lab(&p, egui::pos2(rect.center().x, o.y + hh + 16.0), format!("{b} × {h}"));
             }
+            Drawing::Retain { hs, tb, ts, lt, b } => {
+                let sc = (190.0 / (hs + tb).max(*b)) as f32; let (w, hh) = (*b as f32 * sc, (*hs + *tb) as f32 * sc);
+                let o = egui::pos2(rect.center().x - w / 2.0, rect.center().y - hh / 2.0 - 8.0); let steel = Color32::from_rgb(51, 65, 85);
+                let (lts, tss, hss, tbs) = (*lt as f32 * sc, *ts as f32 * sc, *hs as f32 * sc, *tb as f32 * sc);
+                p.rect_filled(egui::Rect::from_min_size(egui::pos2(o.x + lts + tss, o.y), egui::vec2(w - lts - tss, hss)), 0.0, Color32::from_rgb(226, 232, 240));
+                p.rect_filled(egui::Rect::from_min_size(egui::pos2(o.x, o.y + hss), egui::vec2(w, tbs)), 0.0, steel);
+                p.rect_filled(egui::Rect::from_min_size(egui::pos2(o.x + lts, o.y), egui::vec2(tss, hss)), 0.0, steel);
+                lab(&p, egui::pos2(rect.center().x, o.y + hh + 16.0), format!("H = {} / B = {b}", hs + tb));
+            }
             Drawing::ISection { h, b, tw, tf } => {
                 let sc = (160.0 / b).min(250.0 / h) as f32; let (w, hh, wt, ft) = (*b as f32 * sc, *h as f32 * sc, *tw as f32 * sc, *tf as f32 * sc);
                 let o = egui::pos2(rect.center().x - w / 2.0, rect.center().y - hh / 2.0 - 8.0); let steel = Color32::from_rgb(51, 65, 85);

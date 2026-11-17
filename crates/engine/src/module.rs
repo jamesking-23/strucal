@@ -17,6 +17,7 @@ pub enum Drawing {
     Beam { b: f64, h: f64, cover: f64, link_dia: f64, bar_dia: f64, n_bars: u32 },
     Slab { h: f64, cover: f64, bar_dia: f64, spacing: f64 },
     Pad { bx: f64, by: f64, cx: f64, cy: f64, h: f64 },
+    Retain { hs: f64, tb: f64, ts: f64, lt: f64, b: f64 },
     ISection { h: f64, b: f64, tw: f64, tf: f64 },
     Wall { h: f64, cover: f64, bar_dia: f64, spacing: f64 },
     Strip { width: f64, t: f64, h: f64 },
@@ -45,7 +46,7 @@ pub fn require(v: &Value, def: &ModDef, check_mode: bool) -> Result<Vec<f64>, Ve
     let mut out = vec![]; let mut errs = vec![];
     for f in &def.fields {
         if f.check_only && !check_mode { out.push(f.default); continue; }
-        match num(v, f.key) { Some(x) if x.is_finite() && x > 0.0 => out.push(x), Some(x) if x == 0.0 && (f.key == "qk" || f.key == "gk") => out.push(0.0), _ => { errs.push(format!("{} must be a positive number", f.label)); out.push(0.0) } }
+        match num(v, f.key) { Some(x) if x.is_finite() && x > 0.0 => out.push(x), Some(x) if x == 0.0 && matches!(f.key, "qk" | "gk" | "q_sur" | "hw") => out.push(0.0), _ => { errs.push(format!("{} must be a positive number", f.label)); out.push(0.0) } }
     }
     if errs.is_empty() { Ok(out) } else { Err(errs) }
 }

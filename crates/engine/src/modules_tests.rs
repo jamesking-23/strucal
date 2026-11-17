@@ -100,3 +100,23 @@ mod steelcol_tests {
     #[test] fn overloaded_fails() { let mut v = c(); v["n_ed"] = json!(2500); assert!(!run("steelcol", &v).overall_pass); }
     #[test] fn longer_column_buckles_more() { let a = run("steelcol", &c()); let mut v = c(); v["len"] = json!(8000); let b = run("steelcol", &v); let u = |r: &crate::module::ModResult| r.checks.iter().find(|k| k.name.ends_with("z-z")).unwrap().utilisation; assert!(u(&b) > u(&a)); }
 }
+
+#[cfg(test)]
+mod retaining_tests {
+    use crate::modules::*;
+    use serde_json::json;
+    fn r() -> serde_json::Value { json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","hs":3000,"ts":350,"tb":400,"lt":800,"bw":3200,"gamma":18,"phi":30,"delta":30,"q_allow":200,"q_sur":10,"hw":0,"cs":40,"cb":50,"ps":16,"pb":16,"fck":30,"fyk":500}) }
+    fn u(res: &crate::module::ModResult, name: &str) -> f64 { res.checks.iter().find(|c| c.name.starts_with(name)).unwrap().utilisation }
+    #[test] fn stability_matches_independent_calc() {
+        let x = run("retaining", &r()); assert!(x.ok, "{:?}", x.errors);
+        assert!((u(&x, "Sliding, DA1-1") - 0.6543).abs() < 0.005, "{}", u(&x, "Sliding, DA1-1"));
+        assert!((u(&x, "Sliding, DA1-2") - 0.7772).abs() < 0.005);
+        assert!((u(&x, "Overturning") - 0.3098).abs() < 0.005);
+        let b = x.checks.iter().find(|c| c.name == "Bearing pressure").unwrap(); let q: f64 = b.demand.split_whitespace().next().unwrap().parse().unwrap(); assert!((q - 59.4).abs() < 0.2, "{}", q);
+    }
+    #[test] fn default_wall_passes() { let x = run("retaining", &r()); assert!(x.overall_pass, "{:?}", x.checks.iter().filter(|c| !c.pass).map(|c| (&c.name, c.utilisation)).collect::<Vec<_>>()); }
+    #[test] fn narrow_base_fails_stability() { let mut v = r(); v["bw"] = json!(1500); v["lt"] = json!(300); let x = run("retaining", &v); assert!(!x.ok || !x.overall_pass); }
+    #[test] fn water_increases_demand_and_is_disclosed() { let a = run("retaining", &r()); let mut v = r(); v["hw"] = json!(2000); let b = run("retaining", &v); assert!(u(&b, "Sliding, DA1-1") > u(&a, "Sliding, DA1-1")); assert!(a.observations.iter().any(|o| o.text.contains("Drained"))); }
+    #[test] fn rejects_delta_above_phi() { let mut v = r(); v["delta"] = json!(35); assert!(!run("retaining", &v).ok); }
+    #[test] fn deterministic() { assert_eq!(run("retaining", &r()).trace_hash, run("retaining", &r()).trace_hash); }
+}

@@ -32,6 +32,14 @@ function Drawing({ d }: { d: any }) {
       {[oy + ed, oy + H - ed].map((y, r) => Array.from({ length: n }).map((_, i) => <circle key={r + "-" + i} cx={ox + ed + ((W - 2 * ed) * i) / (n - 1)} cy={y} r={br} fill="#0f172a" />))}
       <text x={ox + W / 2} y={oy + H + 22} fontSize="10" textAnchor="middle" fill="#2563eb" fontFamily="IBM Plex Mono">{d.b} × {d.h}</text></svg>);
   }
+  if (d.kind === "retain") {
+    const sc = 190 / Math.max(d.hs + d.tb, d.b), W = d.b * sc, H = (d.hs + d.tb) * sc, ox = 20, oy = 15, steel = "#334155";
+    return (<svg viewBox={`0 0 ${W + 40} ${H + 50}`}>
+      <rect x={ox + (d.lt + d.ts) * sc} y={oy} width={W - (d.lt + d.ts) * sc} height={d.hs * sc} fill="#e2e8f0" stroke="#94a3b8" />
+      <rect x={ox} y={oy + d.hs * sc} width={W} height={d.tb * sc} fill={steel} />
+      <rect x={ox + d.lt * sc} y={oy} width={d.ts * sc} height={d.hs * sc} fill={steel} />
+      <text x={ox + W / 2} y={oy + H + 22} fontSize="10" textAnchor="middle" fill="#2563eb" fontFamily="IBM Plex Mono">H = {d.hs + d.tb} / B = {d.b}</text></svg>);
+  }
   if (d.kind === "isection") {
     const sc = Math.min(160 / d.b, 250 / d.h), W = d.b * sc, H = d.h * sc, ox = 25, oy = 15, tw = d.tw * sc, tf = d.tf * sc;
     return (<svg viewBox={`0 0 ${W + 50} ${H + 40}`}>

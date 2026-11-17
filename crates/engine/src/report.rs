@@ -41,6 +41,10 @@ fn drawing_svg(d: &Drawing) -> String {
             while x < ox + w { s += &format!("<circle cx='{x}' cy='{yb}' r='{}' fill='#111'/>", (bar_dia * sc / 2.0).max(2.0)); x += spacing * sc; }
             s + &format!("<text x='{}' y='{}' font-size='10' text-anchor='middle'>h = {} / T{} @ {}</text></svg>", ox + w / 2.0, oy + hh + 18.0, h, bar_dia, spacing)
         }
+        Drawing::Retain { hs, tb, ts, lt, b } => {
+            let sc = 170.0 / (hs + tb).max(*b); let (ox, oy) = (20.0, 10.0); let hh = (hs + tb) * sc;
+            format!("<svg width='{}' height='{}' xmlns='http://www.w3.org/2000/svg'><rect x='{ox}' y='{}' width='{}' height='{}' fill='#555'/><rect x='{}' y='{oy}' width='{}' height='{}' fill='#555'/><text x='{}' y='{}' font-size='10' text-anchor='middle'>H = {} / B = {}</text></svg>", b * sc + 40.0, hh + 30.0, oy + hs * sc, b * sc, tb * sc, ox + lt * sc, ts * sc, hs * sc + tb * sc, ox + b * sc / 2.0, oy + hh + 18.0, hs + tb, b)
+        }
         Drawing::ISection { h, b, tw, tf } => {
             let sc = 180.0 / h.max(*b); let (pw, ph) = (b * sc, h * sc); let (ox, oy) = (20.0, 10.0);
             format!("<svg width='{}' height='{}' xmlns='http://www.w3.org/2000/svg'><rect x='{ox}' y='{oy}' width='{pw}' height='{}' fill='#555'/><rect x='{ox}' y='{}' width='{pw}' height='{}' fill='#555'/><rect x='{}' y='{}' width='{}' height='{}' fill='#555'/><text x='{}' y='{}' font-size='10' text-anchor='middle'>{} × {} / {} / {}</text></svg>", pw + 40.0, ph + 30.0, tf * sc, oy + ph - tf * sc, tf * sc, ox + (pw - tw * sc) / 2.0, oy, tw * sc, ph, ox + pw / 2.0, oy + ph + 18.0, h, b, tw, tf)
