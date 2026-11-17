@@ -12,6 +12,7 @@ pub mod pad;
 pub mod column;
 pub mod combos;
 pub mod steel_beam;
+pub mod steel_column;
 pub mod wall;
 pub mod stairs;
 pub mod strip;

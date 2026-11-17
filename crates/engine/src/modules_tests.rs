@@ -79,3 +79,24 @@ mod steel_tests {
     #[test] fn overloaded_fails() { let mut v = s(); v["qk"] = json!(60); assert!(!run("steelbeam", &v).overall_pass); }
     #[test] fn class4_rejected() { let r = run("steelbeam", &json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","span":6000,"lcr":6000,"load_level":1,"h":600,"b":200,"tw":4,"tf":8,"r":0.5,"fy":355,"gk":10,"qk":12,"defl_ratio":360})); assert!(!r.ok); }
 }
+
+#[cfg(test)]
+mod steelcol_tests {
+    use crate::modules::*;
+    use serde_json::json;
+    fn c() -> serde_json::Value { json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","n_ed":800,"len":4000,"ky":1.0,"kz":1.0,"h":200,"b":200,"tw":9,"tf":15,"r":18,"fy":275}) }
+    #[test] fn heb200_properties_match_published() {
+        // HEB 200 published: A = 78.08 cm2, Iy = 5696 cm4, Iz = 2003 cm4
+        let p = crate::steel_beam::props(200.0, 200.0, 9.0, 15.0, 18.0);
+        assert!((p.a - 7808.0).abs() / 7808.0 < 0.005, "A {}", p.a);
+        assert!((p.iy - 56.96e6).abs() / 56.96e6 < 0.01, "Iy {}", p.iy);
+        assert!((p.iz - 20.03e6).abs() / 20.03e6 < 0.01, "Iz {}", p.iz);
+    }
+    #[test] fn hand_calc_weak_axis() { // Ncr=2595 kN, lambda=0.910, curve c, chi=0.594, Nb=1275 kN
+        let r = run("steelcol", &c()); assert!(r.ok, "{:?}", r.errors);
+        let k = r.checks.iter().find(|k| k.name.ends_with("z-z")).unwrap(); let cap: f64 = k.capacity.split_whitespace().next().unwrap().parse().unwrap();
+        assert!((cap - 1275.0).abs() < 20.0, "{}", cap); assert!(r.overall_pass); }
+    #[test] fn curves_per_table_6_2() { assert_eq!(crate::steel_column::curve(300.0, 150.0, 10.7, true).0, "a"); assert_eq!(crate::steel_column::curve(300.0, 150.0, 10.7, false).0, "b"); assert_eq!(crate::steel_column::curve(200.0, 200.0, 15.0, true).0, "b"); assert_eq!(crate::steel_column::curve(200.0, 200.0, 15.0, false).0, "c"); }
+    #[test] fn overloaded_fails() { let mut v = c(); v["n_ed"] = json!(2500); assert!(!run("steelcol", &v).overall_pass); }
+    #[test] fn longer_column_buckles_more() { let a = run("steelcol", &c()); let mut v = c(); v["len"] = json!(8000); let b = run("steelcol", &v); let u = |r: &crate::module::ModResult| r.checks.iter().find(|k| k.name.ends_with("z-z")).unwrap().utilisation; assert!(u(&b) > u(&a)); }
+}
