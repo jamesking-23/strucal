@@ -127,6 +127,22 @@ impl App {
                 for y in [o.y + ed, o.y + hh - ed] { for k in 0..n { p.circle_filled(egui::pos2(o.x + ed + (w - 2.0 * ed) * k as f32 / (n - 1) as f32, y), br, TX); } }
                 lab(&p, egui::pos2(rect.center().x, o.y + hh + 16.0), format!("{b} × {h}"));
             }
+            Drawing::Bolts { w, n1, n2, e1, p1, e2: _, p2, d } => {
+                let len = 2.0 * e1 + (*n1 as f64 - 1.0) * p1; let sc = (200.0 / len.max(*w)) as f32; let (ww, hh) = (len as f32 * sc, *w as f32 * sc);
+                let o = egui::pos2(rect.center().x - ww / 2.0, rect.center().y - hh / 2.0 - 8.0);
+                let outer = egui::Rect::from_min_size(o, egui::vec2(ww, hh));
+                p.rect_filled(outer, 0.0, Color32::WHITE); p.rect_stroke(outer, 0.0, Stroke::new(2.0, TX), StrokeKind::Inside);
+                let y0 = o.y + (((*w - (*n2 as f64 - 1.0) * p2) / 2.0) as f32) * sc;
+                for i in 0..*n1 { for j in 0..*n2 { let c = egui::pos2(o.x + ((e1 + i as f64 * p1) as f32) * sc, y0 + (j as f64 * p2) as f32 * sc); p.circle_filled(c, ((*d as f32 * sc) / 2.0).max(3.0), Color32::WHITE); p.circle_stroke(c, ((*d as f32 * sc) / 2.0).max(3.0), Stroke::new(1.6, TX)); } }
+                lab(&p, egui::pos2(rect.center().x, o.y + hh + 16.0), format!("{n1} × {n2} bolts, plate {w} wide"));
+            }
+            Drawing::Weld { lw, a } => {
+                let c = rect.center(); let steel = Color32::from_rgb(51, 65, 85);
+                p.rect_filled(egui::Rect::from_min_size(egui::pos2(c.x - 90.0, c.y - 20.0), egui::vec2(180.0, 16.0)), 0.0, steel);
+                p.rect_filled(egui::Rect::from_min_size(egui::pos2(c.x - 90.0, c.y - 4.0), egui::vec2(180.0, 16.0)), 0.0, Color32::from_rgb(148, 163, 184));
+                p.add(egui::Shape::convex_polygon(vec![egui::pos2(c.x - 90.0, c.y + 12.0), egui::pos2(c.x - 90.0, c.y + 25.0), egui::pos2(c.x - 77.0, c.y + 12.0)], TX, Stroke::NONE));
+                lab(&p, egui::pos2(c.x, c.y + 50.0), format!("a = {a} mm, L = {lw} mm"));
+            }
             Drawing::Raft { l, w, n, spacing, edge } => {
                 let sc = (200.0 / l.max(*w)) as f32; let (ww, hh) = (*l as f32 * sc, *w as f32 * sc);
                 let o = egui::pos2(rect.center().x - ww / 2.0, rect.center().y - hh / 2.0 - 8.0);

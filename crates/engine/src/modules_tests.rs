@@ -139,3 +139,23 @@ mod raft_tests {
     #[test] fn two_columns_has_no_punching_check() { let mut v = r(); v["n_cols"] = json!(2); let x = run("raft", &v); assert!(x.ok); assert!(!x.checks.iter().any(|c| c.name.starts_with("Punching"))); }
     #[test] fn rejects_fractional_columns() { let mut v = r(); v["n_cols"] = json!(3.5); assert!(!run("raft", &v).ok); }
 }
+
+#[cfg(test)]
+mod connection_tests {
+    use crate::modules::*;
+    use serde_json::json;
+    fn b() -> serde_json::Value { json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","n_ed":250,"d":20,"grade":8.8,"planes":1,"thread":1,"n1":3,"n2":2,"e1":40,"p1":70,"e2":30,"p2":60,"w":150,"t":10,"fy":275,"fu":430}) }
+    fn w() -> serde_json::Value { json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","lw":300,"a":5,"tmin":10,"f_perp":40,"f_par":60,"fy":275,"fu":430}) }
+    fn kvv(r: &crate::module::ModResult, l: &str) -> String { r.summary.iter().find(|k| k.label.starts_with(l)).unwrap().value.clone() }
+    #[test] fn stress_areas_match_iso_values() { for (d, a) in [(12.0, 84.3), (16.0, 157.0), (20.0, 245.0), (24.0, 353.0), (27.0, 459.0), (30.0, 561.0)] { let s = crate::bolted::stress_area(d).unwrap(); assert!((s - a).abs() / a < 0.005, "M{} {}", d, s); } }
+    #[test] fn m20_88_shear_is_94kn() { let r = run("bolted", &b()); assert!(r.ok, "{:?}", r.errors); let v: f64 = kvv(&r, "F v,Rd").split_whitespace().next().unwrap().parse().unwrap(); assert!((v - 94.1).abs() < 0.5, "{}", v); }
+    #[test] fn bearing_hand_calc() { let r = run("bolted", &b()); let v: f64 = kvv(&r, "F b,Rd").split_whitespace().next().unwrap().parse().unwrap(); assert!((v - 88.3).abs() < 0.5, "{}", v); }
+    #[test] fn bolted_default_passes() { let r = run("bolted", &b()); assert!(r.overall_pass, "{:?}", r.checks.iter().filter(|c| !c.pass).map(|c| (&c.name, c.utilisation)).collect::<Vec<_>>()); }
+    #[test] fn bolted_overload_fails() { let mut v = b(); v["n_ed"] = json!(900); assert!(!run("bolted", &v).overall_pass); }
+    #[test] fn tight_edge_distance_fails() { let mut v = b(); v["e1"] = json!(20); assert!(!run("bolted", &v).overall_pass); }
+    #[test] fn bad_diameter_rejected() { let mut v = b(); v["d"] = json!(22); assert!(!run("bolted", &v).ok); }
+    #[test] fn weld_simplified_hand_calc() { let r = run("weld", &json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","lw":100,"a":5,"tmin":10,"f_perp":0,"f_par":100,"fy":275,"fu":430})); assert!(r.ok, "{:?}", r.errors); let c = r.checks.iter().find(|c| c.name == "Simplified method").unwrap(); let cap: f64 = c.capacity.split_whitespace().next().unwrap().parse().unwrap(); assert!((cap - 1168.0).abs() < 2.0, "{}", cap); }
+    #[test] fn weld_default_passes() { let r = run("weld", &w()); assert!(r.ok && r.overall_pass, "{:?}", r.checks); }
+    #[test] fn weld_overload_fails() { let mut v = w(); v["f_par"] = json!(400); assert!(!run("weld", &v).overall_pass); }
+    #[test] fn weld_needs_a_force() { let mut v = w(); v["f_perp"] = json!(0); v["f_par"] = json!(0); assert!(!run("weld", &v).ok); }
+}

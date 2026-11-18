@@ -17,6 +17,8 @@ pub enum Drawing {
     Beam { b: f64, h: f64, cover: f64, link_dia: f64, bar_dia: f64, n_bars: u32 },
     Slab { h: f64, cover: f64, bar_dia: f64, spacing: f64 },
     Pad { bx: f64, by: f64, cx: f64, cy: f64, h: f64 },
+    Bolts { w: f64, n1: u32, n2: u32, e1: f64, p1: f64, e2: f64, p2: f64, d: f64 },
+    Weld { lw: f64, a: f64 },
     Raft { l: f64, w: f64, n: u32, spacing: f64, edge: f64 },
     Retain { hs: f64, tb: f64, ts: f64, lt: f64, b: f64 },
     ISection { h: f64, b: f64, tw: f64, tf: f64 },

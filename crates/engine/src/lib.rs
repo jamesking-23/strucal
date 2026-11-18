@@ -14,6 +14,8 @@ pub mod combos;
 pub mod steel_beam;
 pub mod retaining;
 pub mod raft;
+pub mod bolted;
+pub mod weld;
 pub mod steel_column;
 pub mod wall;
 pub mod stairs;

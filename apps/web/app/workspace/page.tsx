@@ -32,6 +32,17 @@ function Drawing({ d }: { d: any }) {
       {[oy + ed, oy + H - ed].map((y, r) => Array.from({ length: n }).map((_, i) => <circle key={r + "-" + i} cx={ox + ed + ((W - 2 * ed) * i) / (n - 1)} cy={y} r={br} fill="#0f172a" />))}
       <text x={ox + W / 2} y={oy + H + 22} fontSize="10" textAnchor="middle" fill="#2563eb" fontFamily="IBM Plex Mono">{d.b} × {d.h}</text></svg>);
   }
+  if (d.kind === "bolts") {
+    const len = 2 * d.e1 + (d.n1 - 1) * d.p1, sc = 200 / Math.max(len, d.w), W = len * sc, H = d.w * sc, ox = 20, oy = 15, y0 = oy + ((d.w - (d.n2 - 1) * d.p2) / 2) * sc;
+    return (<svg viewBox={`0 0 ${W + 40} ${H + 50}`}>
+      <rect x={ox} y={oy} width={W} height={H} fill="#fff" stroke="#0f172a" strokeWidth="2" />
+      {Array.from({ length: d.n1 }).map((_, i) => Array.from({ length: d.n2 }).map((_, j) => <circle key={i + "-" + j} cx={ox + (d.e1 + i * d.p1) * sc} cy={y0 + j * d.p2 * sc} r={Math.max(3, (d.d * sc) / 2)} fill="#fff" stroke="#0f172a" strokeWidth="1.6" />))}
+      <text x={ox + W / 2} y={oy + H + 22} fontSize="10" textAnchor="middle" fill="#2563eb" fontFamily="IBM Plex Mono">{d.n1} × {d.n2} bolts, plate {d.w} wide</text></svg>);
+  }
+  if (d.kind === "weld") {
+    return (<svg viewBox="0 0 220 110"><rect x="20" y="25" width="180" height="16" fill="#334155" /><rect x="20" y="41" width="180" height="16" fill="#94a3b8" /><polygon points="20,57 20,70 33,57" fill="#0f172a" />
+      <text x="110" y="95" fontSize="10" textAnchor="middle" fill="#2563eb" fontFamily="IBM Plex Mono">a = {d.a} mm, L = {d.lw} mm</text></svg>);
+  }
   if (d.kind === "raft") {
     const sc = 200 / Math.max(d.l, d.w), W = d.l * sc, H = d.w * sc, ox = 20, oy = 15;
     return (<svg viewBox={`0 0 ${W + 40} ${H + 50}`}>
