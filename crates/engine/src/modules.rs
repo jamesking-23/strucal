@@ -22,7 +22,7 @@ fn beam(v: &Value) -> ModResult {
     let r = rc_beam::run(&i);
     if !r.ok { return fail(r.errors); }
     let summary = vec![kv("Effective depth d", format!("{:.1} mm", r.d)), kv("Required tension steel As,req", format!("{:.0} mm²", r.as_req)), kv("Provided tension steel As,prov", format!("{:.0} mm²  ({})", r.as_prov, r.bars)), kv("Top steel", r.top_steel.clone()), kv("Links", r.links.clone()), kv("Lever arm z", format!("{:.1} mm", r.z)), kv("μ / μlim", format!("{:.4} / {:.4}", r.mu, r.mu_lim))];
-    ModResult { ok: true, errors: vec![], warnings: r.warnings, param_status: r.param_status, summary, checks: r.checks, max_util: r.max_util, overall_pass: r.overall_pass, observations: r.observations, trace: r.trace, trace_hash: r.trace_hash, engine_version: r.engine_version, scope_notes: r.scope_notes,
+    ModResult { outputs: vec![out("m_ed", "Design moment M Ed", i.m_ed, "kNm"), out("v_ed", "Support reaction (ULS)", i.v_ed, "kN"), out("reaction", "Support reaction (ULS)", i.v_ed, "kN")], ok: true, errors: vec![], warnings: r.warnings, param_status: r.param_status, summary, checks: r.checks, max_util: r.max_util, overall_pass: r.overall_pass, observations: r.observations, trace: r.trace, trace_hash: r.trace_hash, engine_version: r.engine_version, scope_notes: r.scope_notes,
         drawing: Some(Drawing::Beam { b: i.b, h: i.h, cover: i.cover, link_dia: i.link_dia, bar_dia: i.bar_dia, n_bars: r.bar_count }) }
 }
 

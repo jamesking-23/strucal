@@ -42,6 +42,7 @@ pub fn formulas() -> Vec<Formula> {
         Formula { id: "EC3-1-NET-SECTION", name: "Plate gross and net section resistance", standard: "EN 1993-1-1:2005", clause: "6.2.3", module_version: "0.11.0", verification: v },
         Formula { id: "EC3-8-WELD-DIR", name: "Fillet weld, directional method", standard: "EN 1993-1-8:2005", clause: "4.5.3.2", module_version: "0.11.0", verification: v },
         Formula { id: "EC3-8-WELD-SIMPLE", name: "Fillet weld, simplified method", standard: "EN 1993-1-8:2005", clause: "4.5.3.3, Table 4.1", module_version: "0.11.0", verification: v },
+        Formula { id: "PROJ-DEPENDENCY", name: "Project dependency graph and change propagation", standard: "StruCal specification Part H", clause: "Topological order, stale marking, impact report", module_version: "0.12.0", verification: "SOFTWARE FUNCTION - NOT AN ENGINEERING FORMULA" },
         Formula { id: "EC2-VRDC", name: "Shear resistance without shear reinforcement", standard: "EN 1992-1-1:2004", clause: "6.2.2(1) Eq 6.2a/6.3N", module_version: "0.2.0", verification: v },
         Formula { id: "EC2-SPAN-DEPTH", name: "Basic span/effective depth ratio", standard: "EN 1992-1-1:2004", clause: "7.4.2 Eq 7.16a/b", module_version: "0.2.0", verification: v },
         Formula { id: "EC2-PUNCH-MAX", name: "Punching, maximum resistance at column face", standard: "EN 1992-1-1:2004", clause: "6.4.5(3) Eq 6.53", module_version: "0.2.0", verification: v },

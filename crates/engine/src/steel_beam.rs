@@ -132,5 +132,6 @@ pub fn run(v: &Value) -> ModResult {
         "A PASS applies only to the checks listed and within the stated assumptions. It is not an approval by a registered engineer.".into()],
         Drawing::ISection { h, b, tw, tf });
     res.engine_version = crate::ENGINE_VERSION.into();
+    res.outputs = vec![out("m_ed", "Design moment M Ed", m_ed, "kNm"), out("v_ed", "Support reaction (ULS)", v_ed, "kN"), out("reaction", "Support reaction (ULS)", v_ed, "kN")];
     res
 }

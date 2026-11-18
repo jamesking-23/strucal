@@ -103,9 +103,11 @@ pub fn run(v: &Value) -> ModResult {
     if slender { obs.push(("INFO", format!("Slender wall (λ = {:.0} > λ_lim = {:.0}): second-order effects included by the nominal curvature method.", lam, lam_lim))); }
     if lam > 140.0 { obs.push(("RED", "λ exceeds 140: outside the intended range of the simplified method.".to_string())); }
     let summary = vec![kv("Slenderness λ / λlim", format!("{:.1} / {:.1}", lam, lam_lim)), kv("Design moment M Ed", format!("{:.2} kNm/m{}", m_tot, if slender { format!("  (M2 = {:.2})", m2) } else { String::new() })), kv("Moment resistance M Rd", m_rd.map(|(m, _)| format!("{:.2} kNm/m", m)).unwrap_or("n/a".into())), kv("Axial capacity N Rd,0", format!("{:.0} kN/m", nrd0)), kv("Vertical steel", format!("T{} @ {:.0} each face  ({:.0} mm²/m)", phi, spacing, a_tot)), kv("Horizontal steel", format!("T{} @ {:.0} each face", hdia, sh)), kv("Steel ratio", format!("{:.2} %", 100.0 * a_tot / ac))];
-    finish(t, checks, &ps.status, summary, vec![], obs, vec![
+    let mut res =     finish(t, checks, &ps.status, summary, vec![], obs, vec![
         "Implemented: slenderness, nominal curvature second order, N-M interaction by strain compatibility, vertical and horizontal reinforcement limits.".into(),
         "NOT implemented: in-plane shear and bending, shear walls, plain concrete walls (cl. 12.6), openings, concentrated loads, fire resistance, confinement of boundary elements.".into(),
         "A PASS applies only to the checks listed and within the stated assumptions. It is not an approval by a registered engineer.".into()],
-        Drawing::Wall { h, cover, bar_dia: phi, spacing })
+        Drawing::Wall { h, cover, bar_dia: phi, spacing });
+    res.outputs = vec![out("n_ed", "Vertical load N Ed (ULS)", n_ed, "kN/m"), out("reaction", "Base reaction (ULS)", n_ed, "kN/m")];
+    res
 }

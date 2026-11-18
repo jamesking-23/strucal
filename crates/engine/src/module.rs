@@ -9,6 +9,10 @@ pub struct Field { pub key: &'static str, pub label: &'static str, pub unit: &'s
 #[derive(Serialize, Clone, Debug)]
 pub struct ModDef { pub id: &'static str, pub name: &'static str, pub title: &'static str, pub subtitle: &'static str, pub available: bool, pub has_check_mode: bool, pub fields: Vec<Field> }
 #[derive(Serialize, Clone, Debug)]
+pub struct Output { pub key: String, pub label: String, pub value: f64, pub unit: String }
+pub fn out(key: &str, label: &str, value: f64, unit: &str) -> Output { Output { key: key.into(), label: label.into(), value, unit: unit.into() } }
+
+#[derive(Serialize, Clone, Debug)]
 pub struct KV { pub label: String, pub value: String }
 
 #[derive(Serialize, Clone, Debug)]
@@ -29,6 +33,7 @@ pub enum Drawing {
 
 #[derive(Serialize, Debug, Default)]
 pub struct ModResult {
+    pub outputs: Vec<Output>,
     pub ok: bool, pub errors: Vec<String>, pub warnings: Vec<String>, pub param_status: String,
     pub summary: Vec<KV>, pub checks: Vec<Check>, pub max_util: f64, pub overall_pass: bool, pub observations: Vec<Obs>,
     pub trace: Trace, pub trace_hash: String, pub engine_version: String, pub scope_notes: Vec<String>, pub drawing: Option<Drawing>,
@@ -65,7 +70,7 @@ pub fn finish(mut t: Trace, checks: Vec<Check>, param_status: &str, summary: Vec
     obs.extend(extra_obs);
     let observations = obs.into_iter().enumerate().map(|(k, (l, tx))| Obs { id: format!("OBS-{:02}", k + 1), level: l.into(), text: tx }).collect();
     let hash = t.hash();
-    ModResult { ok: true, errors: vec![], warnings, param_status: param_status.into(), summary, checks, max_util, overall_pass: overall, observations, trace: t, trace_hash: hash, engine_version: crate::ENGINE_VERSION.into(), scope_notes: notes, drawing: Some(drawing) }
+    ModResult { outputs: vec![], ok: true, errors: vec![], warnings, param_status: param_status.into(), summary, checks, max_util, overall_pass: overall, observations, trace: t, trace_hash: hash, engine_version: crate::ENGINE_VERSION.into(), scope_notes: notes, drawing: Some(drawing) }
 }
 
 /// Singly-reinforced rectangular flexure per EN 1992-1-1 6.1. Returns (As_req, z, mu).

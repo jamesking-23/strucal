@@ -76,7 +76,7 @@ pub fn run(v: &Value) -> ModResult {
     let mut obs = vec![];
     if ps.status.contains("NOT") { obs.push(Obs { id: "OBS-01".into(), level: "AMBER".into(), text: format!("Parameter set: {}. Confirm γ, ξ and ψ values in the governing National Annex.", ps.status) }); }
     obs.push(Obs { id: format!("OBS-{:02}", obs.len() + 1), level: "INFO".into(), text: "ψ factors are user inputs: select them from EN 1990 Table A1.1 and the National Annex for each action category.".into() });
-    ModResult { ok: true, param_status: ps.status.clone(), summary, observations: obs, trace: t, trace_hash: hash, engine_version: crate::ENGINE_VERSION.into(), drawing: None,
+    ModResult { outputs: vec![out("ed_610", "ULS design value, Eq 6.10", best610.0, "effect"), out("ed_610ab", "ULS design value, 6.10a/b", e_ab, "effect"), out("e_char", "SLS characteristic", char_best.0, "effect"), out("e_freq", "SLS frequent", freq_best.0, "effect"), out("e_qp", "SLS quasi-permanent", qp, "effect")], ok: true, param_status: ps.status.clone(), summary, observations: obs, trace: t, trace_hash: hash, engine_version: crate::ENGINE_VERSION.into(), drawing: None,
         scope_notes: vec!["Implemented: STR persistent situation (6.10, 6.10a/b), favourable permanent action, SLS characteristic, frequent and quasi-permanent combinations for up to three variable actions.".into(),
             "NOT implemented: EQU/GEO sets, accidental and seismic situations, groups of actions, combinations of effects from different sections, automatic ψ selection by category.".into(),
             "This tool combines effects linearly. It does not analyse the structure and does not give a PASS/FAIL result.".into()], ..Default::default() }

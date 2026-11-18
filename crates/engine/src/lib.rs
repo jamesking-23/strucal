@@ -21,6 +21,7 @@ pub mod wall;
 pub mod stairs;
 pub mod strip;
 pub mod modules;
+pub mod project;
 
 pub const ENGINE_VERSION: &str = env!("CARGO_PKG_VERSION");
 

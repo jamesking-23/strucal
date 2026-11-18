@@ -153,9 +153,11 @@ pub fn run(v: &Value) -> ModResult {
     if phi_ef == 0.0 && slender { obs.push(("AMBER", "Creep ratio φef is zero: creep effects neglected in the second-order moment.".to_string())); }
     let summary = vec![kv("Slenderness λ / λlim", format!("{:.1} / {:.1}", lam, lam_lim)), kv("Design moment M Ed", format!("{:.1} kNm{}", ev.m_tot, if slender { format!("  (M2 = {:.1})", ev.m2) } else { String::new() })), kv("Moment resistance M Rd", ev.m_rd.map(|(m, _)| format!("{:.1} kNm", m)).unwrap_or("n/a".into())), kv("Axial capacity N Rd,0", format!("{:.0} kN", nrd0)), kv("Longitudinal steel", format!("{}T{}  ({:.0} mm²)", 2 * ev.nface, phi, a_prov)), kv("Links", format!("T{} @ {:.0} c/c", ldia, link_s)), kv("Steel ratio", format!("{:.2} %", 100.0 * a_prov / ac))];
     let _ = ev.d;
-    finish(t, checks, &ps.status, summary, vec![], obs, vec![
+    let mut res =     finish(t, checks, &ps.status, summary, vec![], obs, vec![
         "Implemented: slenderness, nominal curvature second order, N-M interaction by strain compatibility, min/max steel, bar and link detailing.".into(),
         "NOT implemented: biaxial bending, weak-axis slenderness, columns in unbraced frames, side bars in the resistance, shear, fire resistance, confinement detailing.".into(),
         "A PASS applies only to the checks listed and within the stated assumptions. It is not an approval by a registered engineer.".into()],
-        Drawing::Column { b, h, cover, link_dia: ldia, bar_dia: phi, n_face: ev.nface })
+        Drawing::Column { b, h, cover, link_dia: ldia, bar_dia: phi, n_face: ev.nface });
+    res.outputs = vec![out("n_ed", "Axial load N Ed (ULS)", n_ed, "kN"), out("reaction", "Base reaction (ULS)", n_ed, "kN"), out("m_tot", "Design moment incl. second order", ev.m_tot, "kNm")];
+    res
 }
