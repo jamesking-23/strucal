@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { loadEngine } from "../../lib/engine";
+import { supabase } from "../../lib/supabase";
 import "../workspace/workspace.css";
 import "./project.css";
 
@@ -19,13 +20,48 @@ export default function ProjectPage() {
   const [add, setAdd] = useState("");
   const [err, setErr] = useState("");
   const [loaded, setLoaded] = useState(false);
+  const [cloud, setCloud] = useState("");
+  const [cloudName, setCloudName] = useState("");
+  const [cloudReady, setCloudReady] = useState(false);
+  const [ver, setVer] = useState(1);
+  const [sync, setSync] = useState("");
 
   useEffect(() => {
     loadEngine().then((m) => { setEng(m); const d = JSON.parse(m.modules()); setDefs(d); setSets(JSON.parse(m.param_sets())); setAdd(d[0]?.id ?? ""); }).catch((e) => setErr(String(e)));
-    try { const s = localStorage.getItem(KEY); if (s) { const o = JSON.parse(s); setNodes(o.nodes ?? []); setRevs(o.revs ?? []); setBase(o.base ?? ""); } } catch { /* empty storage */ }
+    const pid = new URLSearchParams(window.location.search).get("p") ?? "";
+    if (pid) setCloud(pid);
+    else { try { const s = localStorage.getItem(KEY); if (s) { const o = JSON.parse(s); setNodes(o.nodes ?? []); setRevs(o.revs ?? []); setBase(o.base ?? ""); } } catch { /* empty storage */ } }
     setLoaded(true);
   }, []);
-  useEffect(() => { if (!loaded) return; try { localStorage.setItem(KEY, JSON.stringify({ nodes, revs, base })); } catch { /* storage unavailable */ } }, [nodes, revs, base, loaded]);
+  const loadCloud = async (pid: string, keepBase = false) => {
+    const { data: u } = await supabase.auth.getUser();
+    if (!u.user) { setSync("Sign in on the Account page to use cloud projects."); return; }
+    const { data: pr, error: pe } = await supabase.from("projects").select("name").eq("id", pid).single();
+    if (pe || !pr) { setSync("Project not found or no access."); return; }
+    setCloudName(pr.name);
+    const { data: d } = await supabase.from("project_drafts").select("nodes, version").eq("project_id", pid).single();
+    if (d) { setNodes(d.nodes ?? []); setVer(d.version); }
+    const { data: rv } = await supabase.from("revisions").select("id, number, name, nodes, results, status, created_at").eq("project_id", pid).order("number");
+    const mapped = (rv ?? []).map((r: any) => ({ id: r.id, name: `${r.name} (${r.status.replace("_", " ")})`, savedAt: new Date(r.created_at).toLocaleString(), project: r.nodes, results: r.results, status: r.status }));
+    setRevs(mapped); if (!keepBase) setBase(mapped.length ? mapped[mapped.length - 1].id : "");
+    setCloudReady(true); setSync("Saved to cloud");
+  };
+  useEffect(() => { if (cloud) loadCloud(cloud); /* eslint-disable-next-line */ }, [cloud]);
+  useEffect(() => {
+    if (!loaded) return;
+    if (!cloud) { try { localStorage.setItem(KEY, JSON.stringify({ nodes, revs, base })); } catch { /* storage unavailable */ } return; }
+    if (!cloudReady) return;
+    setSync("Saving...");
+    const t = setTimeout(async () => {
+      const { data: u } = await supabase.auth.getUser();
+      const { data, error } = await supabase.from("project_drafts").update({ nodes, version: ver + 1, updated_by: u.user?.id, updated_at: new Date().toISOString() }).eq("project_id", cloud).eq("version", ver).select("version");
+      if (error) setSync("Not saved: " + error.message);
+      else if (!data || data.length === 0) setSync("Conflict: someone else changed this project. Reload the page to get their changes before editing.");
+      else { setVer(data[0].version); setSync("Saved to cloud"); }
+    }, 900);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line
+  }, [nodes, cloud, cloudReady, loaded]);
 
   const baseline = revs.find((r) => r.id === base) ?? null;
   const res = useMemo(() => {
@@ -43,8 +79,13 @@ export default function ProjectPage() {
   };
   const upd = (id: string, f: (n: Node) => Node) => setNodes(nodes.map((n) => (n.id === id ? f(n) : n)));
   const del = (id: string) => setNodes(nodes.filter((n) => n.id !== id).map((n) => ({ ...n, links: n.links.filter((l) => l.from !== id) })));
-  const saveRev = () => {
+  const saveRev = async () => {
     if (!res?.ok) return;
+    if (cloud) {
+      const { error } = await supabase.rpc("save_revision", { p_project: cloud, p_name: `Rev ${revs.length + 1}`, p_nodes: nodes, p_results: res.nodes, p_engine: res.engine_version });
+      if (error) setSync("Revision not saved: " + error.message); else { await loadCloud(cloud, true); setSync("Revision saved to cloud"); }
+      return;
+    }
     const id = `rev${revs.length + 1}`;
     setRevs([...revs, { id, name: `Rev ${revs.length + 1}`, savedAt: new Date().toLocaleString(), project: JSON.parse(JSON.stringify(nodes)), results: res.nodes }]);
     setBase(id);
@@ -57,12 +98,12 @@ export default function ProjectPage() {
   if (!eng) return <div className="pj"><div className="wk-title"><Link href="/" className="wk-logo">S</Link><div className="wk-wt">StruCal — Project</div></div><div className="pj-empty">{err || "Loading calculation engine..."}</div></div>;
   return (
     <div className="pj">
-      <div className="wk-title"><Link href="/" className="wk-logo" title="StruCal - home">S</Link><div className="wk-wt">StruCal — Project dependencies — {nodes.length} calculation(s)</div></div>
-      <div className="wk-tabs"><span className="file">PROJECT</span><Link href="/workspace" style={{ padding: "0 14px", lineHeight: "24px" }}>Back to workspace</Link></div>
+      <div className="wk-title"><Link href="/" className="wk-logo" title="StruCal - home">S</Link><div className="wk-wt">StruCal — Project dependencies{cloud ? ` — ${cloudName || "cloud project"}` : ""} — {nodes.length} calculation(s){cloud && sync ? ` — ${sync}` : ""}</div></div>
+      <div className="wk-tabs"><span className="file">PROJECT</span><Link href="/workspace" style={{ padding: "0 14px", lineHeight: "24px" }}>Back to workspace</Link><Link href="/account" style={{ padding: "0 14px", lineHeight: "24px" }}>Account and teams</Link></div>
       <div className="wk-ribbon" style={{ height: 62, alignItems: "center", gap: 10, padding: "0 10px" }}>
         <select className="pj-btn" value={add} onChange={(e) => setAdd(e.target.value)} style={{ height: 26 }}>{defs.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select>
         <button className="pj-btn pri" onClick={addNode}>+ Add calculation</button>
-        <button className="pj-btn" onClick={saveRev} disabled={!res?.ok}>Save revision</button>
+        <button className="pj-btn" onClick={saveRev} disabled={!res?.ok}>{cloud ? "Save revision to cloud" : "Save revision"}</button>
         <button className="pj-btn" onClick={exportJson} disabled={nodes.length === 0}>Export project (.json)</button>
         <span style={{ color: "#52606d" }}>Compare against:</span>
         <select className="pj-btn" value={base} onChange={(e) => setBase(e.target.value)} style={{ height: 26 }}><option value="">(no baseline)</option>{revs.map((r) => <option key={r.id} value={r.id}>{r.name} · {r.savedAt}</option>)}</select>
@@ -127,6 +168,8 @@ export default function ProjectPage() {
           </>)}
           <h3>Revisions</h3>
           {revs.length === 0 ? <div style={{ color: "#52606d" }}>None saved.</div> : <ul className="pj-list">{revs.map((r) => <li key={r.id}>{r.name} · {r.savedAt}</li>)}</ul>}
+          {!cloud && <div className="pj-warn" style={{ marginTop: 12 }}>Working locally in this browser. Sign in on the Account page and open a project from there to save it to the cloud with approvals.</div>}
+          {cloud && sync.startsWith("Conflict") && <div className="pj-err">{sync}</div>}
           <div className="pj-warn" style={{ marginTop: 12 }}>Links pass design values only. Combine load effects with the Load combinations module first, and confirm each linked value is the correct design action for the next member.</div>
         </aside>
       </div>

@@ -8,7 +8,7 @@ export default function Home() {
       <header className="nav"><div className="wrap">
         <div className="brand" aria-label="StruCal"><span className="mark">S</span></div>
         <nav><a href="#platform">Platform</a><a href="#trust">Verification</a><a href="#scope">Coverage</a><a href="#roadmap">Roadmap</a><a href="#desktop">Desktop</a></nav>
-        <Link href="/workspace" className="btn gold">Open workspace</Link>
+        <Link href="/account" className="btn ghost" style={{marginRight:10}}>Sign in</Link><Link href="/workspace" className="btn gold">Open workspace</Link>
       </div></header>
 
       <section className="hero"><div className="wrap">
@@ -70,7 +70,8 @@ export default function Home() {
           <div><b>Stage 0-1</b><span>Repository, unit-safe engine, formula registry, parameter framework, calculation trace</span><span className="pill live">In preview</span></div>
           <div><b>Stage 2</b><span>RC beam: flexure, shear, min/max steel, Check Mode, calculation sheet</span><span className="pill live">In preview</span></div>
           <div><b>Stage 3</b><span>Slabs, columns, walls, stairs, pad and strip footings</span><span className="pill next">In progress</span></div>
-          <div><b>Stage 4-8</b><span>Steel, timber, retaining walls, enterprise governance, AI assistant, integrations</span><span className="pill plan">Planned</span></div>
+          <div><b>Stage 5</b><span>Accounts, organisations, roles, cloud projects, check and approval workflow, tamper-evident audit trail (web first)</span><span className="pill next">In preview</span></div>
+          <div><b>Stage 6-8</b><span>AI assistant, BIM and analysis integrations, continuous improvement</span><span className="pill plan">Planned</span></div>
         </div>
       </div></section>
 

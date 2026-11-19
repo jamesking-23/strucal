@@ -147,6 +147,7 @@ export default function Workspace() {
         <span className="file">FILE</span>
         {tabs.map((t) => <button key={t} className={tab === t ? "on" : ""} onClick={() => setTab(t)}>{t}</button>)}
         <Link href="/project" style={{ padding: "0 14px", lineHeight: "24px", color: "#333", textDecoration: "none" }}>PROJECT</Link>
+        <Link href="/account" style={{ padding: "0 14px", lineHeight: "24px", color: "#333", textDecoration: "none" }}>ACCOUNT</Link>
       </div>
       <div className="wk-ribbon">
         {tab === "HOME" && (<>
