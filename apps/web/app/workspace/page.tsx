@@ -3,6 +3,7 @@ import { Fragment, useEffect, useState } from "react";
 import Link from "next/link";
 import { loadEngine } from "../../lib/engine";
 import "./workspace.css";
+import Assistant from "./Assistant";
 
 const PS = "EN1992-1-1:2004/RECOMMENDED";
 const initFor = (def: any) => { const o: any = { mode: "design", param_set: PS }; for (const f of def.fields) o[f.key] = f.default; return o; };
@@ -241,6 +242,7 @@ export default function Workspace() {
             </>)}</div></section>
         </div>
       </div>
+      <Assistant def={def} values={f} res={res} mid={mid} onApply={(patch) => setF({ ...f, ...patch })} />
       <footer className="wk-status">
         <span>{ok ? (nChecks === 0 ? "● Calculated" : res.overall_pass ? "● All checks satisfied" : "● Checks failing") : "● Not calculated"}</span>
         <span>{f.param_set}</span><span className="sp" /><span>{tag !== "calc" ? `Trace ${tag}` : ""}</span><span>{res ? `Engine v${res.engine_version}` : ""}</span><span>Preview build</span>

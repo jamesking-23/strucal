@@ -3,6 +3,7 @@ mod update;
 mod project_page;
 mod cloud;
 mod account_page;
+mod assistant_page;
 use eframe::egui::{self, Color32, CornerRadius, FontId, RichText, Stroke, StrokeKind};
 use std::sync::mpsc::{channel, Receiver};
 use strucal_engine::{modules, module::{Drawing, ModDef, ModResult}, params, registry, report};
@@ -28,7 +29,7 @@ struct ModState { mode: String, param: String, vals: Vec<f64> }
 struct App {
     page: Page, defs: Vec<ModDef>, mi: usize, st: Vec<ModState>, result: Option<ModResult>, saved: String,
     upd: Upd, rx: Option<Receiver<Result<Option<update::Available>, String>>>, irx: Option<Receiver<Result<(), String>>>,
-    pj: project_page::Pj, cl: cloud::Client, acct: account_page::Acct,
+    pj: project_page::Pj, cl: cloud::Client, acct: account_page::Acct, asst: assistant_page::Asst,
 }
 
 fn card<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
@@ -64,7 +65,7 @@ impl App {
         update::cleanup_old();
         let defs = modules::defs();
         let st = defs.iter().map(|d| ModState { mode: "design".into(), param: "EN1992-1-1:2004/RECOMMENDED".into(), vals: d.fields.iter().map(|f| f.default).collect() }).collect();
-        let mut a = App { page: Page::Workspace, defs, mi: 0, st, result: None, saved: String::new(), upd: Upd::Idle, rx: None, irx: None, pj: project_page::Pj::new(), cl: cloud::Client::default(), acct: account_page::Acct::new() };
+        let mut a = App { page: Page::Workspace, defs, mi: 0, st, result: None, saved: String::new(), upd: Upd::Idle, rx: None, irx: None, pj: project_page::Pj::new(), cl: cloud::Client::default(), acct: account_page::Acct::new(), asst: assistant_page::Asst::default() };
         a.run(); a
     }
     fn json(&self) -> serde_json::Value {
@@ -277,6 +278,7 @@ impl eframe::App for App {
 
         match self.page {
             Page::Workspace => {
+                self.assistant_ui(ctx);
                 let mut ch = false;
                 egui::SidePanel::left("in").exact_width(280.0).frame(egui::Frame::new().fill(Color32::WHITE).stroke(Stroke::new(1.0, LINE)).inner_margin(egui::Margin::same(8))).show(ctx, |ui| {
                     egui::ScrollArea::vertical().show(ui, |ui| {

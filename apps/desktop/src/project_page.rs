@@ -3,7 +3,7 @@ use super::*;
 use serde_json::{json, Value};
 use strucal_engine::project::{self, NodeResult, Project, ProjectResult};
 
-pub struct Pj { nodes: Vec<Value>, revs: Vec<Value>, base: Option<usize>, add: usize, res: Option<ProjectResult>, msg: String, cloud: Option<(String, String)>, ver: i64, dirty: Option<std::time::Instant> }
+pub struct Pj { nodes: Vec<Value>, revs: Vec<Value>, base: Option<usize>, add: usize, res: Option<ProjectResult>, msg: String, cloud: Option<(String, String)>, ver: i64, dirty: Option<std::time::Instant>, explain: String, ex_rx: Option<std::sync::mpsc::Receiver<Result<Value, String>>> }
 
 fn docs_dir() -> std::path::PathBuf { std::env::var("USERPROFILE").or_else(|_| std::env::var("HOME")).map(std::path::PathBuf::from).unwrap_or_default().join("Documents").join("StruCal") }
 fn now_str() -> String {
@@ -18,7 +18,7 @@ fn now_str() -> String {
 
 impl Pj {
     pub fn new() -> Self {
-        let mut pj = Pj { nodes: vec![], revs: vec![], base: None, add: 0, res: None, msg: String::new(), cloud: None, ver: 1, dirty: None };
+        let mut pj = Pj { nodes: vec![], revs: vec![], base: None, add: 0, res: None, msg: String::new(), cloud: None, ver: 1, dirty: None, explain: String::new(), ex_rx: None };
         if let Ok(s) = std::fs::read_to_string(docs_dir().join("project.json")) {
             if let Ok(v) = serde_json::from_str::<Value>(&s) {
                 pj.nodes = v["nodes"].as_array().cloned().unwrap_or_default(); pj.revs = v["revisions"].as_array().cloned().unwrap_or_default();
@@ -67,7 +67,8 @@ impl Pj {
     fn s(v: &Value, k: &str) -> String { v[k].as_str().unwrap_or("").to_string() }
 
     pub fn ui(&mut self, ctx: &egui::Context, defs: &[ModDef], cl: &mut crate::cloud::Client) {
-        let mut changed = false; let mut cloud_rev = false; let mut leave_cloud = false;
+        let mut changed = false; let mut cloud_rev = false; let mut leave_cloud = false; let mut want_explain = false;
+        if let Some(rx) = self.ex_rx.take() { match rx.try_recv() { Ok(r) => { self.explain = match r { Ok(v) => v["answer"].as_str().unwrap_or("").to_string(), Err(e) => format!("Assistant: {e}") }; } Err(std::sync::mpsc::TryRecvError::Empty) => { self.ex_rx = Some(rx); ctx.request_repaint_after(std::time::Duration::from_millis(250)); } Err(_) => {} } }
         if let Some(t) = self.dirty { if t.elapsed() >= std::time::Duration::from_millis(900) { self.flush_draft(cl); } else { ctx.request_repaint_after(std::time::Duration::from_millis(300)); } }
         egui::TopBottomPanel::top("pjtools").exact_height(44.0).frame(egui::Frame::new().fill(RIBBON).stroke(Stroke::new(1.0, LINE)).inner_margin(egui::Margin::symmetric(8, 8))).show(ctx, |ui| {
             ui.horizontal(|ui| {
@@ -120,6 +121,10 @@ impl Pj {
                         for (l, n) in [("Edited", im.edited.len()), ("Affected downstream", im.affected.len()), ("Newly failing", im.newly_failing.len()), ("Newly passing", im.newly_passing.len())] { ui.horizontal(|ui| { ui.label(l); ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| ui.label(RichText::new(n.to_string()).strong())); }); }
                         if im.review_required { ui.colored_label(AMBER, "Results changed since the baseline. Review before the next issue."); }
                         if !im.newly_failing.is_empty() { ui.colored_label(RED, format!("Now failing: {}", im.newly_failing.iter().map(|i| name_of(i)).collect::<Vec<_>>().join(", "))); }
+                        ui.add_space(4.0);
+                        if ui.add_enabled(self.ex_rx.is_none() && cl.signed_in(), egui::Button::new(if self.ex_rx.is_some() { "Thinking..." } else { "Explain these changes (AI)" })).clicked() { want_explain = true; }
+                        if !cl.signed_in() { ui.label(RichText::new("Sign in on the Account tab to use the assistant.").size(11.0).color(MUTE)); }
+                        if !self.explain.is_empty() { ui.label(&self.explain); ui.label(RichText::new("AI-generated summary of the change impact. It does not change any result.").size(10.5).color(MUTE)); }
                         for d in &im.diffs { ui.label(RichText::new(format!("{} · {}: {:.1} → {:.1}", name_of(&d.node), d.output, d.old, d.new)).font(FontId::monospace(11.0))); }
                     }
                     _ => { ui.label(RichText::new("Save a revision, then edit inputs to see what changes. Saved revisions are never overwritten.").size(12.0).color(MUTE)); }
@@ -199,6 +204,15 @@ impl Pj {
             });
         });
         if let Some(i) = remove { let id = Self::s(&self.nodes[i], "id"); self.nodes.remove(i); for n in self.nodes.iter_mut() { if let Some(a) = n["links"].as_array_mut() { a.retain(|l| l["from"] != id.as_str()); } } changed = true; }
+        if want_explain {
+            if let (Some(r), Some(b)) = (&self.res, self.base) {
+                let names: serde_json::Map<String, Value> = self.nodes.iter().map(|n| (Self::s(n, "id"), json!(format!("{} ({})", Self::s(n, "name"), Self::s(n, "module"))))).collect();
+                let ctxv = json!({"baseline": Self::s(&self.revs[b], "name"), "impact": {"edited": r.impact.edited, "affected": r.impact.affected, "newly_failing": r.impact.newly_failing, "newly_passing": r.impact.newly_passing, "added": r.impact.added, "removed": r.impact.removed, "diffs": r.impact.diffs.iter().map(|d| json!({"node": d.node, "output": d.output, "old": d.old, "new": d.new})).collect::<Vec<_>>()}, "calculations": names, "results": r.nodes.iter().map(|n| json!({"id": n.id, "name": n.name, "status": n.status, "pass": n.overall_pass, "max_util": n.max_util, "outputs": n.outputs})).collect::<Vec<_>>()});
+                let (tx, rx) = std::sync::mpsc::channel(); self.ex_rx = Some(rx); self.explain.clear();
+                let mut c = cl.clone();
+                std::thread::spawn(move || { let _ = tx.send(c.function("assistant", &json!({"task": "compare", "question": "", "context": ctxv}))); });
+            }
+        }
         if leave_cloud { self.close_cloud(); return; }
         if cloud_rev {
             if let (Some((id, _)), Some(r)) = (self.cloud.clone(), &self.res) {

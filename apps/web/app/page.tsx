@@ -71,7 +71,8 @@ export default function Home() {
           <div><b>Stage 2</b><span>RC beam: flexure, shear, min/max steel, Check Mode, calculation sheet</span><span className="pill live">In preview</span></div>
           <div><b>Stage 3</b><span>Slabs, columns, walls, stairs, pad and strip footings</span><span className="pill next">In progress</span></div>
           <div><b>Stage 5</b><span>Accounts, organisations, roles, cloud projects, check and approval workflow, tamper-evident audit trail (web and desktop)</span><span className="pill next">In preview</span></div>
-          <div><b>Stage 6-8</b><span>AI assistant, BIM and analysis integrations, continuous improvement</span><span className="pill plan">Planned</span></div>
+          <div><b>Stage 6</b><span>Engineering assistant: explains traces, proposes inputs for confirmation, summarises revision changes. Never calculates or approves</span><span className="pill next">Built, needs API key</span></div>
+          <div><b>Stage 7-8</b><span>BIM and analysis integrations, continuous improvement</span><span className="pill plan">Planned</span></div>
         </div>
       </div></section>
 

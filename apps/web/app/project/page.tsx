@@ -25,6 +25,7 @@ export default function ProjectPage() {
   const [cloudReady, setCloudReady] = useState(false);
   const [ver, setVer] = useState(1);
   const [sync, setSync] = useState("");
+  const [explain, setExplain] = useState(""); const [exBusy, setExBusy] = useState(false);
 
   useEffect(() => {
     loadEngine().then((m) => { setEng(m); const d = JSON.parse(m.modules()); setDefs(d); setSets(JSON.parse(m.param_sets())); setAdd(d[0]?.id ?? ""); }).catch((e) => setErr(String(e)));
@@ -92,6 +93,17 @@ export default function ProjectPage() {
   };
   const restore = () => { if (baseline && confirm(`Replace the current inputs with ${baseline.name}? Saved revisions are kept.`)) setNodes(JSON.parse(JSON.stringify(baseline.project))); };
   const exportJson = () => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify({ nodes, revisions: revs }, null, 2)], { type: "application/json" })); a.download = "strucal-project.json"; a.click(); };
+  const explainChanges = async () => {
+    setExBusy(true); setExplain("");
+    try {
+      const names = Object.fromEntries(nodes.map((n) => [n.id, `${n.name} (${n.module})`]));
+      const { data, error } = await supabase.functions.invoke("assistant", { body: { task: "compare", question: "", context: { baseline: baseline?.name, impact: res?.impact, calculations: names, results: res?.nodes?.map((n: any) => ({ id: n.id, name: n.name, status: n.status, pass: n.overall_pass, max_util: n.max_util, outputs: n.outputs })) } } });
+      if (error) { let m = error.message; try { const j = await (error as any).context?.json?.(); if (j?.error) m = j.error; } catch { /* keep */ } throw new Error(m); }
+      if (data?.error) throw new Error(data.error);
+      setExplain(data.answer);
+    } catch (e: any) { setExplain("Assistant: " + (e?.message ?? String(e))); }
+    setExBusy(false);
+  };
   const rOf = (id: string) => res?.nodes?.find((n: any) => n.id === id);
   const imp = res?.impact;
 
@@ -163,6 +175,8 @@ export default function ProjectPage() {
             {imp.review_required && <div className="pj-warn">Results have changed since {baseline.name}. They must be reviewed before the next issue.</div>}
             {imp.newly_failing.length > 0 && <div className="pj-err">Now failing: {imp.newly_failing.map((i: string) => nameOf(i)).join(", ")}</div>}
             {imp.diffs.length > 0 && (<><h3>Output changes</h3>{imp.diffs.map((d: any, i: number) => <div className="row" key={i}><span>{nameOf(d.node)} · {d.output}</span><b>{d.old.toFixed(1)} → {d.new.toFixed(1)}</b></div>)}</>)}
+            <div style={{ margin: "8px 0" }}><button className="pj-btn" disabled={exBusy} onClick={explainChanges}>{exBusy ? "Thinking..." : "Explain these changes (AI)"}</button></div>
+            {explain && <div className="pj-warn" style={{ whiteSpace: "pre-wrap" }}>{explain}<div style={{ fontSize: 11, color: "#7b8794", marginTop: 4 }}>AI-generated summary of the change impact above. It does not change any result.</div></div>}
             {imp.added.length > 0 && <div style={{ marginTop: 6 }}>Added: {imp.added.map((i: string) => nameOf(i)).join(", ")}</div>}
             {imp.removed.length > 0 && <div style={{ marginTop: 6 }}>Removed: {imp.removed.join(", ")}</div>}
           </>)}

@@ -56,6 +56,7 @@ impl Client {
     pub fn get(&mut self, path: &str) -> Result<Value, String> { self.req("GET", &format!("/rest/v1/{path}"), None, &[]) }
     pub fn rpc(&mut self, name: &str, args: &Value) -> Result<Value, String> { self.req("POST", &format!("/rest/v1/rpc/{name}"), Some(args), &[]) }
     pub fn patch(&mut self, path: &str, body: &Value) -> Result<Value, String> { self.req("PATCH", &format!("/rest/v1/{path}"), Some(body), &[("Prefer", "return=representation")]) }
+    pub fn function(&mut self, name: &str, body: &Value) -> Result<Value, String> { self.req("POST", &format!("/functions/v1/{name}"), Some(body), &[]) }
     pub fn mfa_enroll(&mut self) -> Result<Value, String> { self.req("POST", "/auth/v1/factors", Some(&json!({"factor_type": "totp"})), &[]) }
     /// Verifies a code for a factor. The response is a fresh session at assurance level 2.
     pub fn mfa_verify(&mut self, factor: &str, code: &str) -> Result<(), String> {
