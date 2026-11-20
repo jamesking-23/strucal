@@ -1,6 +1,8 @@
 #![cfg_attr(all(not(debug_assertions), windows), windows_subsystem = "windows")]
 mod update;
 mod project_page;
+mod cloud;
+mod account_page;
 use eframe::egui::{self, Color32, CornerRadius, FontId, RichText, Stroke, StrokeKind};
 use std::sync::mpsc::{channel, Receiver};
 use strucal_engine::{modules, module::{Drawing, ModDef, ModResult}, params, registry, report};
@@ -19,14 +21,14 @@ const AMBER: Color32 = Color32::from_rgb(217, 138, 0);
 const RED: Color32 = Color32::from_rgb(180, 35, 24);
 const RED_BG: Color32 = Color32::from_rgb(253, 236, 235);
 
-#[derive(PartialEq, Clone, Copy)] enum Page { Workspace, Project, Standards, Settings }
+#[derive(PartialEq, Clone, Copy)] enum Page { Workspace, Project, Account, Standards, Settings }
 enum Upd { Idle, Checking, UpToDate, Available(update::Available), Installing, Failed(String) }
 
 struct ModState { mode: String, param: String, vals: Vec<f64> }
 struct App {
     page: Page, defs: Vec<ModDef>, mi: usize, st: Vec<ModState>, result: Option<ModResult>, saved: String,
     upd: Upd, rx: Option<Receiver<Result<Option<update::Available>, String>>>, irx: Option<Receiver<Result<(), String>>>,
-    pj: project_page::Pj,
+    pj: project_page::Pj, cl: cloud::Client, acct: account_page::Acct,
 }
 
 fn card<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
@@ -62,7 +64,7 @@ impl App {
         update::cleanup_old();
         let defs = modules::defs();
         let st = defs.iter().map(|d| ModState { mode: "design".into(), param: "EN1992-1-1:2004/RECOMMENDED".into(), vals: d.fields.iter().map(|f| f.default).collect() }).collect();
-        let mut a = App { page: Page::Workspace, defs, mi: 0, st, result: None, saved: String::new(), upd: Upd::Idle, rx: None, irx: None, pj: project_page::Pj::new() };
+        let mut a = App { page: Page::Workspace, defs, mi: 0, st, result: None, saved: String::new(), upd: Upd::Idle, rx: None, irx: None, pj: project_page::Pj::new(), cl: cloud::Client::default(), acct: account_page::Acct::new() };
         a.run(); a
     }
     fn json(&self) -> serde_json::Value {
@@ -224,7 +226,7 @@ impl eframe::App for App {
                 ui.painter().text(m.center(), egui::Align2::CENTER_CENTER, "S", FontId::proportional(21.0), BLUE);
                 let (r, _) = ui.allocate_exact_size(egui::vec2(64.0, 26.0), egui::Sense::hover());
                 ui.painter().rect_filled(r, 0.0, BLUE); ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, "FILE", FontId::proportional(12.0), Color32::WHITE);
-                for (p, n) in [(Page::Workspace, "WORKSPACE"), (Page::Project, "PROJECT"), (Page::Standards, "STANDARDS"), (Page::Settings, "SETTINGS")] {
+                for (p, n) in [(Page::Workspace, "WORKSPACE"), (Page::Project, "PROJECT"), (Page::Account, "ACCOUNT"), (Page::Standards, "STANDARDS"), (Page::Settings, "SETTINGS")] {
                     let on = self.page == p;
                     let (r, resp) = ui.allocate_exact_size(egui::vec2(96.0, 26.0), egui::Sense::click());
                     if resp.hovered() { ui.painter().rect_filled(r, 0.0, Color32::from_rgb(219, 232, 246)); }
@@ -379,7 +381,8 @@ impl eframe::App for App {
                     });
                 });
             }
-            Page::Project => { self.pj.ui(ctx, &self.defs); }
+            Page::Project => { self.pj.ui(ctx, &self.defs, &mut self.cl); }
+            Page::Account => { if let Some((id, name)) = self.acct.ui(ctx, &mut self.cl) { self.pj.open_cloud(&mut self.cl, id, name); self.page = Page::Project; } }
             Page::Standards => { egui::CentralPanel::default().frame(egui::Frame::new().fill(BG).inner_margin(egui::Margin::same(26))).show(ctx, |ui| {
                 ui.label(RichText::new("Formula registry").size(24.0).strong());
                 ui.label(RichText::new("Every implemented formula, its source clause and verification state.").color(MUTE)); ui.add_space(10.0);

@@ -3,7 +3,7 @@ use super::*;
 use serde_json::{json, Value};
 use strucal_engine::project::{self, NodeResult, Project, ProjectResult};
 
-pub struct Pj { nodes: Vec<Value>, revs: Vec<Value>, base: Option<usize>, add: usize, res: Option<ProjectResult>, msg: String }
+pub struct Pj { nodes: Vec<Value>, revs: Vec<Value>, base: Option<usize>, add: usize, res: Option<ProjectResult>, msg: String, cloud: Option<(String, String)>, ver: i64, dirty: Option<std::time::Instant> }
 
 fn docs_dir() -> std::path::PathBuf { std::env::var("USERPROFILE").or_else(|_| std::env::var("HOME")).map(std::path::PathBuf::from).unwrap_or_default().join("Documents").join("StruCal") }
 fn now_str() -> String {
@@ -18,7 +18,7 @@ fn now_str() -> String {
 
 impl Pj {
     pub fn new() -> Self {
-        let mut pj = Pj { nodes: vec![], revs: vec![], base: None, add: 0, res: None, msg: String::new() };
+        let mut pj = Pj { nodes: vec![], revs: vec![], base: None, add: 0, res: None, msg: String::new(), cloud: None, ver: 1, dirty: None };
         if let Ok(s) = std::fs::read_to_string(docs_dir().join("project.json")) {
             if let Ok(v) = serde_json::from_str::<Value>(&s) {
                 pj.nodes = v["nodes"].as_array().cloned().unwrap_or_default(); pj.revs = v["revisions"].as_array().cloned().unwrap_or_default();
@@ -27,7 +27,33 @@ impl Pj {
         }
         pj.recompute(); pj
     }
+    pub fn open_cloud(&mut self, cl: &mut crate::cloud::Client, id: String, name: String) {
+        match cl.get(&format!("project_drafts?select=nodes,version&project_id=eq.{id}")) {
+            Ok(v) => { let d = v.as_array().and_then(|a| a.first()).cloned().unwrap_or(Value::Null); self.nodes = d["nodes"].as_array().cloned().unwrap_or_default(); self.ver = d["version"].as_i64().unwrap_or(1); }
+            Err(e) => { self.msg = format!("Could not open the cloud project: {e}"); return; }
+        }
+        self.cloud = Some((id, name)); self.dirty = None; self.load_cloud_revs(cl);
+        self.msg = "Cloud project opened. Changes save automatically.".into(); self.recompute();
+    }
+    fn load_cloud_revs(&mut self, cl: &mut crate::cloud::Client) {
+        let Some((id, _)) = self.cloud.clone() else { return };
+        if let Ok(v) = cl.get(&format!("revisions?select=id,number,name,nodes,results,status,created_at&project_id=eq.{id}&order=number")) {
+            self.revs = v.as_array().cloned().unwrap_or_default().iter().map(|r| json!({"name": format!("{} ({})", Self::s(r, "name"), Self::s(r, "status").replace('_', " ")), "savedAt": Self::s(r, "created_at"), "project": r["nodes"], "results": r["results"]})).collect();
+            self.base = if self.revs.is_empty() { None } else { Some(self.revs.len() - 1) };
+        }
+    }
+    fn close_cloud(&mut self) { let fresh = Pj::new(); *self = fresh; }
+    fn flush_draft(&mut self, cl: &mut crate::cloud::Client) {
+        let Some((id, _)) = self.cloud.clone() else { return };
+        let body = json!({"nodes": self.nodes, "version": self.ver + 1, "updated_by": cl.user_id});
+        match cl.patch(&format!("project_drafts?project_id=eq.{id}&version=eq.{}", self.ver), &body) {
+            Ok(v) => { match v.as_array().and_then(|a| a.first()) { Some(row) => { self.ver = row["version"].as_i64().unwrap_or(self.ver + 1); self.msg = "Saved to cloud".into(); } None => { self.msg = "Conflict: someone else changed this project. Reopen it from the Account page before editing.".into(); } } }
+            Err(e) => self.msg = format!("Not saved: {e}"),
+        }
+        self.dirty = None;
+    }
     fn save(&mut self) {
+        if self.cloud.is_some() { return; }
         let dir = docs_dir(); let _ = std::fs::create_dir_all(&dir);
         let body = json!({"nodes": self.nodes, "revisions": self.revs, "baseline": self.base});
         if std::fs::write(dir.join("project.json"), serde_json::to_string_pretty(&body).unwrap_or_default()).is_err() { self.msg = "Could not save the project file".into(); }
@@ -40,8 +66,9 @@ impl Pj {
     }
     fn s(v: &Value, k: &str) -> String { v[k].as_str().unwrap_or("").to_string() }
 
-    pub fn ui(&mut self, ctx: &egui::Context, defs: &[ModDef]) {
-        let mut changed = false;
+    pub fn ui(&mut self, ctx: &egui::Context, defs: &[ModDef], cl: &mut crate::cloud::Client) {
+        let mut changed = false; let mut cloud_rev = false; let mut leave_cloud = false;
+        if let Some(t) = self.dirty { if t.elapsed() >= std::time::Duration::from_millis(900) { self.flush_draft(cl); } else { ctx.request_repaint_after(std::time::Duration::from_millis(300)); } }
         egui::TopBottomPanel::top("pjtools").exact_height(44.0).frame(egui::Frame::new().fill(RIBBON).stroke(Stroke::new(1.0, LINE)).inner_margin(egui::Margin::symmetric(8, 8))).show(ctx, |ui| {
             ui.horizontal(|ui| {
                 egui::ComboBox::from_id_salt("pjadd").selected_text(defs[self.add].name).show_ui(ui, |ui| { for (i, d) in defs.iter().enumerate() { ui.selectable_value(&mut self.add, i, d.name); } });
@@ -51,9 +78,10 @@ impl Pj {
                     self.nodes.push(json!({"id": format!("{}{}", d.id, n), "name": format!("{} {}", d.name, n), "module": d.id, "mode": "design", "param_set": "EN1992-1-1:2004/RECOMMENDED", "values": vals, "links": []}));
                     changed = true;
                 }
-                if ui.add_enabled(self.res.as_ref().map_or(false, |r| r.ok), egui::Button::new("Save revision")).clicked() {
-                    if let Some(r) = &self.res { let id = self.revs.len() + 1; self.revs.push(json!({"name": format!("Rev {}", id), "savedAt": now_str(), "project": self.nodes, "results": r.nodes})); self.base = Some(self.revs.len() - 1); changed = true; }
+                if ui.add_enabled(self.res.as_ref().map_or(false, |r| r.ok), egui::Button::new(if self.cloud.is_some() { "Save revision to cloud" } else { "Save revision" })).clicked() {
+                    if self.cloud.is_some() { cloud_rev = true; } else if let Some(r) = &self.res { let id = self.revs.len() + 1; self.revs.push(json!({"name": format!("Rev {}", id), "savedAt": now_str(), "project": self.nodes, "results": r.nodes})); self.base = Some(self.revs.len() - 1); changed = true; }
                 }
+                if let Some((_, n)) = &self.cloud { ui.label(RichText::new(format!("Cloud: {n}")).strong().color(BLUE)); if ui.button("Switch to local project").clicked() { leave_cloud = true; } }
                 ui.label(RichText::new("Compare against:").color(MUTE));
                 let bt = self.base.map(|b| format!("{} · {}", Self::s(&self.revs[b], "name"), Self::s(&self.revs[b], "savedAt"))).unwrap_or("(no baseline)".into());
                 egui::ComboBox::from_id_salt("pjbase").width(220.0).selected_text(bt).show_ui(ui, |ui| {
@@ -171,6 +199,13 @@ impl Pj {
             });
         });
         if let Some(i) = remove { let id = Self::s(&self.nodes[i], "id"); self.nodes.remove(i); for n in self.nodes.iter_mut() { if let Some(a) = n["links"].as_array_mut() { a.retain(|l| l["from"] != id.as_str()); } } changed = true; }
-        if changed { self.recompute(); self.save(); }
+        if leave_cloud { self.close_cloud(); return; }
+        if cloud_rev {
+            if let (Some((id, _)), Some(r)) = (self.cloud.clone(), &self.res) {
+                let args = json!({"p_project": id, "p_name": format!("Rev {}", self.revs.len() + 1), "p_nodes": self.nodes, "p_results": r.nodes, "p_engine": r.engine_version});
+                match cl.rpc("save_revision", &args) { Ok(_) => { self.flush_draft(cl); self.load_cloud_revs(cl); self.msg = "Revision saved to cloud".into(); } Err(e) => self.msg = format!("Revision not saved: {e}") }
+            }
+        }
+        if changed { self.recompute(); if self.cloud.is_some() { self.dirty = Some(std::time::Instant::now()); } else { self.save(); } }
     }
 }

@@ -58,7 +58,7 @@ export default function Account() {
   useEffect(() => { loadOrg(); }, [loadOrg]);
   useEffect(() => { loadRevs(); }, [loadRevs]);
 
-  const signIn = () => run(async () => { const r = mode === "in" ? await supabase.auth.signInWithPassword({ email, password: pw }) : await supabase.auth.signUp({ email, password: pw, options: { data: { display_name: dn } } }); if (!r.error && mode === "up" && !r.data.session) setNote("Account created. Check your email and click the confirmation link, then sign in."); return r; });
+  const signIn = () => run(async () => { const r = mode === "in" ? await supabase.auth.signInWithPassword({ email, password: pw }) : await supabase.auth.signUp({ email, password: pw, options: { data: { display_name: dn } } }); if (!r.error && mode === "up" && !r.data.session) { const r2 = await supabase.auth.signInWithPassword({ email, password: pw }); if (r2.error) setNote("Account created. If email confirmation is switched on for this project, click the link in the email, then sign in."); return r2.error ? { error: null } : r2; } return r; });
   const rpc = (name: string, args: any, ok: string, after: () => void) => run(async () => { const r = await supabase.rpc(name, args); if (!r.error) after(); return r; }, ok);
 
   if (!ready) return <div className="pj"><div className="pj-empty">Loading...</div></div>;
