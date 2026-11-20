@@ -7,15 +7,15 @@ const ROLES: [(&str, &str); 9] = [("owner", "Owner"), ("administrator", "Adminis
 fn role_label(r: &str) -> &str { ROLES.iter().find(|x| x.0 == r).map(|x| x.1).unwrap_or(r) }
 fn status_label(s: &str) -> &str { match s { "draft" => "Draft", "submitted" => "Submitted", "changes_requested" => "Changes requested", "checked" => "Checked: recommended for approval", "approved" => "Approved", "rejected" => "Rejected", o => o } }
 
-enum Act { SignIn, SignUp, SignOut, CreateOrg, CreateProj, AddMember, SetRole(String, String), Remove(String), Submit(String), Check(String, &'static str), Approve(String, bool), Verify, MfaEnroll, MfaVerify, Reload }
+enum Act { StepUp, SetMfaRule(bool), Export, CloseAccount, SignIn, SignUp, SignOut, CreateOrg, CreateProj, AddMember, SetRole(String, String), Remove(String), Submit(String), Check(String, &'static str), Approve(String, bool), Verify, MfaEnroll, MfaVerify, Reload }
 
 #[derive(Default)]
 pub struct Acct {
     email: String, pw: String, name: String, signup: bool, msg: String, err: String,
-    orgs: Vec<(String, String, String)>, org: usize, members: Vec<Value>, projects: Vec<Value>, proj: usize,
+    orgs: Vec<(String, String, String, bool)>, org: usize, members: Vec<Value>, projects: Vec<Value>, proj: usize,
     revs: Vec<Value>, reviews: Vec<Value>, audit: Vec<Value>, chain: String,
     new_org: String, new_proj: String, add_email: String, add_role: usize, comment: String,
-    mfa_factor: String, mfa_secret: String, mfa_code: String, loaded_for: String,
+    mfa_factor: String, mfa_secret: String, mfa_code: String, loaded_for: String, step_code: String, close_ok: bool,
 }
 
 fn s(v: &Value, k: &str) -> String { v[k].as_str().unwrap_or("").to_string() }
@@ -28,13 +28,13 @@ impl Acct {
     fn ok<T>(&mut self, r: Result<T, String>, done: &str) -> Option<T> { match r { Ok(v) => { self.err.clear(); self.msg = done.into(); Some(v) } Err(e) => { self.msg.clear(); self.err = e; None } } }
 
     fn load_orgs(&mut self, cl: &mut Client) {
-        let r = cl.get(&format!("memberships?select=role,organisations(id,name)&user_id=eq.{}", cl.user_id));
-        if let Some(v) = self.ok(r, "") { self.orgs = v.as_array().cloned().unwrap_or_default().iter().map(|m| (s(&m["organisations"], "id"), s(&m["organisations"], "name"), s(m, "role"))).collect(); if self.org >= self.orgs.len() { self.org = 0; } }
+        let r = cl.get(&format!("memberships?select=role,organisations(id,name,require_mfa_approval)&user_id=eq.{}", cl.user_id));
+        if let Some(v) = self.ok(r, "") { self.orgs = v.as_array().cloned().unwrap_or_default().iter().map(|m| (s(&m["organisations"], "id"), s(&m["organisations"], "name"), s(m, "role"), m["organisations"]["require_mfa_approval"].as_bool().unwrap_or(true))).collect(); if self.org >= self.orgs.len() { self.org = 0; } }
         self.load_org(cl);
     }
     fn load_org(&mut self, cl: &mut Client) {
         self.members.clear(); self.projects.clear(); self.audit.clear(); self.revs.clear(); self.reviews.clear();
-        let Some((org, _, _)) = self.orgs.get(self.org).cloned() else { return };
+        let Some((org, _, _, _)) = self.orgs.get(self.org).cloned() else { return };
         if let Ok(ms) = cl.get(&format!("memberships?select=user_id,role&org_id=eq.{org}")) {
             let list = ms.as_array().cloned().unwrap_or_default();
             let ids: Vec<String> = list.iter().map(|m| s(m, "user_id")).collect();
@@ -83,6 +83,14 @@ impl Acct {
                     if self.mfa_secret.is_empty() { if ui.button("Set up authenticator app").clicked() { acts.push(Act::MfaEnroll); } }
                     else { ui.label(RichText::new(format!("Add this secret to your authenticator app: {}", self.mfa_secret)).font(FontId::monospace(12.0))); ui.horizontal(|ui| { ui.add(egui::TextEdit::singleline(&mut self.mfa_code).hint_text("6-digit code").desired_width(110.0)); if ui.button("Verify and enable").clicked() { acts.push(Act::MfaVerify); } }); }
                 }); });
+                if !cl.factor.is_empty() && !cl.aal2 {
+                    ui.add_space(6.0);
+                    card(ui, |ui| { egui::Frame::new().inner_margin(egui::Margin::same(12)).show(ui, |ui| {
+                        ui.label(RichText::new("Verify two-factor authentication").strong());
+                        ui.label(RichText::new("Enter the code from your authenticator app to check or approve revisions in this session.").size(11.5).color(MUTE));
+                        ui.horizontal(|ui| { let r = ui.add(egui::TextEdit::singleline(&mut self.step_code).hint_text("6-digit code").desired_width(110.0)); if ui.button("Verify").clicked() || (r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter))) { acts.push(Act::StepUp); } });
+                    }); });
+                }
                 ui.add_space(6.0);
                 card(ui, |ui| { egui::Frame::new().inner_margin(egui::Margin::same(12)).show(ui, |ui| {
                     ui.horizontal(|ui| {
@@ -115,6 +123,13 @@ impl Acct {
                         egui::ComboBox::from_id_salt("acaddrole").selected_text(ROLES[self.add_role].1).show_ui(ui, |ui| { for (i, (_, l)) in ROLES.iter().enumerate() { ui.selectable_value(&mut self.add_role, i, *l); } });
                         if ui.button("Add member").clicked() { acts.push(Act::AddMember); }
                     }); }
+                }); });
+                ui.add_space(6.0);
+                card(ui, |ui| { egui::Frame::new().inner_margin(egui::Margin::same(12)).show(ui, |ui| {
+                    ui.label(RichText::new("Security and data").strong());
+                    let mut req = self.orgs.get(self.org).map(|o| o.3).unwrap_or(true);
+                    ui.add_enabled_ui(self.is_admin(), |ui| { if ui.checkbox(&mut req, "Require two-factor authentication to check or approve revisions").changed() { acts.push(Act::SetMfaRule(req)); } });
+                    if matches!(self.role().as_str(), "owner" | "administrator" | "auditor") && ui.button("Export all organisation data to Downloads (.json)").clicked() { acts.push(Act::Export); }
                 }); });
                 ui.add_space(6.0);
                 card(ui, |ui| { egui::Frame::new().inner_margin(egui::Margin::same(12)).show(ui, |ui| {
@@ -163,6 +178,13 @@ impl Acct {
                     }); });
                 }
                 ui.add_space(8.0);
+                card(ui, |ui| { egui::Frame::new().inner_margin(egui::Margin::same(12)).show(ui, |ui| {
+                    ui.label(RichText::new("Close my account").strong());
+                    ui.label(RichText::new("Removes you from all organisations and disables sign-in. Engineering records you created are kept for audit. You must not be the only owner of an organisation.").size(11.5).color(MUTE));
+                    ui.checkbox(&mut self.close_ok, "I understand this cannot be undone");
+                    if ui.add_enabled(self.close_ok, egui::Button::new("Close account")).clicked() { acts.push(Act::CloseAccount); }
+                }); });
+                ui.add_space(8.0);
                 ui.label(RichText::new("Preview backend. Single sign-on (SAML) is not enabled. Data is held in a development database on a free plan.").size(11.5).color(AMBER));
             });
         });
@@ -170,6 +192,13 @@ impl Acct {
         let pid = self.projects.get(self.proj).map(|p| s(p, "id")).unwrap_or_default();
         for a in acts {
             match a {
+                Act::StepUp => { let r = cl.mfa_step_up(self.step_code.trim()); if self.ok(r, "Two-factor verified for this session.").is_some() { self.step_code.clear(); } }
+                Act::SetMfaRule(v) => { let r = cl.rpc("set_org_security", &json!({"p_org": org, "p_require_mfa": v})); self.ok(r, "Security setting updated."); self.load_orgs(cl); }
+                Act::Export => { let r = cl.rpc("export_organisation", &json!({"p_org": org})); if let Some(v) = self.ok(r, "") {
+                    let dir = std::env::var("USERPROFILE").or_else(|_| std::env::var("HOME")).map(std::path::PathBuf::from).unwrap_or_default().join("Downloads"); let _ = std::fs::create_dir_all(&dir);
+                    let name = self.orgs.get(self.org).map(|o| o.1.clone()).unwrap_or("organisation".into()); let p = dir.join(format!("strucal-{}-export.json", name.replace(|c: char| !c.is_alphanumeric(), "-")));
+                    match std::fs::write(&p, serde_json::to_string_pretty(&v).unwrap_or_default()) { Ok(_) => { self.msg = format!("Exported to Downloads: {}", p.file_name().and_then(|x| x.to_str()).unwrap_or("")); } Err(e) => { self.err = format!("Export failed: {e}"); } } } }
+                Act::CloseAccount => { let r = cl.rpc("close_account", &json!({})); if self.ok(r, "Account closed.").is_some() { cl.sign_out(); *self = Acct::new(); } }
                 Act::SignIn => { let r = cl.sign_in(self.email.trim(), &self.pw); if self.ok(r, "Signed in.").is_some() { self.pw.clear(); } }
                 Act::SignUp => { let r = cl.sign_up(self.email.trim(), &self.pw, &self.name); if self.ok(r, "Account created and signed in.").is_some() { self.pw.clear(); } }
                 Act::SignOut => { cl.sign_out(); *self = Acct::new(); }

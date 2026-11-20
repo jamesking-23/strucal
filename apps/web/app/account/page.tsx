@@ -18,7 +18,7 @@ export default function Account() {
   const [proj, setProj] = useState<string>(""); const [revs, setRevs] = useState<any[]>([]); const [reviews, setReviews] = useState<any[]>([]);
   const [audit, setAudit] = useState<any[]>([]); const [chain, setChain] = useState<string>("");
   const [newOrg, setNewOrg] = useState(""); const [newProj, setNewProj] = useState(""); const [addEmail, setAddEmail] = useState(""); const [addRole, setAddRole] = useState("designer");
-  const [comment, setComment] = useState(""); const [factors, setFactors] = useState<any[]>([]); const [enroll, setEnroll] = useState<any>(null); const [code, setCode] = useState("");
+  const [comment, setComment] = useState(""); const [aal, setAal] = useState<any>(null); const [stepCode, setStepCode] = useState(""); const [factors, setFactors] = useState<any[]>([]); const [enroll, setEnroll] = useState<any>(null); const [code, setCode] = useState("");
   const uid = session?.user?.id;
   const myRole = orgs.find((o) => o.id === org)?.role as string | undefined;
   const isAdmin = myRole === "owner" || myRole === "administrator";
@@ -31,8 +31,8 @@ export default function Account() {
 
   const loadOrgs = useCallback(async () => {
     if (!uid) return;
-    const { data } = await supabase.from("memberships").select("role, organisations(id,name)").eq("user_id", uid);
-    const list = (data ?? []).map((m: any) => ({ id: m.organisations.id, name: m.organisations.name, role: m.role }));
+    const { data } = await supabase.from("memberships").select("role, organisations(id,name,require_mfa_approval)").eq("user_id", uid);
+    const list = (data ?? []).map((m: any) => ({ id: m.organisations.id, name: m.organisations.name, role: m.role, mfa: m.organisations.require_mfa_approval }));
     setOrgs(list); setOrg((cur) => (cur && list.some((o) => o.id === cur) ? cur : list[0]?.id ?? ""));
   }, [uid]);
   const loadOrg = useCallback(async () => {
@@ -54,7 +54,10 @@ export default function Account() {
     setReviews(rv ?? []);
   }, [proj]);
   const loadFactors = useCallback(async () => { const { data } = await supabase.auth.mfa.listFactors(); setFactors(data?.totp ?? []); }, []);
-  useEffect(() => { loadOrgs(); loadFactors(); }, [loadOrgs, loadFactors]);
+  const loadAal = useCallback(async () => { const { data } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel(); setAal(data); }, []);
+  useEffect(() => { loadOrgs(); loadFactors(); loadAal(); }, [loadOrgs, loadFactors, loadAal, uid]);
+  const needStepUp = aal && aal.nextLevel === "aal2" && aal.currentLevel !== "aal2";
+  const stepUp = () => run(async () => { const f = factors.find((x) => x.status === "verified"); if (!f) return { error: { message: "No authenticator app is set up" } }; const ch = await supabase.auth.mfa.challenge({ factorId: f.id }); if (ch.error) return ch; const v = await supabase.auth.mfa.verify({ factorId: f.id, challengeId: ch.data.id, code: stepCode }); if (!v.error) { setStepCode(""); await loadAal(); } return v; }, "Two-factor verified for this session.");
   useEffect(() => { loadOrg(); }, [loadOrg]);
   useEffect(() => { loadRevs(); }, [loadRevs]);
 
@@ -89,6 +92,7 @@ export default function Account() {
                   : <div style={{ marginTop: 4 }}><button className="pj-btn" onClick={() => run(async () => { const r = await supabase.auth.mfa.enroll({ factorType: "totp" }); if (!r.error) setEnroll({ id: r.data.id, qr: r.data.totp.qr_code, secret: r.data.totp.secret }); return r; })}>Set up authenticator app</button></div>}
               </div></div></div>
 
+          {needStepUp && (<div className="pj-card"><div className="pj-ch"><b>Verify two-factor authentication</b></div><div className="pj-out"><span>Enter the code from your authenticator app to check or approve revisions in this session.</span><input className="fac" style={{ width: 120, textAlign: "left", height: 26 }} placeholder="6-digit code" value={stepCode} onChange={(e) => setStepCode(e.target.value)} onKeyDown={(e) => e.key === "Enter" && stepUp()} /><button className="pj-btn pri" onClick={stepUp}>Verify</button></div></div>)}
           <div className="pj-card"><div className="pj-ch"><b>Organisations</b><select value={org} onChange={(e) => setOrg(e.target.value)}>{orgs.map((o) => <option key={o.id} value={o.id}>{o.name} ({ROLE_LABEL[o.role]})</option>)}</select><span style={{ flex: 1 }} />
             <input className="fac" style={{ width: 200, textAlign: "left", height: 26 }} placeholder="New organisation name" value={newOrg} onChange={(e) => setNewOrg(e.target.value)} />
             <button className="pj-btn pri" onClick={() => rpc("create_organisation", { p_name: newOrg }, "Organisation created.", () => { setNewOrg(""); loadOrgs(); })}>Create</button></div>
@@ -104,6 +108,10 @@ export default function Account() {
               {isAdmin && <div className="pj-out"><input className="fac" style={{ width: 240, textAlign: "left", height: 26 }} placeholder="Email of a registered user" value={addEmail} onChange={(e) => setAddEmail(e.target.value)} /><select value={addRole} onChange={(e) => setAddRole(e.target.value)}>{ROLES.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}</select><button className="pj-btn pri" onClick={() => rpc("add_member", { p_org: org, p_email: addEmail, p_role: addRole }, "Member added.", () => { setAddEmail(""); loadOrg(); })}>Add member</button></div>}
             </div>
 
+            <div className="pj-card"><div className="pj-ch"><b>Security and data</b></div><div className="pj-out" style={{ flexDirection: "column", alignItems: "flex-start", gap: 8 }}>
+              <label><input type="checkbox" disabled={!isAdmin} checked={!!orgs.find((o) => o.id === org)?.mfa} onChange={(e) => rpc("set_org_security", { p_org: org, p_require_mfa: e.target.checked }, "Security setting updated.", loadOrgs)} /> Require two-factor authentication to check or approve revisions</label>
+              {canAudit && <button className="pj-btn" onClick={() => run(async () => { const r = await supabase.rpc("export_organisation", { p_org: org }); if (!r.error) { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(r.data, null, 2)], { type: "application/json" })); a.download = `strucal-${orgs.find((o) => o.id === org)?.name ?? "organisation"}-export.json`; a.click(); } return r; }, "Organisation data exported.")}>Export all organisation data (.json)</button>}
+            </div></div>
             <div className="pj-card"><div className="pj-ch"><b>Projects</b><select value={proj} onChange={(e) => setProj(e.target.value)}>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
               {proj && <Link className="pj-btn" href={`/project?p=${proj}`} style={{ textDecoration: "none", lineHeight: "24px" }}>Open in Project page</Link>}<span style={{ flex: 1 }} />
               <input className="fac" style={{ width: 200, textAlign: "left", height: 26 }} placeholder="New project name" value={newProj} onChange={(e) => setNewProj(e.target.value)} />
@@ -136,6 +144,7 @@ export default function Account() {
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}><tbody>{audit.map((a) => <tr key={a.id} style={{ borderTop: "1px solid #e4e7eb" }}><td style={{ padding: "4px 10px", whiteSpace: "nowrap" }}>{new Date(a.created_at).toLocaleString()}</td><td>{names[a.actor] ?? "?"}</td><td><b>{a.action}</b></td><td style={{ color: "#52606d" }}>{JSON.stringify(a.detail)}</td></tr>)}</tbody></table></div>)}
           </>)}
         </>)}
+        {session && <div className="pj-card"><div className="pj-ch"><b>Close my account</b></div><div className="pj-out"><span>Removes you from all organisations and disables sign-in. Engineering records you created are kept for audit, shown as a closed account. You must not be the only owner of an organisation.</span><button className="pj-btn" onClick={async () => { if (!confirm("Close your account? This cannot be undone.")) return; const ok = await run(async () => await supabase.rpc("close_account")); if (ok) await supabase.auth.signOut(); }}>Close account</button></div></div>}
         <div className="pj-warn">Preview backend. Single sign-on (SAML) is not enabled. Data is held in a development database on a free plan with no uptime guarantee.</div>
       </div>
     </div>

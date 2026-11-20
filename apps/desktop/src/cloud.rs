@@ -6,7 +6,7 @@ pub const URL: &str = "https://bunshysrzoozplnvxhui.supabase.co";
 pub const KEY: &str = "sb_publishable_Z1waCuLYUVRaGV9LyWxLAw_gbl-HLb9";
 
 #[derive(Default, Clone)]
-pub struct Client { pub token: String, pub refresh: String, pub user_id: String, pub email: String, pub name: String }
+pub struct Client { pub token: String, pub refresh: String, pub user_id: String, pub email: String, pub name: String, pub factor: String, pub aal2: bool }
 
 fn clean(code: u16, body: &str) -> String {
     let v: Value = serde_json::from_str(body).unwrap_or(Value::Null);
@@ -31,10 +31,11 @@ impl Client {
         self.token = v["access_token"].as_str().unwrap_or("").into(); self.refresh = v["refresh_token"].as_str().unwrap_or("").into();
         self.user_id = v["user"]["id"].as_str().unwrap_or("").into(); self.email = v["user"]["email"].as_str().unwrap_or("").into();
         self.name = v["user"]["user_metadata"]["display_name"].as_str().unwrap_or(&self.email).into();
+        if let Some(fs) = v["user"]["factors"].as_array() { self.factor = fs.iter().find(|f| f["factor_type"] == "totp" && f["status"] == "verified").and_then(|f| f["id"].as_str()).unwrap_or("").into(); }
     }
     pub fn sign_in(&mut self, email: &str, pw: &str) -> Result<(), String> {
         let v = self.call("POST", "/auth/v1/token?grant_type=password", Some(&json!({"email": email, "password": pw})), &[]).map_err(|e| e.1)?;
-        self.set_session(&v); Ok(())
+        self.set_session(&v); self.aal2 = false; Ok(())
     }
     pub fn sign_up(&mut self, email: &str, pw: &str, name: &str) -> Result<(), String> {
         self.call("POST", "/auth/v1/signup", Some(&json!({"email": email, "password": pw, "data": {"display_name": name}})), &[]).map_err(|e| e.1)?;
@@ -56,9 +57,13 @@ impl Client {
     pub fn rpc(&mut self, name: &str, args: &Value) -> Result<Value, String> { self.req("POST", &format!("/rest/v1/rpc/{name}"), Some(args), &[]) }
     pub fn patch(&mut self, path: &str, body: &Value) -> Result<Value, String> { self.req("PATCH", &format!("/rest/v1/{path}"), Some(body), &[("Prefer", "return=representation")]) }
     pub fn mfa_enroll(&mut self) -> Result<Value, String> { self.req("POST", "/auth/v1/factors", Some(&json!({"factor_type": "totp"})), &[]) }
+    /// Verifies a code for a factor. The response is a fresh session at assurance level 2.
     pub fn mfa_verify(&mut self, factor: &str, code: &str) -> Result<(), String> {
         let ch = self.req("POST", &format!("/auth/v1/factors/{factor}/challenge"), Some(&json!({})), &[])?;
         let cid = ch["id"].as_str().ok_or("No challenge returned")?.to_string();
-        self.req("POST", &format!("/auth/v1/factors/{factor}/verify"), Some(&json!({"challenge_id": cid, "code": code})), &[]).map(|_| ())
+        let v = self.req("POST", &format!("/auth/v1/factors/{factor}/verify"), Some(&json!({"challenge_id": cid, "code": code})), &[])?;
+        if v["access_token"].is_string() { let keep = (self.name.clone(), self.email.clone(), self.user_id.clone()); self.token = v["access_token"].as_str().unwrap_or("").into(); self.refresh = v["refresh_token"].as_str().unwrap_or(&self.refresh).into(); self.name = keep.0; self.email = keep.1; self.user_id = keep.2; self.factor = factor.into(); self.aal2 = true; }
+        Ok(())
     }
+    pub fn mfa_step_up(&mut self, code: &str) -> Result<(), String> { let f = self.factor.clone(); if f.is_empty() { return Err("No authenticator app is set up".into()); } self.mfa_verify(&f, code) }
 }
