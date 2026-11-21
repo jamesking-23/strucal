@@ -159,3 +159,23 @@ mod connection_tests {
     #[test] fn weld_overload_fails() { let mut v = w(); v["f_par"] = json!(400); assert!(!run("weld", &v).overall_pass); }
     #[test] fn weld_needs_a_force() { let mut v = w(); v["f_perp"] = json!(0); v["f_par"] = json!(0); assert!(!run("weld", &v).ok); }
 }
+
+#[cfg(test)]
+mod hand_calc_tests {
+    use crate::modules::*;
+    use serde_json::json;
+    #[test] fn stairs_match_hand_calculation() {
+        // cos a = 250/sqrt(175^2+250^2) = 0.8192; g_sw = 6.765; w = 17.158 kN/m; M = 19.302 kNm/m; V = 25.737 kN/m; As,req = 392.7 mm2/m
+        let r = run("stairs", &json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","span":3000,"h":150,"rise":175,"going":250,"cover":25,"bar_dia":12,"fck":30,"fyk":500,"gk":1.5,"qk":4}));
+        assert!(r.ok, "{:?}", r.errors);
+        let o = |k: &str| r.outputs.iter().find(|x| x.key == k).unwrap().value;
+        assert!((o("m_ed") - 19.302).abs() < 0.01, "{}", o("m_ed")); assert!((o("v_ed") - 25.737).abs() < 0.01);
+        let as_req: f64 = r.summary.iter().find(|k| k.label.starts_with("Required steel")).unwrap().value.split_whitespace().next().unwrap().parse().unwrap();
+        assert!((as_req - 393.0).abs() < 1.5, "{}", as_req);
+    }
+    #[test] fn wall_resistance_matches_independent_script() {
+        let r = run("wall", &json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","h":200,"len":3000,"beta":1.0,"cover":30,"bar_dia":12,"hbar_dia":10,"fck":30,"fyk":500,"phi_ef":1.0,"n_ed":600,"m02":12,"m01":6}));
+        let m: f64 = r.summary.iter().find(|k| k.label.starts_with("Moment resistance")).unwrap().value.split_whitespace().next().unwrap().parse().unwrap();
+        assert!((m - 65.89).abs() < 0.05, "{}", m);
+    }
+}

@@ -236,9 +236,9 @@ EN 1992-1-1:2004 · Simply supported flight, design on the horizontal span, 1 m 
 Trace steps: 16; trace hash `162332c1a6eb478c3463787152e6a4ef94defd88253309212dcf36ba17da6920`
 
 
-**Verification status:** C - no independent cross-check yet
+**Verification status:** A - author cross-checked (own hand calculation or script; not an independent review)
 
-**Cross-checks made so far:** None beyond shared slab logic. Slope load conversion (cos alpha, step weight) should be hand-checked.
+**Cross-checks made so far:** Hand calculation for span 3 m, waist 150, rise 175, going 250, gk 1.5, qk 4: cos alpha = 0.8192, g_sw = 6.765 kPa on plan, w = 17.158 kN/m, MEd = 19.302 kNm/m, VEd = 25.737 kN/m, As,req = 392.7 mm2/m (matches engine and an automated test). Deflection check shares the slab implementation and is not independently reproduced.
 
 **Known limits and open issues:** Landings, dynamic checks and stair geometry rules not implemented. 2R+G range is a comfort guide only.
 
@@ -356,9 +356,9 @@ EN 1992-1-1:2004 · Braced wall, vertical load with out-of-plane bending, nomina
 Trace steps: 15; trace hash `578da923ca7311dcaa48c2eb35834539ca23c5309712dd65fd3d5209f712e897`
 
 
-**Verification status:** C - no independent cross-check yet
+**Verification status:** A - author cross-checked (own hand calculation or script; not an independent review)
 
-**Cross-checks made so far:** Reuses the column interaction engine (see column). No separate independent reference.
+**Cross-checks made so far:** A separately coded strain-compatibility calculation for the 1 m strip (h 200, N = 600 kN/m, T12 at 400 each face) gives MRd = 65.89 kNm/m, matching the engine (same method, coded twice). Slenderness and second-order steps and the vertical/horizontal steel limits are not independently reproduced.
 
 **Known limits and open issues:** In-plane shear and bending, openings, concentrated loads not implemented. Effective length factor is a user input.
 
