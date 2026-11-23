@@ -165,6 +165,12 @@ impl App {
                 p.rect_filled(egui::Rect::from_min_size(egui::pos2(o.x + lts, o.y), egui::vec2(tss, hss)), 0.0, steel);
                 lab(&p, egui::pos2(rect.center().x, o.y + hh + 16.0), format!("H = {} / B = {b}", hs + tb));
             }
+            Drawing::Rect { b, h } => {
+                let sc = (150.0 / b).min(250.0 / h) as f32; let (w, hh) = (*b as f32 * sc, *h as f32 * sc);
+                let o = egui::pos2(rect.center().x - w / 2.0, rect.center().y - hh / 2.0 - 8.0); let outer = egui::Rect::from_min_size(o, egui::vec2(w, hh));
+                p.rect_filled(outer, 0.0, Color32::from_rgb(232, 216, 189)); p.rect_stroke(outer, 0.0, Stroke::new(2.0, TX), StrokeKind::Inside);
+                lab(&p, egui::pos2(rect.center().x, o.y + hh + 16.0), format!("{b} × {h}"));
+            }
             Drawing::ISection { h, b, tw, tf } => {
                 let sc = (160.0 / b).min(250.0 / h) as f32; let (w, hh, wt, ft) = (*b as f32 * sc, *h as f32 * sc, *tw as f32 * sc, *tf as f32 * sc);
                 let o = egui::pos2(rect.center().x - w / 2.0, rect.center().y - hh / 2.0 - 8.0); let steel = Color32::from_rgb(51, 65, 85);
@@ -288,7 +294,11 @@ impl eframe::App for App {
                         for (f, v) in self.defs[self.mi].fields.iter().zip(stt.vals.iter_mut()) {
                             if f.check_only && stt.mode != "check" { continue; }
                             if f.group != last { heading(ui, f.group); last = f.group; }
-                            Self::field(ui, f.label, f.unit, v, &mut ch);
+                            if let Some(opts) = &f.options {
+                                ui.label(RichText::new(f.label).size(12.0).color(Color32::from_rgb(51, 65, 85)));
+                                let cur = opts.iter().find(|o| (o.0 - *v).abs() < 1e-9).map(|o| o.1).unwrap_or("-");
+                                egui::ComboBox::from_id_salt(format!("opt_{}", f.key)).width(ui.available_width() - 8.0).selected_text(cur).show_ui(ui, |ui| { for (val, lab) in opts { if ui.selectable_label((*val - *v).abs() < 1e-9, *lab).clicked() { *v = *val; ch = true; } } });
+                            } else { Self::field(ui, f.label, f.unit, v, &mut ch); }
                         }
                     });
                 });

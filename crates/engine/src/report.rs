@@ -52,6 +52,10 @@ fn drawing_svg(d: &Drawing) -> String {
         Drawing::Weld { lw, a } => {
             format!("<svg width='220' height='80' xmlns='http://www.w3.org/2000/svg'><rect x='20' y='20' width='180' height='14' fill='#555'/><rect x='20' y='34' width='180' height='14' fill='#999'/><polygon points='20,48 20,58 30,48' fill='#111'/><text x='110' y='72' font-size='10' text-anchor='middle'>a = {} / L = {}</text></svg>", a, lw)
         }
+        Drawing::Rect { b, h } => {
+            let sc = 170.0 / b.max(*h); let (pw, ph) = (b * sc, h * sc); let (ox, oy) = (20.0, 10.0);
+            format!("<svg width='{}' height='{}' xmlns='http://www.w3.org/2000/svg'><rect x='{ox}' y='{oy}' width='{pw}' height='{ph}' fill='#e8d8bd' stroke='#222' stroke-width='1.5'/><text x='{}' y='{}' font-size='10' text-anchor='middle'>{} × {}</text></svg>", pw + 40.0, ph + 30.0, ox + pw / 2.0, oy + ph + 18.0, b, h)
+        }
         Drawing::Raft { l, w, n, spacing, edge } => {
             let sc = 180.0 / l.max(*w); let (pw, ph) = (l * sc, w * sc); let (ox, oy) = (20.0, 10.0);
             let mut s = format!("<svg width='{}' height='{}' xmlns='http://www.w3.org/2000/svg'><rect x='{ox}' y='{oy}' width='{pw}' height='{ph}' fill='#f4f5f7' stroke='#222' stroke-width='1.5'/>", pw + 40.0, ph + 30.0);

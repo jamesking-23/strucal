@@ -59,7 +59,7 @@ export default function Home() {
         <div className="sh"><h2>Coverage</h2><p>Reinforced concrete, steel, timber and foundations, delivered module by module as each clears verification.</p></div>
         <div className="grid3">
           <div className="card"><h3>Reinforced concrete</h3><p>Beams, slabs, columns, walls, stairs, footings, pile caps, retaining walls.</p></div>
-          <div className="card"><h3>Structural steel</h3><p>Beams, columns, beam-columns, bolted and welded connections, and the project dependency engine, base plates.</p></div>
+          <div className="card"><h3>Structural steel</h3><p>Beams, columns, beam-columns, bolted and welded connections, project dependencies and solid timber beams and columns, base plates.</p></div>
           <div className="card"><h3>Timber &amp; foundations</h3><p>Joists, rafters, trusses, bearing, sliding, overturning and settlement.</p></div>
         </div>
       </div></section>

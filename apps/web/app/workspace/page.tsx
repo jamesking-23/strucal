@@ -8,7 +8,8 @@ import Assistant from "./Assistant";
 const PS = "EN1992-1-1:2004/RECOMMENDED";
 const initFor = (def: any) => { const o: any = { mode: "design", param_set: PS }; for (const f of def.fields) o[f.key] = f.default; return o; };
 
-function Inp({ f, setF, k, label, unit }: any) {
+function Inp({ f, setF, k, label, unit, opts }: any) {
+  if (opts) return (<div className="wk-f" style={{ gridColumn: "1 / -1" }}><label>{label}</label><div className="wk-in"><select style={{ width: "100%", border: 0, background: "transparent", padding: "6px 4px", font: "inherit" }} value={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.value })}>{opts.map(([v, l]: any) => <option key={v} value={v}>{l}</option>)}</select></div></div>);
   return (<div className="wk-f"><label>{label}</label><div className="wk-in"><input type="number" value={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.value })} /><span>{unit}</span></div></div>);
 }
 
@@ -58,6 +59,13 @@ function Drawing({ d }: { d: any }) {
       <rect x={ox} y={oy + d.hs * sc} width={W} height={d.tb * sc} fill={steel} />
       <rect x={ox + d.lt * sc} y={oy} width={d.ts * sc} height={d.hs * sc} fill={steel} />
       <text x={ox + W / 2} y={oy + H + 22} fontSize="10" textAnchor="middle" fill="#2563eb" fontFamily="IBM Plex Mono">H = {d.hs + d.tb} / B = {d.b}</text></svg>);
+  }
+  if (d.kind === "rect") {
+    const sc = Math.min(150 / d.b, 250 / d.h), W = d.b * sc, H = d.h * sc, ox = 25, oy = 15;
+    return (<svg viewBox={`0 0 ${W + 50} ${H + 40}`}>
+      <rect x={ox} y={oy} width={W} height={H} fill="#e8d8bd" stroke="#0f172a" strokeWidth="2" />
+      {[0.25, 0.5, 0.75].map((t) => <path key={t} d={`M${ox + W * t - 8} ${oy + H * 0.5} q8 -${Math.min(18, H * 0.3)} 16 0`} fill="none" stroke="#a98a5a" />)}
+      <text x={ox + W / 2} y={oy + H + 22} fontSize="10" textAnchor="middle" fill="#2563eb" fontFamily="IBM Plex Mono">{d.b} × {d.h}</text></svg>);
   }
   if (d.kind === "isection") {
     const sc = Math.min(160 / d.b, 250 / d.h), W = d.b * sc, H = d.h * sc, ox = 25, oy = 15, tw = d.tw * sc, tf = d.tf * sc;
@@ -193,7 +201,7 @@ export default function Workspace() {
               {soon.map((u) => <li key={u.name} className="dis" title={u.note}>{u.name}</li>)}</ul></section>}
           {showL && <section className="pn grow"><header>Input data — {f.mode === "check" ? "Check" : "Design"}<button onClick={() => setShowL(false)} title="Close">×</button></header>
             <div className="pb">{groups.map((g) => (<div key={g}><div className="wk-gh">{g}</div>
-              <div className="wk-2">{def.fields.filter((x: any) => x.group === g && (!x.check_only || f.mode === "check")).map((x: any) => <Inp key={x.key} {...{ f, setF }} k={x.key} label={x.label} unit={x.unit} />)}</div></div>))}</div></section>}
+              <div className="wk-2">{def.fields.filter((x: any) => x.group === g && (!x.check_only || f.mode === "check")).map((x: any) => <Inp key={x.key} {...{ f, setF }} k={x.key} label={x.label} unit={x.unit} opts={x.options} />)}</div></div>))}</div></section>}
         </div>
 
         <main className="wk-c">

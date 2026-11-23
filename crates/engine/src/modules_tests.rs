@@ -179,3 +179,50 @@ mod hand_calc_tests {
         assert!((m - 65.89).abs() < 0.05, "{}", m);
     }
 }
+
+#[cfg(test)]
+mod timber_tests {
+    use crate::modules::*;
+    use serde_json::json;
+    fn joist() -> serde_json::Value { json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","span":3400,"b":63,"h":200,"lb":100,"ov":0,"h_ef":0,"notch_x":0,"notch_i":0,"notch_side":1,"class":4,"service":2,"duration":3,"ksys":1.1,"gk":0.24,"sw":2,"qk":0.9,"psi2":0.3,"restraint":1,"load_level":1,"defl_ratio":250}) }
+    fn col() -> serde_json::Value { json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","n_ed":10,"my_ed":0.35,"mz_ed":0,"b":100,"h":100,"lef_y":3750,"lef_z":3750,"lef_ltb":3750,"class":2,"service":2,"duration":3}) }
+    fn num(s: &str) -> f64 { s.split_whitespace().next().unwrap().trim_end_matches(',').parse().unwrap() }
+    fn chk<'a>(r: &'a crate::module::ModResult, name: &str) -> &'a crate::rc_beam::Check { r.checks.iter().find(|c| c.name.starts_with(name)).unwrap() }
+
+    #[test] fn example_11_1_bending_and_loads() {
+        let r = run("timber", &joist()); assert!(r.ok, "{:?}", r.errors);
+        let md = r.outputs.iter().find(|o| o.key == "m_ed").unwrap().value; assert!((md - 2.42).abs() < 0.02, "M {}", md);     // book: 2.42 kNm
+        let ved = r.outputs.iter().find(|o| o.key == "v_ed").unwrap().value; assert!((ved - 2.85).abs() < 0.02, "V {}", ved);  // book: 2.85 kN
+        let b = chk(&r, "Bending"); assert!((num(&b.capacity) - 14.89).abs() < 0.05, "fm,d {}", b.capacity);                    // book: 14.9 N/mm2
+    }
+    #[test] fn example_11_1_shear_bearing_deflection() {
+        let r = run("timber", &joist());
+        let s = chk(&r, "Shear"); assert!((num(&s.demand) - 0.34).abs() < 0.01, "tau {}", s.demand); assert!((num(&s.capacity) - 1.62).abs() < 0.01, "fvd {}", s.capacity); // book 0.34 and 1.62
+        let br = chk(&r, "Bearing"); assert!((num(&br.demand) - 0.45).abs() < 0.01, "sigma90 {}", br.demand); assert!((num(&br.capacity) - 7.9).abs() < 0.15, "kc90*fc90d {}", br.capacity); // book 0.45 and 7.9
+        let d = chk(&r, "Final deflection"); assert!((num(&d.demand) - 6.7).abs() < 0.2, "ufin {}", d.demand); assert!((num(&d.capacity) - 13.6).abs() < 0.01); // book 6.7 and 13.6 mm
+        assert!(r.overall_pass, "{:?}", r.checks);
+    }
+    #[test] fn example_11_2_notched_joist() {
+        let mut v = joist(); v["h_ef"] = json!(125); v["notch_x"] = json!(75); v["notch_i"] = json!(2); v["notch_side"] = json!(1);
+        let r = run("timber", &v); assert!(r.ok, "{:?}", r.errors);
+        let s = chk(&r, "Shear at the end notch"); assert!((num(&s.demand) - 0.54).abs() < 0.01, "tau {}", s.demand); assert!((num(&s.capacity) - 0.86).abs() < 0.01, "kv*fvd {}", s.capacity); // book: 0.54 and 0.86 (k_v = 0.53)
+    }
+    #[test] fn example_11_4_column_capacity() {
+        let mut v = col(); v["my_ed"] = json!(0);
+        let r = run("timbercol", &v); assert!(r.ok, "{:?}", r.errors);
+        let cap = num(&r.summary.iter().find(|k| k.label.starts_with("Axial capacity")).unwrap().value); assert!((cap - 17.7).abs() < 0.3, "N {}", cap); // book: 17.7 kN
+        let kc = num(&r.summary.iter().find(|k| k.label.starts_with("k c,y")).unwrap().value); assert!((kc - 0.17).abs() < 0.005, "kc {}", kc);
+    }
+    #[test] fn example_11_5_eccentric_column() {
+        let r = run("timbercol", &col()); assert!(r.ok, "{:?}", r.errors);
+        let c = chk(&r, "Compression and bending, Eq 11.48"); assert!((num(&c.demand) - 0.76).abs() < 0.02, "eq11.48 {}", c.demand); // book: 0.76
+        assert!(r.overall_pass, "{:?}", r.checks);
+    }
+    #[test] fn free_compression_edge_triggers_lateral_buckling() {
+        let mut v = joist(); v["restraint"] = json!(2); v["span"] = json!(5000); v["h"] = json!(250); v["b"] = json!(63);
+        let r = run("timber", &v); assert!(r.ok, "{:?}", r.errors); assert!(r.trace.steps.iter().any(|s| s.title == "Lateral buckling" && s.output.contains("k_crit") || s.output.contains("kcrit")));
+    }
+    #[test] fn d70_needing_e005_is_rejected() { let mut v = col(); v["class"] = json!(15); assert!(!run("timbercol", &v).ok); let mut b = joist(); b["class"] = json!(15); b["restraint"] = json!(2); assert!(!run("timber", &b).ok); }
+    #[test] fn overloaded_joist_fails() { let mut v = joist(); v["qk"] = json!(6.0); assert!(!run("timber", &v).overall_pass); }
+    #[test] fn options_are_exposed_to_the_ui() { let j = defs_json(); assert!(j.contains("\"options\"") && j.contains("C22")); }
+}

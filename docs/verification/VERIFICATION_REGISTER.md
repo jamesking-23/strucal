@@ -9,6 +9,7 @@
 - A: author cross-checked (own hand calculation or script)
 - B: also checked against published section or standard values
 - C: no independent cross-check yet
+- Timber modules: status B means checked against the worked examples in the supplied Eurocode 5 chapter (published by a third party), which is the strongest cross-check available so far
 
 **Applies to all modules**
 
@@ -831,6 +832,126 @@ Trace steps: 6; trace hash `e6fcf6dc1e50d43d23ce4d3ef7e530699ba79eade67bcae8221b
 **Cross-checks made so far:** Hand calculation: f_vw,d = 233.6 MPa and F_w,Rd = 1168 N/mm for a = 5 mm, fu = 430 MPa, beta_w = 0.85.
 
 **Known limits and open issues:** Eccentric weld groups, butt welds, long-joint reduction, fatigue not implemented.
+
+**Sign-off**
+
+| Reviewer (name, registration) | Date | Cases re-derived | Outcome (accepted / accepted with comments / rejected) | Comments |
+|---|---|---|---|---|
+| | | | | |
+
+## Solid timber beam / joist (`timber`)
+
+Eurocode 5 (values as printed in the supplied source, UK National Annex) · Simply supported, uniformly distributed load, rectangular section
+
+**Default inputs**
+
+| Input | Value | Unit |
+|---|---|---|
+| Span L | 3400 | mm |
+| Breadth b | 63 | mm |
+| Depth h | 200 | mm |
+| Bearing length | 100 | mm |
+| Overhang beyond the bearing, a | 0 | mm |
+| Depth at end notch h ef (0 = no notch) | 0 | mm |
+| Notch: distance x from support line to notch corner | 0 | mm |
+| Notch inclination i (0 = square notch) | 0 | - |
+| Notch side | 1 |  |
+| Strength class (EN 338) | 4 |  |
+| Service class | 2 |  |
+| Load-duration class (shortest in the combination) | 3 |  |
+| Load-sharing factor k sys (1.0 to 1.1) | 1.1 | - |
+| Permanent load g k | 0.24 | kN/m |
+| Beam self-weight | 2 |  |
+| Variable load q k | 0.9 | kN/m |
+| Quasi-permanent factor ψ2 (for creep) | 0.3 | - |
+| Lateral restraint of the compression edge | 1 |  |
+| Load applied at | 1 |  |
+| Deflection limit: span / ratio (net final) | 250 | - |
+
+**Engine results**
+
+| Result | Value |
+|---|---|
+| Class / service / duration | C22 / 2 / k_mod 0.80 |
+| Design load w d | 1.674 kN/m |
+| M d / V d | 2.419 kNm / 2.846 kN |
+| Design strengths f m,d / f v,d | 14.89 / 1.62 N/mm² |
+| Bending stress σ m,d | 5.76 N/mm² (k crit 1.00) |
+| Shear stress τ d | 0.339 N/mm² |
+| Bearing stress σ c,90,d | 0.452 N/mm² (k c,90 2.31) |
+| Final deflection | 6.75 mm (limit 13.60) |
+
+**Checks**
+
+| Check | Clause | Demand | Capacity | Utilisation | Result |
+|---|---|---|---|---|---|
+| Bending (with lateral buckling) | Supplied Eq 11.4, 11.18 | 5.76 N/mm² | 14.89 N/mm² | 0.39 | PASS |
+| Shear | Supplied Eq 11.25, 11.28 | 0.339 N/mm² | 1.625 N/mm² | 0.21 | PASS |
+| Bearing perpendicular to the grain | Supplied Eq 11.32 | 0.452 N/mm² | 7.975 N/mm² | 0.06 | PASS |
+| Final deflection | Supplied Eq 11.8-11.10 | 6.75 mm | 13.60 mm | 0.50 | PASS |
+
+Trace steps: 12; trace hash `2000cf45f5cc8b458c9ffc2a70830c999b33bae60f215d373a6f2eefe9bc06bb`
+
+
+**Verification status:** B - checked against worked examples published in the supplied source (plus author cross-check)
+
+**Cross-checks made so far:** Reproduces the supplied book's Example 11.1 (C22, 63 x 200 joist, 3.4 m span): MEd = 2.42 kNm, VEd = 2.85 kN, f_m,d = 14.9 N/mm2, tau_d = 0.34 vs f_v,d = 1.62 N/mm2, bearing stress 0.45 N/mm2 vs k_c,90 f_c,90,d = 7.9 N/mm2 (k_c,90 = 2.31), final deflection 6.7 mm vs L/250 = 13.6 mm. Also Example 11.2 (75 mm end notch): k_v = 0.53, tau_d = 0.54 vs k_v f_v,d = 0.86 N/mm2. All are automated tests. Strength-class data transcribed from the supplied Table 11.3 (EN 338).
+
+**Known limits and open issues:** UK National Annex values (k_mod, gamma_M = 1.3, k_def, k_sys, deflection limits) as printed in the supplied book: confirm the values for Uganda. Floor vibration (Eq 11.11-11.17) is NOT implemented because the book's worked example swaps floor width and span and uses the actual w/F where the National Annex table points to a limit: needs the National Annex text. Lateral buckling formula (Eq 11.24) is stated for softwoods. D70 E0,05 is printed as 6.8 (looks like a misprint of 16.8): D70 is blocked where E0,05 is needed. Example 11.3 in the book is internally inconsistent (stated 250 deep, calculated with 200) so it was not used as a reference. Self-weight uses mean density, following the book.
+
+**Sign-off**
+
+| Reviewer (name, registration) | Date | Cases re-derived | Outcome (accepted / accepted with comments / rejected) | Comments |
+|---|---|---|---|---|
+| | | | | |
+
+## Solid timber column (compression and bending) (`timbercol`)
+
+Eurocode 5 (values as printed in the supplied source, UK National Annex) · Rectangular section, buckling about both axes
+
+**Default inputs**
+
+| Input | Value | Unit |
+|---|---|---|
+| Design axial compression N d | 10 | kN |
+| Design moment about y-y (major axis) M y,d | 0.35 | kNm |
+| Design moment about z-z (minor axis) M z,d | 0 | kNm |
+| Breadth b | 100 | mm |
+| Depth h | 100 | mm |
+| Effective length for buckling about y-y | 3750 | mm |
+| Effective length for buckling about z-z | 3750 | mm |
+| Effective length for lateral-torsional buckling | 3750 | mm |
+| Strength class (EN 338) | 2 |  |
+| Service class | 2 |  |
+| Load-duration class (shortest in the combination) | 3 |  |
+
+**Engine results**
+
+| Result | Value |
+|---|---|
+| Class / k mod | C16 / 0.80 |
+| λ rel,y / λ rel,z | 2.32 / 2.32 |
+| k c,y / k c,z | 0.170 / 0.170 |
+| Design strengths f c,0,d / f m,y,d | 10.46 / 10.68 N/mm² |
+| Axial capacity N Rd (concentric) | 17.82 kN |
+| Governing combined check | 0.76 |
+
+**Checks**
+
+| Check | Clause | Demand | Capacity | Utilisation | Result |
+|---|---|---|---|---|---|
+| Compression and bending, Eq 11.48 | Supplied Eq 11.46-11.49 | 0.758 | 1.000 | 0.76 | PASS |
+| Compression and bending, Eq 11.49 | Supplied Eq 11.46-11.49 | 0.699 | 1.000 | 0.70 | PASS |
+| Lateral-torsional buckling, Eq 11.50 | Supplied Eq 11.50 | 0.600 | 1.000 | 0.60 | PASS |
+
+Trace steps: 9; trace hash `21a38b69fb9365e0597ac37e512c614e7306aaec7d86ff77bf668f43026d1b9d`
+
+
+**Verification status:** B - checked against worked examples published in the supplied source (plus author cross-check)
+
+**Cross-checks made so far:** Reproduces the supplied book's Example 11.4 (C16, 100 x 100, l_ef = 3750 mm): lambda_rel = 2.32, k_c = 0.17, axial capacity 17.7 kN (engine 17.8 kN from unrounded k_c). Example 11.5 (N = 10 kN at 35 mm eccentricity): Eq 11.48 utilisation 0.76. Both are automated tests.
+
+**Known limits and open issues:** Example 11.4 says "long term" load but uses k_mod = 0.8 (medium-term in Table 11.5); the module follows the table, so select medium-term to reproduce the book. The book's LTB check (Eq 11.50) in Example 11.5 mixes 11.3 and 10.46 N/mm2 for f_c,0,d: the module gives 0.60 where the book shows 0.56. Effective lengths are user inputs (EC5 gives no method). Same National Annex caveats as the timber beam.
 
 **Sign-off**
 

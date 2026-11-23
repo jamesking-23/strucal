@@ -180,8 +180,11 @@ impl Pj {
                                         });
                                     } else {
                                         let mut v = node["values"][f.key].as_f64().unwrap_or(f.default);
-                                        if ui.add(egui::DragValue::new(&mut v).speed(1.0).max_decimals(3)).changed() { node["values"][f.key] = json!(v); changed = true; }
-                                        ui.menu_button("Link", |ui| {
+                                        if let Some(opts) = &f.options {
+                                            let cur = opts.iter().find(|o| (o.0 - v).abs() < 1e-9).map(|o| o.1).unwrap_or("-");
+                                            egui::ComboBox::from_id_salt(format!("po_{}_{}", id, f.key)).width(260.0).selected_text(cur).show_ui(ui, |ui| { for (val, lab) in opts { if ui.selectable_label((*val - v).abs() < 1e-9, *lab).clicked() { node["values"][f.key] = json!(val); changed = true; } } });
+                                        } else if ui.add(egui::DragValue::new(&mut v).speed(1.0).max_decimals(3)).changed() { node["values"][f.key] = json!(v); changed = true; }
+                                        if f.options.is_none() { ui.menu_button("Link", |ui| {
                                             let mut any = false;
                                             for (nid, nn, key, label, unit) in &avail {
                                                 if *nid == id { continue; } any = true;
@@ -191,7 +194,7 @@ impl Pj {
                                                 }
                                             }
                                             if !any { ui.label("No other calculation has outputs yet"); }
-                                        });
+                                        }); }
                                     }
                                     ui.end_row();
                                 }

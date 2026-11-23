@@ -147,7 +147,7 @@ export default function ProjectPage() {
                     const l = linked(f.key); const rv = r?.resolved?.find((x: any) => x.field === f.key);
                     return (<div className="pj-f" key={f.key}><label>{f.label} ({f.unit})</label>
                       <div className="row">
-                        <input type="number" className={l ? "lk" : ""} readOnly={!!l} value={l ? (rv ? Number(rv.value.toFixed(4)) : "") : n.values[f.key]} onChange={(e) => upd(n.id, (x) => ({ ...x, values: { ...x.values, [f.key]: Number(e.target.value) } }))} />
+                        {f.options && !l ? (<select value={n.values[f.key]} onChange={(e) => upd(n.id, (x) => ({ ...x, values: { ...x.values, [f.key]: Number(e.target.value) } }))} style={{ flex: 1, maxWidth: "none" }}>{f.options.map(([v, lab]: any) => <option key={v} value={v}>{lab}</option>)}</select>) : (<input type="number" className={l ? "lk" : ""} readOnly={!!l} value={l ? (rv ? Number(rv.value.toFixed(4)) : "") : n.values[f.key]} onChange={(e) => upd(n.id, (x) => ({ ...x, values: { ...x.values, [f.key]: Number(e.target.value) } }))} />)}
                         <select value={l ? `${l.from}|${l.output}` : ""} title="Link this input to a result of another calculation" onChange={(e) => upd(n.id, (x) => ({ ...x, links: [...x.links.filter((k) => k.field !== f.key), ...(e.target.value ? [{ field: f.key, from: e.target.value.split("|")[0], output: e.target.value.split("|")[1], factor: l?.factor ?? 1 }] : [])] }))}>
                           <option value="">Manual</option>{options.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
                         </select>

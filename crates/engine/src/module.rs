@@ -5,7 +5,7 @@ use serde::Serialize;
 use serde_json::Value;
 
 #[derive(Serialize, Clone, Debug)]
-pub struct Field { pub key: &'static str, pub label: &'static str, pub unit: &'static str, pub group: &'static str, pub default: f64, pub check_only: bool }
+pub struct Field { pub key: &'static str, pub label: &'static str, pub unit: &'static str, pub group: &'static str, pub default: f64, pub check_only: bool, #[serde(skip_serializing_if = "Option::is_none")] pub options: Option<Vec<(f64, &'static str)>> }
 #[derive(Serialize, Clone, Debug)]
 pub struct ModDef { pub id: &'static str, pub name: &'static str, pub title: &'static str, pub subtitle: &'static str, pub available: bool, pub has_check_mode: bool, pub fields: Vec<Field> }
 #[derive(Serialize, Clone, Debug)]
@@ -26,6 +26,7 @@ pub enum Drawing {
     Raft { l: f64, w: f64, n: u32, spacing: f64, edge: f64 },
     Retain { hs: f64, tb: f64, ts: f64, lt: f64, b: f64 },
     ISection { h: f64, b: f64, tw: f64, tf: f64 },
+    Rect { b: f64, h: f64 },
     Wall { h: f64, cover: f64, bar_dia: f64, spacing: f64 },
     Strip { width: f64, t: f64, h: f64 },
     Column { b: f64, h: f64, cover: f64, link_dia: f64, bar_dia: f64, n_face: u32 },
@@ -46,15 +47,15 @@ pub fn chk(name: &str, reference: &str, demand: String, capacity: String, util: 
     let u = if util.is_finite() { util.min(9.99) } else { 9.99 };
     Check { name: name.into(), reference: reference.into(), demand, capacity, utilisation: u, pass }
 }
-pub fn fld(key: &'static str, label: &'static str, unit: &'static str, group: &'static str, default: f64) -> Field { Field { key, label, unit, group, default, check_only: false } }
-pub fn fld_chk(key: &'static str, label: &'static str, unit: &'static str, group: &'static str, default: f64) -> Field { Field { key, label, unit, group, default, check_only: true } }
+pub fn fld(key: &'static str, label: &'static str, unit: &'static str, group: &'static str, default: f64) -> Field { Field { key, label, unit, group, default, check_only: false, options: None } }
+pub fn fld_chk(key: &'static str, label: &'static str, unit: &'static str, group: &'static str, default: f64) -> Field { Field { key, label, unit, group, default, check_only: true, options: None } }
 
 /// Validates the common required numeric fields; returns values or errors.
 pub fn require(v: &Value, def: &ModDef, check_mode: bool) -> Result<Vec<f64>, Vec<String>> {
     let mut out = vec![]; let mut errs = vec![];
     for f in &def.fields {
         if f.check_only && !check_mode { out.push(f.default); continue; }
-        match num(v, f.key) { Some(x) if x.is_finite() && x > 0.0 => out.push(x), Some(x) if x == 0.0 && matches!(f.key, "qk" | "gk" | "q_sur" | "hw") => out.push(0.0), _ => { errs.push(format!("{} must be a positive number", f.label)); out.push(0.0) } }
+        match num(v, f.key) { Some(x) if x.is_finite() && x > 0.0 => out.push(x), Some(x) if x == 0.0 && matches!(f.key, "qk" | "gk" | "q_sur" | "hw" | "ov" | "h_ef" | "notch_x" | "notch_i" | "psi2" | "my_ed" | "mz_ed") => out.push(0.0), _ => { errs.push(format!("{} must be a positive number", f.label)); out.push(0.0) } }
     }
     if errs.is_empty() { Ok(out) } else { Err(errs) }
 }
@@ -119,3 +120,6 @@ pub fn slab_member(t: &mut Trace, sec: &str, name: &str, m_knm: f64, v_kn: f64, 
     checks.push(chk(&format!("{}: shear", name), "EN 1992-1-1 6.2.2(1)", format!("{:.1} kN/m", v_kn), format!("{:.1} kN/m", vrdc / 1e3), v_kn * 1e3 / vrdc, v_kn * 1e3 <= vrdc));
     Ok((as_prov, s, d))
 }
+
+/// A numeric field presented as a choice list (value, label).
+pub fn fld_opt(key: &'static str, label: &'static str, group: &'static str, default: f64, options: Vec<(f64, &'static str)>) -> Field { Field { key, label, unit: "", group, default, check_only: false, options: Some(options) } }
