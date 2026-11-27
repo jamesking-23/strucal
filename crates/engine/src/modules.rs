@@ -26,7 +26,29 @@ fn beam(v: &Value) -> ModResult {
         drawing: Some(Drawing::Beam { b: i.b, h: i.h, cover: i.cover, link_dia: i.link_dia, bar_dia: i.bar_dia, n_bars: r.bar_count }) }
 }
 
+/// Runs a module by id. Every entry point (WASM, desktop, project engine) goes through here.
 pub fn run(id: &str, v: &Value) -> ModResult {
+    if !v.is_object() { return fail(vec!["Invalid input: expected an object of named input values".into()]); }
+    guard_finite(dispatch(id, v))
+}
+
+/// True when a formatted value contains a non-finite number ("NaN", "inf", "-inf").
+pub fn has_non_finite_text(s: &str) -> bool {
+    s.split(|c: char| !c.is_ascii_alphanumeric()).any(|w| w.eq_ignore_ascii_case("nan") || w.eq_ignore_ascii_case("inf"))
+}
+
+/// Converts a result that contains non-finite numbers into an explicit error, so no UI ever shows or links NaN/inf.
+/// Only reachable with physically meaningless input magnitudes; valid results pass through unchanged.
+fn guard_finite(r: ModResult) -> ModResult {
+    if !r.ok { return r; }
+    let bad = !r.max_util.is_finite()
+        || r.outputs.iter().any(|o| !o.value.is_finite())
+        || r.checks.iter().any(|c| !c.utilisation.is_finite())
+        || r.summary.iter().any(|k| has_non_finite_text(&k.value));
+    if bad { fail(vec!["Numerical result out of range: one or more inputs are outside a physically meaningful magnitude. Check units and values.".into()]) } else { r }
+}
+
+fn dispatch(id: &str, v: &Value) -> ModResult {
     match id { "beam" => beam(v), "slab" => crate::slab::run(v), "combos" => crate::combos::run(v), "steelbeam" => crate::steel_beam::run(v), "steelcol" => crate::steel_column::run(v), "timber" => crate::timber_beam::run(v), "timbercol" => crate::timber_col::run(v), "retaining" => crate::retaining::run(v), "raft" => crate::raft::run(v), "bolted" => crate::bolted::run(v), "weld" => crate::weld::run(v), "stairs" => crate::stairs::run(v), "strip" => crate::strip::run(v), "pad" => crate::pad::run(v), "column" => crate::column::run(v), "wall" => crate::wall::run(v), _ => fail(vec![format!("Module '{}' is not available yet", id)]) }
 }
 pub fn run_json(id: &str, input: &str) -> String {

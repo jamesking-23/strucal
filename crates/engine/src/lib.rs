@@ -30,3 +30,5 @@ pub const ENGINE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg(test)]
 mod modules_tests;
+#[cfg(test)]
+mod robustness_tests;

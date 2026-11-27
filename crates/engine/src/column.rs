@@ -51,6 +51,7 @@ pub fn run(v: &Value) -> ModResult {
     let x = match require(&v2, &d0, check) { Ok(x) => x, Err(e) => return fail(e) };
     let (b, h, len, beta, cover, ldia, phi, fck, fyk, n_ed, m02, nface_in, s_in) = (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[10], x[11], x[13], x[14]);
     if fck > 50.0 || fck < 12.0 { return fail(vec!["fck must be within 12-50 MPa for this release".into()]); }
+    if check && (nface_in.fract() != 0.0 || !(2.0..=14.0).contains(&nface_in)) { return fail(vec!["Bars per face must be a whole number from 2 to 14".into()]); }
     if m01.abs() > m02 { return fail(vec!["|M01| must not exceed M02 (M02 is the larger end moment)".into()]); }
     let mut t = Trace::new();
     let (s1, s2, s3, s4, s5) = ("1. Design data", "2. Slenderness", "3. Design moment", "4. Resistance: axial load and bending", "5. Detailing");
