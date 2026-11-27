@@ -22,3 +22,4 @@
 .pj-list{margin:0;padding-left:16px}.pj-warn{background:#fff4d6;border-left:3px solid #e0a82e;padding:6px 8px;margin:6px 0;font-size:12px}
 .pj-empty{padding:30px;text-align:center;color:#52606d}
 @media(max-width:1000px){.pj-body{grid-template-columns:1fr}}
+.pj-f input.bad,.pj-f .fac.bad{border-color:#b42318;background:#fdeceb}

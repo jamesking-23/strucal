@@ -58,9 +58,9 @@ export default function Home() {
       <section className="s" id="scope"><div className="wrap">
         <div className="sh"><h2>Coverage</h2><p>Reinforced concrete, steel, timber and foundations, delivered module by module as each clears verification.</p></div>
         <div className="grid3">
-          <div className="card"><h3>Reinforced concrete</h3><p>Beams, slabs, columns, walls, stairs, footings, pile caps, retaining walls.</p></div>
-          <div className="card"><h3>Structural steel</h3><p>Beams, columns, beam-columns, bolted and welded connections, project dependencies and solid timber beams and columns, base plates.</p></div>
-          <div className="card"><h3>Timber &amp; foundations</h3><p>Joists, rafters, trusses, bearing, sliding, overturning and settlement.</p></div>
+          <div className="card"><h3>Reinforced concrete</h3><p>Available: beams, one-way slabs, columns, walls and staircases. Planned: two-way slabs, pile caps.</p></div>
+          <div className="card"><h3>Structural steel &amp; timber</h3><p>Available: steel beams and columns, bolted and fillet-welded connections, solid timber beams and columns. Planned: beam-columns, base plates.</p></div>
+          <div className="card"><h3>Foundations &amp; actions</h3><p>Available: pad, strip and raft foundations, cantilever retaining walls, EN 1990 load combinations, linked project calculations.</p></div>
         </div>
       </div></section>
 
@@ -69,7 +69,8 @@ export default function Home() {
         <div className="road">
           <div><b>Stage 0-1</b><span>Repository, unit-safe engine, formula registry, parameter framework, calculation trace</span><span className="pill live">In preview</span></div>
           <div><b>Stage 2</b><span>RC beam: flexure, shear, min/max steel, Check Mode, calculation sheet</span><span className="pill live">In preview</span></div>
-          <div><b>Stage 3</b><span>Slabs, columns, walls, stairs, pad and strip footings</span><span className="pill next">In progress</span></div>
+          <div><b>Stage 3</b><span>Slabs, columns, walls, stairs, pad and strip footings</span><span className="pill live">In preview</span></div>
+          <div><b>Stage 4</b><span>Load combinations, steel members and connections, timber, retaining walls, rafts, project dependency engine</span><span className="pill live">In preview</span></div>
           <div><b>Stage 5</b><span>Accounts, organisations, roles, cloud projects, check and approval workflow, tamper-evident audit trail (web and desktop)</span><span className="pill next">In preview</span></div>
           <div><b>Stage 6</b><span>Engineering assistant: explains traces, proposes inputs for confirmation, summarises revision changes. Never calculates or approves</span><span className="pill next">Built, needs API key</span></div>
           <div><b>Stage 7-8</b><span>BIM and analysis integrations, continuous improvement</span><span className="pill plan">Planned</span></div>

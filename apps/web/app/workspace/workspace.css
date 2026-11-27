@@ -74,3 +74,11 @@ table.wk-t{width:100%;border-collapse:collapse;font-size:12px}.wk-t th{backgroun
 .wk-status{height:22px;flex:none;background:var(--blue);color:#fff;display:flex;align-items:center;gap:18px;padding:0 10px;font-size:11px}.wk-status .sp{flex:1}
 @media(max-width:1000px){.wk{height:auto;overflow:auto}.wk-body{display:flex!important;flex-direction:column}.wk-sec{grid-template-columns:1fr}.wk-ribbon{overflow-x:auto}.wk-wt{display:none}}
 @media print{.wk-title,.wk-tabs,.wk-ribbon,.wk-dock,.wk-status,.wk-doctabs{display:none!important}.wk,.wk-body{display:block;height:auto}.wk-doc{overflow:visible}}
+/* section drawings */
+.sd{margin:0}.sd svg{display:block;max-width:240px}
+.sd-line{stroke:#0f172a;stroke-width:2}.sd-fill{fill:#fff}.sd-link{fill:none;stroke:#334155;stroke-width:1.2}
+.sd-bar{fill:#0f172a}.sd-bar-light{fill:#64748b}.sd-hole{fill:#fff;stroke:#0f172a;stroke-width:1.6}
+.sd-steel,.sd-concrete{fill:#334155}.sd-steel-light{fill:#94a3b8}.sd-soil{fill:#e2e8f0;stroke:#94a3b8}
+.sd-timber{fill:#e8d8bd}.sd-grain{fill:none;stroke:#a98a5a}.sd-hatch{stroke:#94a3b8;stroke-width:1}.sd-rebar{stroke:#0f172a;stroke-width:2.5}
+.sd-dim{font:10px "IBM Plex Mono",monospace;fill:#2563eb}
+.wk-f.bad .wk-in{border-color:#b42318}.wk-f .fe{color:#b42318;font-size:10.5px}
