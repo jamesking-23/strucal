@@ -1,0 +1,43 @@
+name: CI
+on:
+  push:
+  pull_request:
+jobs:
+  engine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format
+        run: cargo fmt --all --check
+      - name: Engine tests
+        run: cargo test -p strucal-engine
+      - name: WASM build
+        run: cargo build -p strucal-wasm --target wasm32-unknown-unknown --release
+      - name: Install wasm-bindgen (must match Cargo.lock)
+        run: cargo install wasm-bindgen-cli --version "$(cargo metadata --format-version 1 --locked | jq -r '.packages[] | select(.name=="wasm-bindgen") | .version')" --locked
+      - name: Committed WASM matches the engine
+        run: |
+          wasm-bindgen target/wasm32-unknown-unknown/release/strucal_wasm.wasm --target web --out-dir /tmp/wasm --no-typescript
+          node scripts/wasm-smoke.mjs /tmp/wasm > /tmp/fresh.txt
+          node scripts/wasm-smoke.mjs apps/web/public/wasm > /tmp/committed.txt
+          diff /tmp/committed.txt /tmp/fresh.txt || (echo "apps/web/public/wasm is stale: rebuild it (see README)" && exit 1)
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm run build

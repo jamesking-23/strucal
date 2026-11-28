@@ -2,71 +2,252 @@
 mod tests {
     use crate::modules::*;
     use serde_json::json;
-    fn slab() -> serde_json::Value { json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","span":4000,"h":175,"cover":25,"bar_dia":12,"fck":30,"fyk":500,"gk":1.5,"qk":3}) }
-    fn pad() -> serde_json::Value { json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","n_ed":1200,"n_k":870,"q_allow":200,"cx":300,"cy":300,"h":500,"cover":50,"bar_dia":16,"fck":30,"fyk":500}) }
-    #[test] fn slab_hand_calc() { let r = run("slab", &slab()); assert!(r.ok, "{:?}", r.errors); let s = &r.summary; assert!(s[3].value.starts_with("41") || s[3].value.starts_with("42"), "{}", s[3].value); assert!(r.overall_pass, "{:?}", r.checks); }
-    #[test] fn slab_fails_thin() { let mut v = slab(); v["h"] = json!(100); v["span"] = json!(6000); let r = run("slab", &v); assert!(!r.ok || !r.overall_pass); }
-    #[test] fn pad_hand_calc() { let r = run("pad", &pad()); assert!(r.ok, "{:?}", r.errors); assert!(r.summary[0].value.starts_with("2200 × 2200"), "{}", r.summary[0].value); assert!(r.overall_pass, "{:?}", r.checks); }
-    #[test] fn pad_check_mode_small_fails() { let mut v = pad(); v["mode"] = json!("check"); v["bx"] = json!(1500); v["by"] = json!(1500); v["bar_spacing"] = json!(200); let r = run("pad", &v); assert!(r.ok && !r.overall_pass); }
-    #[test] fn deterministic() { assert_eq!(run("pad", &pad()).trace_hash, run("pad", &pad()).trace_hash); }
-    #[test] fn unknown_module() { assert!(!run("zzz", &pad()).ok); }
-    #[test] fn beam_via_registry() { let v = json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","b":300,"h":500,"cover":30,"link_dia":8,"bar_dia":20,"fck":30,"fyk":500,"m_ed":200,"v_ed":120}); let r = run("beam", &v); assert!(r.ok && r.overall_pass); }
+    fn slab() -> serde_json::Value {
+        json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","span":4000,"h":175,"cover":25,"bar_dia":12,"fck":30,"fyk":500,"gk":1.5,"qk":3})
+    }
+    fn pad() -> serde_json::Value {
+        json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","n_ed":1200,"n_k":870,"q_allow":200,"cx":300,"cy":300,"h":500,"cover":50,"bar_dia":16,"fck":30,"fyk":500})
+    }
+    #[test]
+    fn slab_hand_calc() {
+        let r = run("slab", &slab());
+        assert!(r.ok, "{:?}", r.errors);
+        let s = &r.summary;
+        assert!(s[3].value.starts_with("41") || s[3].value.starts_with("42"), "{}", s[3].value);
+        assert!(r.overall_pass, "{:?}", r.checks);
+    }
+    #[test]
+    fn slab_fails_thin() {
+        let mut v = slab();
+        v["h"] = json!(100);
+        v["span"] = json!(6000);
+        let r = run("slab", &v);
+        assert!(!r.ok || !r.overall_pass);
+    }
+    #[test]
+    fn pad_hand_calc() {
+        let r = run("pad", &pad());
+        assert!(r.ok, "{:?}", r.errors);
+        assert!(r.summary[0].value.starts_with("2200 × 2200"), "{}", r.summary[0].value);
+        assert!(r.overall_pass, "{:?}", r.checks);
+    }
+    #[test]
+    fn pad_check_mode_small_fails() {
+        let mut v = pad();
+        v["mode"] = json!("check");
+        v["bx"] = json!(1500);
+        v["by"] = json!(1500);
+        v["bar_spacing"] = json!(200);
+        let r = run("pad", &v);
+        assert!(r.ok && !r.overall_pass);
+    }
+    #[test]
+    fn deterministic() {
+        assert_eq!(run("pad", &pad()).trace_hash, run("pad", &pad()).trace_hash);
+    }
+    #[test]
+    fn unknown_module() {
+        assert!(!run("zzz", &pad()).ok);
+    }
+    #[test]
+    fn beam_via_registry() {
+        let v = json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","b":300,"h":500,"cover":30,"link_dia":8,"bar_dia":20,"fck":30,"fyk":500,"m_ed":200,"v_ed":120});
+        let r = run("beam", &v);
+        assert!(r.ok && r.overall_pass);
+    }
 }
 
 #[cfg(test)]
 mod column_tests {
     use crate::modules::*;
     use serde_json::json;
-    fn col() -> serde_json::Value { json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","b":300,"h":400,"len":3500,"beta":1.0,"cover":35,"link_dia":8,"bar_dia":20,"fck":30,"fyk":500,"phi_ef":1.0,"n_ed":1500,"m02":80,"m01":40}) }
-    #[test] fn column_designs_and_passes() { let r = run("column", &col()); assert!(r.ok, "{:?}", r.errors); assert!(r.overall_pass, "{:?}", r.checks); }
-    #[test] fn pure_axial_capacity_exceeds_concrete() { let r = run("column", &col()); let s = r.summary.iter().find(|k| k.label.starts_with("Axial capacity")).unwrap(); let v: f64 = s.value.split_whitespace().next().unwrap().parse().unwrap(); assert!(v > 0.85 * 30.0 / 1.5 * 300.0 * 400.0 / 1e3, "{}", v); }
-    #[test] fn overloaded_column_fails() { let mut v = col(); v["n_ed"] = json!(9000); let r = run("column", &v); assert!(!r.ok || !r.overall_pass); }
-    #[test] fn check_mode_underreinforced_fails() { let mut v = col(); v["mode"] = json!("check"); v["n_face"] = json!(2); v["link_spacing"] = json!(250); v["m02"] = json!(250); v["m01"] = json!(100); let r = run("column", &v); assert!(r.ok && !r.overall_pass); }
-    #[test] fn rejects_bad_end_moments() { let mut v = col(); v["m01"] = json!(100); assert!(!run("column", &v).ok); }
-    #[test] fn slender_gets_second_order() { let mut v = col(); v["len"] = json!(7000); let r = run("column", &v); assert!(r.ok); assert!(r.trace.steps.iter().any(|s| s.title.contains("nominal curvature"))); }
+    fn col() -> serde_json::Value {
+        json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","b":300,"h":400,"len":3500,"beta":1.0,"cover":35,"link_dia":8,"bar_dia":20,"fck":30,"fyk":500,"phi_ef":1.0,"n_ed":1500,"m02":80,"m01":40})
+    }
+    #[test]
+    fn column_designs_and_passes() {
+        let r = run("column", &col());
+        assert!(r.ok, "{:?}", r.errors);
+        assert!(r.overall_pass, "{:?}", r.checks);
+    }
+    #[test]
+    fn pure_axial_capacity_exceeds_concrete() {
+        let r = run("column", &col());
+        let s = r.summary.iter().find(|k| k.label.starts_with("Axial capacity")).unwrap();
+        let v: f64 = s.value.split_whitespace().next().unwrap().parse().unwrap();
+        assert!(v > 0.85 * 30.0 / 1.5 * 300.0 * 400.0 / 1e3, "{}", v);
+    }
+    #[test]
+    fn overloaded_column_fails() {
+        let mut v = col();
+        v["n_ed"] = json!(9000);
+        let r = run("column", &v);
+        assert!(!r.ok || !r.overall_pass);
+    }
+    #[test]
+    fn check_mode_underreinforced_fails() {
+        let mut v = col();
+        v["mode"] = json!("check");
+        v["n_face"] = json!(2);
+        v["link_spacing"] = json!(250);
+        v["m02"] = json!(250);
+        v["m01"] = json!(100);
+        let r = run("column", &v);
+        assert!(r.ok && !r.overall_pass);
+    }
+    #[test]
+    fn rejects_bad_end_moments() {
+        let mut v = col();
+        v["m01"] = json!(100);
+        assert!(!run("column", &v).ok);
+    }
+    #[test]
+    fn slender_gets_second_order() {
+        let mut v = col();
+        v["len"] = json!(7000);
+        let r = run("column", &v);
+        assert!(r.ok);
+        assert!(r.trace.steps.iter().any(|s| s.title.contains("nominal curvature")));
+    }
 }
 
 #[cfg(test)]
 mod more_tests {
     use crate::modules::*;
     use serde_json::json;
-    #[test] fn strip_width_from_bearing() { let r = run("strip", &json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","n_ed":300,"n_k":220,"q_allow":150,"t":225,"h":400,"cover":50,"bar_dia":12,"fck":30,"fyk":500})); assert!(r.ok, "{:?}", r.errors); assert!(r.summary[0].value.starts_with("1600"), "{}", r.summary[0].value); assert!(r.overall_pass, "{:?}", r.checks); }
-    #[test] fn strip_check_narrow_fails() { let r = run("strip", &json!({"mode":"check","param_set":"EN1992-1-1:2004/RECOMMENDED","n_ed":300,"n_k":220,"q_allow":150,"t":225,"h":400,"cover":50,"bar_dia":12,"fck":30,"fyk":500,"width":1000,"bar_spacing":300})); assert!(r.ok && !r.overall_pass); }
-    #[test] fn stairs_design() { let r = run("stairs", &json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","span":3000,"h":150,"rise":175,"going":250,"cover":25,"bar_dia":12,"fck":30,"fyk":500,"gk":1.5,"qk":4})); assert!(r.ok, "{:?}", r.errors); assert!(r.trace.steps.iter().any(|s| s.title.contains("per m² of plan"))); }
-    #[test] fn stairs_overloaded_fails() { let r = run("stairs", &json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","span":6000,"h":120,"rise":175,"going":250,"cover":25,"bar_dia":12,"fck":30,"fyk":500,"gk":1.5,"qk":4})); assert!(!r.ok || !r.overall_pass); }
+    #[test]
+    fn strip_width_from_bearing() {
+        let r = run(
+            "strip",
+            &json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","n_ed":300,"n_k":220,"q_allow":150,"t":225,"h":400,"cover":50,"bar_dia":12,"fck":30,"fyk":500}),
+        );
+        assert!(r.ok, "{:?}", r.errors);
+        assert!(r.summary[0].value.starts_with("1600"), "{}", r.summary[0].value);
+        assert!(r.overall_pass, "{:?}", r.checks);
+    }
+    #[test]
+    fn strip_check_narrow_fails() {
+        let r = run(
+            "strip",
+            &json!({"mode":"check","param_set":"EN1992-1-1:2004/RECOMMENDED","n_ed":300,"n_k":220,"q_allow":150,"t":225,"h":400,"cover":50,"bar_dia":12,"fck":30,"fyk":500,"width":1000,"bar_spacing":300}),
+        );
+        assert!(r.ok && !r.overall_pass);
+    }
+    #[test]
+    fn stairs_design() {
+        let r = run(
+            "stairs",
+            &json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","span":3000,"h":150,"rise":175,"going":250,"cover":25,"bar_dia":12,"fck":30,"fyk":500,"gk":1.5,"qk":4}),
+        );
+        assert!(r.ok, "{:?}", r.errors);
+        assert!(r.trace.steps.iter().any(|s| s.title.contains("per m² of plan")));
+    }
+    #[test]
+    fn stairs_overloaded_fails() {
+        let r = run(
+            "stairs",
+            &json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","span":6000,"h":120,"rise":175,"going":250,"cover":25,"bar_dia":12,"fck":30,"fyk":500,"gk":1.5,"qk":4}),
+        );
+        assert!(!r.ok || !r.overall_pass);
+    }
 }
 
 #[cfg(test)]
 mod wall_tests {
     use crate::modules::*;
     use serde_json::json;
-    fn w() -> serde_json::Value { json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","h":200,"len":3000,"beta":1.0,"cover":30,"bar_dia":12,"hbar_dia":10,"fck":30,"fyk":500,"phi_ef":1.0,"n_ed":600,"m02":12,"m01":6}) }
-    #[test] fn wall_designs_and_passes() { let r = run("wall", &w()); assert!(r.ok, "{:?}", r.errors); assert!(r.overall_pass, "{:?}", r.checks); }
-    #[test] fn wall_overloaded_fails() { let mut v = w(); v["n_ed"] = json!(5000); let r = run("wall", &v); assert!(!r.ok || !r.overall_pass); }
-    #[test] fn wall_check_sparse_fails_min_steel() { let mut v = w(); v["mode"] = json!("check"); v["spacing"] = json!(400); v["bar_dia"] = json!(8); let r = run("wall", &v); assert!(r.ok && !r.overall_pass); }
-    #[test] fn tall_wall_gets_second_order() { let mut v = w(); v["len"] = json!(6000); let r = run("wall", &v); assert!(r.ok); assert!(r.trace.steps.iter().any(|s| s.title.contains("nominal curvature"))); }
+    fn w() -> serde_json::Value {
+        json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","h":200,"len":3000,"beta":1.0,"cover":30,"bar_dia":12,"hbar_dia":10,"fck":30,"fyk":500,"phi_ef":1.0,"n_ed":600,"m02":12,"m01":6})
+    }
+    #[test]
+    fn wall_designs_and_passes() {
+        let r = run("wall", &w());
+        assert!(r.ok, "{:?}", r.errors);
+        assert!(r.overall_pass, "{:?}", r.checks);
+    }
+    #[test]
+    fn wall_overloaded_fails() {
+        let mut v = w();
+        v["n_ed"] = json!(5000);
+        let r = run("wall", &v);
+        assert!(!r.ok || !r.overall_pass);
+    }
+    #[test]
+    fn wall_check_sparse_fails_min_steel() {
+        let mut v = w();
+        v["mode"] = json!("check");
+        v["spacing"] = json!(400);
+        v["bar_dia"] = json!(8);
+        let r = run("wall", &v);
+        assert!(r.ok && !r.overall_pass);
+    }
+    #[test]
+    fn tall_wall_gets_second_order() {
+        let mut v = w();
+        v["len"] = json!(6000);
+        let r = run("wall", &v);
+        assert!(r.ok);
+        assert!(r.trace.steps.iter().any(|s| s.title.contains("nominal curvature")));
+    }
 }
 
 #[cfg(test)]
 mod combo_tests {
     use crate::modules::*;
     use serde_json::json;
-    fn c() -> serde_json::Value { json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","gk":100,"q1":50,"p01":0.7,"p11":0.5,"p21":0.3,"q2":30,"p02":0.6,"p12":0.5,"p22":0.3,"q3":0,"p03":0.5,"p13":0.2,"p23":0}) }
-    fn val(r: &crate::module::ModResult, label: &str) -> f64 { r.summary.iter().find(|k| k.label.starts_with(label)).unwrap().value.split_whitespace().next().unwrap().parse().unwrap() }
-    #[test] fn uls_610() { let r = run("combos", &c()); assert!(r.ok, "{:?}", r.errors); assert!((val(&r, "ULS design value, Eq 6.10") - 237.0).abs() < 0.01); }
-    #[test] fn uls_610ab() { let r = run("combos", &c()); assert!((val(&r, "ULS design value, 6.10a/b") - 216.75).abs() < 0.01); }
-    #[test] fn sls_combinations() { let r = run("combos", &c()); assert!((val(&r, "SLS characteristic") - 168.0).abs() < 0.01); assert!((val(&r, "SLS frequent") - 134.0).abs() < 0.01); assert!((val(&r, "SLS quasi-permanent") - 124.0).abs() < 0.01); }
-    #[test] fn rejects_psi_order() { let mut v = c(); v["p11"] = json!(0.9); assert!(!run("combos", &v).ok); }
-    #[test] fn needs_a_variable_action() { let mut v = c(); v["q1"] = json!(0); v["q2"] = json!(0); assert!(!run("combos", &v).ok); }
-    #[test] fn report_renders_without_checks() { let h = crate::report::html_json("combos", &c().to_string()); assert!(h.contains("RESULTS") && !h.contains("Summary of checks")); }
+    fn c() -> serde_json::Value {
+        json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","gk":100,"q1":50,"p01":0.7,"p11":0.5,"p21":0.3,"q2":30,"p02":0.6,"p12":0.5,"p22":0.3,"q3":0,"p03":0.5,"p13":0.2,"p23":0})
+    }
+    fn val(r: &crate::module::ModResult, label: &str) -> f64 {
+        r.summary.iter().find(|k| k.label.starts_with(label)).unwrap().value.split_whitespace().next().unwrap().parse().unwrap()
+    }
+    #[test]
+    fn uls_610() {
+        let r = run("combos", &c());
+        assert!(r.ok, "{:?}", r.errors);
+        assert!((val(&r, "ULS design value, Eq 6.10") - 237.0).abs() < 0.01);
+    }
+    #[test]
+    fn uls_610ab() {
+        let r = run("combos", &c());
+        assert!((val(&r, "ULS design value, 6.10a/b") - 216.75).abs() < 0.01);
+    }
+    #[test]
+    fn sls_combinations() {
+        let r = run("combos", &c());
+        assert!((val(&r, "SLS characteristic") - 168.0).abs() < 0.01);
+        assert!((val(&r, "SLS frequent") - 134.0).abs() < 0.01);
+        assert!((val(&r, "SLS quasi-permanent") - 124.0).abs() < 0.01);
+    }
+    #[test]
+    fn rejects_psi_order() {
+        let mut v = c();
+        v["p11"] = json!(0.9);
+        assert!(!run("combos", &v).ok);
+    }
+    #[test]
+    fn needs_a_variable_action() {
+        let mut v = c();
+        v["q1"] = json!(0);
+        v["q2"] = json!(0);
+        assert!(!run("combos", &v).ok);
+    }
+    #[test]
+    fn report_renders_without_checks() {
+        let h = crate::report::html_json("combos", &c().to_string());
+        assert!(h.contains("RESULTS") && !h.contains("Summary of checks"));
+    }
 }
 
 #[cfg(test)]
 mod steel_tests {
     use crate::modules::*;
     use serde_json::json;
-    fn s() -> serde_json::Value { json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","span":6000,"lcr":6000,"load_level":1,"h":300,"b":150,"tw":7.1,"tf":10.7,"r":15,"fy":275,"gk":10,"qk":12,"defl_ratio":360}) }
-    #[test] fn ipe300_properties_match_published() {
+    fn s() -> serde_json::Value {
+        json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","span":6000,"lcr":6000,"load_level":1,"h":300,"b":150,"tw":7.1,"tf":10.7,"r":15,"fy":275,"gk":10,"qk":12,"defl_ratio":360})
+    }
+    #[test]
+    fn ipe300_properties_match_published() {
         // IPE 300 published (ArcelorMittal): A = 53.81 cm2, Iy = 8356 cm4, Iz = 603.8 cm4, Wpl,y = 628.4 cm3
         let p = crate::steel_beam::props(300.0, 150.0, 7.1, 10.7, 15.0);
         assert!((p.a - 5381.0).abs() / 5381.0 < 0.005, "A {}", p.a);
@@ -74,108 +255,325 @@ mod steel_tests {
         assert!((p.iz - 6.038e6).abs() / 6.038e6 < 0.02, "Iz {}", p.iz);
         assert!((p.wpl - 628.4e3).abs() / 628.4e3 < 0.01, "Wpl {}", p.wpl);
     }
-    #[test] fn steel_beam_runs() { let r = run("steelbeam", &s()); assert!(r.ok, "{:?}", r.errors); assert_eq!(r.checks.len(), 5); }
-    #[test] fn short_lcr_improves_ltb() { let a = run("steelbeam", &s()); let mut v = s(); v["lcr"] = json!(2000); let b = run("steelbeam", &v); let u = |r: &crate::module::ModResult| r.checks.iter().find(|c| c.name.starts_with("Lateral")).unwrap().utilisation; assert!(u(&b) < u(&a)); }
-    #[test] fn overloaded_fails() { let mut v = s(); v["qk"] = json!(60); assert!(!run("steelbeam", &v).overall_pass); }
-    #[test] fn class4_rejected() { let r = run("steelbeam", &json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","span":6000,"lcr":6000,"load_level":1,"h":600,"b":200,"tw":4,"tf":8,"r":0.5,"fy":355,"gk":10,"qk":12,"defl_ratio":360})); assert!(!r.ok); }
+    #[test]
+    fn steel_beam_runs() {
+        let r = run("steelbeam", &s());
+        assert!(r.ok, "{:?}", r.errors);
+        assert_eq!(r.checks.len(), 5);
+    }
+    #[test]
+    fn short_lcr_improves_ltb() {
+        let a = run("steelbeam", &s());
+        let mut v = s();
+        v["lcr"] = json!(2000);
+        let b = run("steelbeam", &v);
+        let u = |r: &crate::module::ModResult| r.checks.iter().find(|c| c.name.starts_with("Lateral")).unwrap().utilisation;
+        assert!(u(&b) < u(&a));
+    }
+    #[test]
+    fn overloaded_fails() {
+        let mut v = s();
+        v["qk"] = json!(60);
+        assert!(!run("steelbeam", &v).overall_pass);
+    }
+    #[test]
+    fn class4_rejected() {
+        let r = run(
+            "steelbeam",
+            &json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","span":6000,"lcr":6000,"load_level":1,"h":600,"b":200,"tw":4,"tf":8,"r":0.5,"fy":355,"gk":10,"qk":12,"defl_ratio":360}),
+        );
+        assert!(!r.ok);
+    }
 }
 
 #[cfg(test)]
 mod steelcol_tests {
     use crate::modules::*;
     use serde_json::json;
-    fn c() -> serde_json::Value { json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","n_ed":800,"len":4000,"ky":1.0,"kz":1.0,"h":200,"b":200,"tw":9,"tf":15,"r":18,"fy":275}) }
-    #[test] fn heb200_properties_match_published() {
+    fn c() -> serde_json::Value {
+        json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","n_ed":800,"len":4000,"ky":1.0,"kz":1.0,"h":200,"b":200,"tw":9,"tf":15,"r":18,"fy":275})
+    }
+    #[test]
+    fn heb200_properties_match_published() {
         // HEB 200 published: A = 78.08 cm2, Iy = 5696 cm4, Iz = 2003 cm4
         let p = crate::steel_beam::props(200.0, 200.0, 9.0, 15.0, 18.0);
         assert!((p.a - 7808.0).abs() / 7808.0 < 0.005, "A {}", p.a);
         assert!((p.iy - 56.96e6).abs() / 56.96e6 < 0.01, "Iy {}", p.iy);
         assert!((p.iz - 20.03e6).abs() / 20.03e6 < 0.01, "Iz {}", p.iz);
     }
-    #[test] fn hand_calc_weak_axis() { // Ncr=2595 kN, lambda=0.910, curve c, chi=0.594, Nb=1275 kN
-        let r = run("steelcol", &c()); assert!(r.ok, "{:?}", r.errors);
-        let k = r.checks.iter().find(|k| k.name.ends_with("z-z")).unwrap(); let cap: f64 = k.capacity.split_whitespace().next().unwrap().parse().unwrap();
-        assert!((cap - 1275.0).abs() < 20.0, "{}", cap); assert!(r.overall_pass); }
-    #[test] fn curves_per_table_6_2() { assert_eq!(crate::steel_column::curve(300.0, 150.0, 10.7, true).0, "a"); assert_eq!(crate::steel_column::curve(300.0, 150.0, 10.7, false).0, "b"); assert_eq!(crate::steel_column::curve(200.0, 200.0, 15.0, true).0, "b"); assert_eq!(crate::steel_column::curve(200.0, 200.0, 15.0, false).0, "c"); }
-    #[test] fn overloaded_fails() { let mut v = c(); v["n_ed"] = json!(2500); assert!(!run("steelcol", &v).overall_pass); }
-    #[test] fn longer_column_buckles_more() { let a = run("steelcol", &c()); let mut v = c(); v["len"] = json!(8000); let b = run("steelcol", &v); let u = |r: &crate::module::ModResult| r.checks.iter().find(|k| k.name.ends_with("z-z")).unwrap().utilisation; assert!(u(&b) > u(&a)); }
+    #[test]
+    fn hand_calc_weak_axis() {
+        // Ncr=2595 kN, lambda=0.910, curve c, chi=0.594, Nb=1275 kN
+        let r = run("steelcol", &c());
+        assert!(r.ok, "{:?}", r.errors);
+        let k = r.checks.iter().find(|k| k.name.ends_with("z-z")).unwrap();
+        let cap: f64 = k.capacity.split_whitespace().next().unwrap().parse().unwrap();
+        assert!((cap - 1275.0).abs() < 20.0, "{}", cap);
+        assert!(r.overall_pass);
+    }
+    #[test]
+    fn curves_per_table_6_2() {
+        assert_eq!(crate::steel_column::curve(300.0, 150.0, 10.7, true).0, "a");
+        assert_eq!(crate::steel_column::curve(300.0, 150.0, 10.7, false).0, "b");
+        assert_eq!(crate::steel_column::curve(200.0, 200.0, 15.0, true).0, "b");
+        assert_eq!(crate::steel_column::curve(200.0, 200.0, 15.0, false).0, "c");
+    }
+    #[test]
+    fn overloaded_fails() {
+        let mut v = c();
+        v["n_ed"] = json!(2500);
+        assert!(!run("steelcol", &v).overall_pass);
+    }
+    #[test]
+    fn longer_column_buckles_more() {
+        let a = run("steelcol", &c());
+        let mut v = c();
+        v["len"] = json!(8000);
+        let b = run("steelcol", &v);
+        let u = |r: &crate::module::ModResult| r.checks.iter().find(|k| k.name.ends_with("z-z")).unwrap().utilisation;
+        assert!(u(&b) > u(&a));
+    }
 }
 
 #[cfg(test)]
 mod retaining_tests {
     use crate::modules::*;
     use serde_json::json;
-    fn r() -> serde_json::Value { json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","hs":3000,"ts":350,"tb":400,"lt":800,"bw":3200,"gamma":18,"phi":30,"delta":30,"q_allow":200,"q_sur":10,"hw":0,"cs":40,"cb":50,"ps":16,"pb":16,"fck":30,"fyk":500}) }
-    fn u(res: &crate::module::ModResult, name: &str) -> f64 { res.checks.iter().find(|c| c.name.starts_with(name)).unwrap().utilisation }
-    #[test] fn stability_matches_independent_calc() {
-        let x = run("retaining", &r()); assert!(x.ok, "{:?}", x.errors);
+    fn r() -> serde_json::Value {
+        json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","hs":3000,"ts":350,"tb":400,"lt":800,"bw":3200,"gamma":18,"phi":30,"delta":30,"q_allow":200,"q_sur":10,"hw":0,"cs":40,"cb":50,"ps":16,"pb":16,"fck":30,"fyk":500})
+    }
+    fn u(res: &crate::module::ModResult, name: &str) -> f64 {
+        res.checks.iter().find(|c| c.name.starts_with(name)).unwrap().utilisation
+    }
+    #[test]
+    fn stability_matches_independent_calc() {
+        let x = run("retaining", &r());
+        assert!(x.ok, "{:?}", x.errors);
         assert!((u(&x, "Sliding, DA1-1") - 0.6543).abs() < 0.005, "{}", u(&x, "Sliding, DA1-1"));
         assert!((u(&x, "Sliding, DA1-2") - 0.7772).abs() < 0.005);
         assert!((u(&x, "Overturning") - 0.3098).abs() < 0.005);
-        let b = x.checks.iter().find(|c| c.name == "Bearing pressure").unwrap(); let q: f64 = b.demand.split_whitespace().next().unwrap().parse().unwrap(); assert!((q - 59.4).abs() < 0.2, "{}", q);
+        let b = x.checks.iter().find(|c| c.name == "Bearing pressure").unwrap();
+        let q: f64 = b.demand.split_whitespace().next().unwrap().parse().unwrap();
+        assert!((q - 59.4).abs() < 0.2, "{}", q);
     }
-    #[test] fn default_wall_passes() { let x = run("retaining", &r()); assert!(x.overall_pass, "{:?}", x.checks.iter().filter(|c| !c.pass).map(|c| (&c.name, c.utilisation)).collect::<Vec<_>>()); }
-    #[test] fn narrow_base_fails_stability() { let mut v = r(); v["bw"] = json!(1500); v["lt"] = json!(300); let x = run("retaining", &v); assert!(!x.ok || !x.overall_pass); }
-    #[test] fn water_increases_demand_and_is_disclosed() { let a = run("retaining", &r()); let mut v = r(); v["hw"] = json!(2000); let b = run("retaining", &v); assert!(u(&b, "Sliding, DA1-1") > u(&a, "Sliding, DA1-1")); assert!(a.observations.iter().any(|o| o.text.contains("Drained"))); }
-    #[test] fn rejects_delta_above_phi() { let mut v = r(); v["delta"] = json!(35); assert!(!run("retaining", &v).ok); }
-    #[test] fn deterministic() { assert_eq!(run("retaining", &r()).trace_hash, run("retaining", &r()).trace_hash); }
+    #[test]
+    fn default_wall_passes() {
+        let x = run("retaining", &r());
+        assert!(x.overall_pass, "{:?}", x.checks.iter().filter(|c| !c.pass).map(|c| (&c.name, c.utilisation)).collect::<Vec<_>>());
+    }
+    #[test]
+    fn narrow_base_fails_stability() {
+        let mut v = r();
+        v["bw"] = json!(1500);
+        v["lt"] = json!(300);
+        let x = run("retaining", &v);
+        assert!(!x.ok || !x.overall_pass);
+    }
+    #[test]
+    fn water_increases_demand_and_is_disclosed() {
+        let a = run("retaining", &r());
+        let mut v = r();
+        v["hw"] = json!(2000);
+        let b = run("retaining", &v);
+        assert!(u(&b, "Sliding, DA1-1") > u(&a, "Sliding, DA1-1"));
+        assert!(a.observations.iter().any(|o| o.text.contains("Drained")));
+    }
+    #[test]
+    fn rejects_delta_above_phi() {
+        let mut v = r();
+        v["delta"] = json!(35);
+        assert!(!run("retaining", &v).ok);
+    }
+    #[test]
+    fn deterministic() {
+        assert_eq!(run("retaining", &r()).trace_hash, run("retaining", &r()).trace_hash);
+    }
 }
 
 #[cfg(test)]
 mod raft_tests {
     use crate::modules::*;
     use serde_json::json;
-    fn r() -> serde_json::Value { json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","n_cols":3,"spacing":5000,"edge":1000,"width":5000,"n_ed":1500,"n_k":1100,"q_allow":150,"cx":400,"cy":400,"h":800,"cover":50,"bar_dia":20,"fck":30,"fyk":500}) }
-    fn kvv(res: &crate::module::ModResult, label: &str) -> String { res.summary.iter().find(|k| k.label.starts_with(label)).unwrap().value.clone() }
-    #[test] fn strip_statics_match_independent_calc() {
-        let x = run("raft", &r()); assert!(x.ok, "{:?}", x.errors);
+    fn r() -> serde_json::Value {
+        json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","n_cols":3,"spacing":5000,"edge":1000,"width":5000,"n_ed":1500,"n_k":1100,"q_allow":150,"cx":400,"cy":400,"h":800,"cover":50,"bar_dia":20,"fck":30,"fyk":500})
+    }
+    fn kvv(res: &crate::module::ModResult, label: &str) -> String {
+        res.summary.iter().find(|k| k.label.starts_with(label)).unwrap().value.clone()
+    }
+    #[test]
+    fn strip_statics_match_independent_calc() {
+        let x = run("raft", &r());
+        assert!(x.ok, "{:?}", x.errors);
         let sag: f64 = kvv(&x, "Max sagging").split_whitespace().next().unwrap().parse().unwrap();
         let hog: f64 = kvv(&x, "Max hogging").split_whitespace().next().unwrap().parse().unwrap();
-        assert!((sag - 187.0).abs() < 1.5, "{}", sag); assert!((hog - 1500.0).abs() < 2.0, "{}", hog);
+        assert!((sag - 187.0).abs() < 1.5, "{}", sag);
+        assert!((hog - 1500.0).abs() < 2.0, "{}", hog);
     }
-    #[test] fn pressure_matches() { let x = run("raft", &r()); assert!(kvv(&x, "Service").starts_with("75.0 / 75.0"), "{}", kvv(&x, "Service")); }
-    #[test] fn default_passes() { let x = run("raft", &r()); assert!(x.overall_pass, "{:?}", x.checks.iter().filter(|c| !c.pass).map(|c| (&c.name, c.utilisation)).collect::<Vec<_>>()); }
-    #[test] fn weak_soil_fails_bearing() { let mut v = r(); v["q_allow"] = json!(50); let x = run("raft", &v); assert!(!x.overall_pass); }
-    #[test] fn two_columns_has_no_punching_check() { let mut v = r(); v["n_cols"] = json!(2); let x = run("raft", &v); assert!(x.ok); assert!(!x.checks.iter().any(|c| c.name.starts_with("Punching"))); }
-    #[test] fn rejects_fractional_columns() { let mut v = r(); v["n_cols"] = json!(3.5); assert!(!run("raft", &v).ok); }
+    #[test]
+    fn pressure_matches() {
+        let x = run("raft", &r());
+        assert!(kvv(&x, "Service").starts_with("75.0 / 75.0"), "{}", kvv(&x, "Service"));
+    }
+    #[test]
+    fn default_passes() {
+        let x = run("raft", &r());
+        assert!(x.overall_pass, "{:?}", x.checks.iter().filter(|c| !c.pass).map(|c| (&c.name, c.utilisation)).collect::<Vec<_>>());
+    }
+    #[test]
+    fn weak_soil_fails_bearing() {
+        let mut v = r();
+        v["q_allow"] = json!(50);
+        let x = run("raft", &v);
+        assert!(!x.overall_pass);
+    }
+    #[test]
+    fn two_columns_has_no_punching_check() {
+        let mut v = r();
+        v["n_cols"] = json!(2);
+        let x = run("raft", &v);
+        assert!(x.ok);
+        assert!(!x.checks.iter().any(|c| c.name.starts_with("Punching")));
+    }
+    #[test]
+    fn rejects_fractional_columns() {
+        let mut v = r();
+        v["n_cols"] = json!(3.5);
+        assert!(!run("raft", &v).ok);
+    }
 }
 
 #[cfg(test)]
 mod connection_tests {
     use crate::modules::*;
     use serde_json::json;
-    fn b() -> serde_json::Value { json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","n_ed":250,"d":20,"grade":8.8,"planes":1,"thread":1,"n1":3,"n2":2,"e1":40,"p1":70,"e2":30,"p2":60,"w":150,"t":10,"fy":275,"fu":430}) }
-    fn w() -> serde_json::Value { json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","lw":300,"a":5,"tmin":10,"f_perp":40,"f_par":60,"fy":275,"fu":430}) }
-    fn kvv(r: &crate::module::ModResult, l: &str) -> String { r.summary.iter().find(|k| k.label.starts_with(l)).unwrap().value.clone() }
-    #[test] fn stress_areas_match_iso_values() { for (d, a) in [(12.0, 84.3), (16.0, 157.0), (20.0, 245.0), (24.0, 353.0), (27.0, 459.0), (30.0, 561.0)] { let s = crate::bolted::stress_area(d).unwrap(); assert!((s - a).abs() / a < 0.005, "M{} {}", d, s); } }
-    #[test] fn m20_88_shear_is_94kn() { let r = run("bolted", &b()); assert!(r.ok, "{:?}", r.errors); let v: f64 = kvv(&r, "F v,Rd").split_whitespace().next().unwrap().parse().unwrap(); assert!((v - 94.1).abs() < 0.5, "{}", v); }
-    #[test] fn bearing_hand_calc() { let r = run("bolted", &b()); let v: f64 = kvv(&r, "F b,Rd").split_whitespace().next().unwrap().parse().unwrap(); assert!((v - 88.3).abs() < 0.5, "{}", v); }
-    #[test] fn bolted_default_passes() { let r = run("bolted", &b()); assert!(r.overall_pass, "{:?}", r.checks.iter().filter(|c| !c.pass).map(|c| (&c.name, c.utilisation)).collect::<Vec<_>>()); }
-    #[test] fn bolted_overload_fails() { let mut v = b(); v["n_ed"] = json!(900); assert!(!run("bolted", &v).overall_pass); }
-    #[test] fn tight_edge_distance_fails() { let mut v = b(); v["e1"] = json!(20); assert!(!run("bolted", &v).overall_pass); }
-    #[test] fn bad_diameter_rejected() { let mut v = b(); v["d"] = json!(22); assert!(!run("bolted", &v).ok); }
-    #[test] fn weld_simplified_hand_calc() { let r = run("weld", &json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","lw":100,"a":5,"tmin":10,"f_perp":0,"f_par":100,"fy":275,"fu":430})); assert!(r.ok, "{:?}", r.errors); let c = r.checks.iter().find(|c| c.name == "Simplified method").unwrap(); let cap: f64 = c.capacity.split_whitespace().next().unwrap().parse().unwrap(); assert!((cap - 1168.0).abs() < 2.0, "{}", cap); }
-    #[test] fn weld_default_passes() { let r = run("weld", &w()); assert!(r.ok && r.overall_pass, "{:?}", r.checks); }
-    #[test] fn weld_overload_fails() { let mut v = w(); v["f_par"] = json!(400); assert!(!run("weld", &v).overall_pass); }
-    #[test] fn weld_needs_a_force() { let mut v = w(); v["f_perp"] = json!(0); v["f_par"] = json!(0); assert!(!run("weld", &v).ok); }
+    fn b() -> serde_json::Value {
+        json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","n_ed":250,"d":20,"grade":8.8,"planes":1,"thread":1,"n1":3,"n2":2,"e1":40,"p1":70,"e2":30,"p2":60,"w":150,"t":10,"fy":275,"fu":430})
+    }
+    fn w() -> serde_json::Value {
+        json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","lw":300,"a":5,"tmin":10,"f_perp":40,"f_par":60,"fy":275,"fu":430})
+    }
+    fn kvv(r: &crate::module::ModResult, l: &str) -> String {
+        r.summary.iter().find(|k| k.label.starts_with(l)).unwrap().value.clone()
+    }
+    #[test]
+    fn stress_areas_match_iso_values() {
+        for (d, a) in [(12.0, 84.3), (16.0, 157.0), (20.0, 245.0), (24.0, 353.0), (27.0, 459.0), (30.0, 561.0)] {
+            let s = crate::bolted::stress_area(d).unwrap();
+            assert!((s - a).abs() / a < 0.005, "M{} {}", d, s);
+        }
+    }
+    #[test]
+    fn m20_88_shear_is_94kn() {
+        let r = run("bolted", &b());
+        assert!(r.ok, "{:?}", r.errors);
+        let v: f64 = kvv(&r, "F v,Rd").split_whitespace().next().unwrap().parse().unwrap();
+        assert!((v - 94.1).abs() < 0.5, "{}", v);
+    }
+    #[test]
+    fn bearing_hand_calc() {
+        let r = run("bolted", &b());
+        let v: f64 = kvv(&r, "F b,Rd").split_whitespace().next().unwrap().parse().unwrap();
+        assert!((v - 88.3).abs() < 0.5, "{}", v);
+    }
+    #[test]
+    fn bolted_default_passes() {
+        let r = run("bolted", &b());
+        assert!(r.overall_pass, "{:?}", r.checks.iter().filter(|c| !c.pass).map(|c| (&c.name, c.utilisation)).collect::<Vec<_>>());
+    }
+    #[test]
+    fn bolted_overload_fails() {
+        let mut v = b();
+        v["n_ed"] = json!(900);
+        assert!(!run("bolted", &v).overall_pass);
+    }
+    #[test]
+    fn tight_edge_distance_fails() {
+        let mut v = b();
+        v["e1"] = json!(20);
+        assert!(!run("bolted", &v).overall_pass);
+    }
+    #[test]
+    fn bad_diameter_rejected() {
+        let mut v = b();
+        v["d"] = json!(22);
+        assert!(!run("bolted", &v).ok);
+    }
+    #[test]
+    fn weld_simplified_hand_calc() {
+        let r = run(
+            "weld",
+            &json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","lw":100,"a":5,"tmin":10,"f_perp":0,"f_par":100,"fy":275,"fu":430}),
+        );
+        assert!(r.ok, "{:?}", r.errors);
+        let c = r.checks.iter().find(|c| c.name == "Simplified method").unwrap();
+        let cap: f64 = c.capacity.split_whitespace().next().unwrap().parse().unwrap();
+        assert!((cap - 1168.0).abs() < 2.0, "{}", cap);
+    }
+    #[test]
+    fn weld_default_passes() {
+        let r = run("weld", &w());
+        assert!(r.ok && r.overall_pass, "{:?}", r.checks);
+    }
+    #[test]
+    fn weld_overload_fails() {
+        let mut v = w();
+        v["f_par"] = json!(400);
+        assert!(!run("weld", &v).overall_pass);
+    }
+    #[test]
+    fn weld_needs_a_force() {
+        let mut v = w();
+        v["f_perp"] = json!(0);
+        v["f_par"] = json!(0);
+        assert!(!run("weld", &v).ok);
+    }
 }
 
 #[cfg(test)]
 mod hand_calc_tests {
     use crate::modules::*;
     use serde_json::json;
-    #[test] fn stairs_match_hand_calculation() {
+    #[test]
+    fn stairs_match_hand_calculation() {
         // cos a = 250/sqrt(175^2+250^2) = 0.8192; g_sw = 6.765; w = 17.158 kN/m; M = 19.302 kNm/m; V = 25.737 kN/m; As,req = 392.7 mm2/m
-        let r = run("stairs", &json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","span":3000,"h":150,"rise":175,"going":250,"cover":25,"bar_dia":12,"fck":30,"fyk":500,"gk":1.5,"qk":4}));
+        let r = run(
+            "stairs",
+            &json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","span":3000,"h":150,"rise":175,"going":250,"cover":25,"bar_dia":12,"fck":30,"fyk":500,"gk":1.5,"qk":4}),
+        );
         assert!(r.ok, "{:?}", r.errors);
         let o = |k: &str| r.outputs.iter().find(|x| x.key == k).unwrap().value;
-        assert!((o("m_ed") - 19.302).abs() < 0.01, "{}", o("m_ed")); assert!((o("v_ed") - 25.737).abs() < 0.01);
-        let as_req: f64 = r.summary.iter().find(|k| k.label.starts_with("Required steel")).unwrap().value.split_whitespace().next().unwrap().parse().unwrap();
+        assert!((o("m_ed") - 19.302).abs() < 0.01, "{}", o("m_ed"));
+        assert!((o("v_ed") - 25.737).abs() < 0.01);
+        let as_req: f64 = r
+            .summary
+            .iter()
+            .find(|k| k.label.starts_with("Required steel"))
+            .unwrap()
+            .value
+            .split_whitespace()
+            .next()
+            .unwrap()
+            .parse()
+            .unwrap();
         assert!((as_req - 393.0).abs() < 1.5, "{}", as_req);
     }
-    #[test] fn wall_resistance_matches_independent_script() {
-        let r = run("wall", &json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","h":200,"len":3000,"beta":1.0,"cover":30,"bar_dia":12,"hbar_dia":10,"fck":30,"fyk":500,"phi_ef":1.0,"n_ed":600,"m02":12,"m01":6}));
-        let m: f64 = r.summary.iter().find(|k| k.label.starts_with("Moment resistance")).unwrap().value.split_whitespace().next().unwrap().parse().unwrap();
+    #[test]
+    fn wall_resistance_matches_independent_script() {
+        let r = run(
+            "wall",
+            &json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","h":200,"len":3000,"beta":1.0,"cover":30,"bar_dia":12,"hbar_dia":10,"fck":30,"fyk":500,"phi_ef":1.0,"n_ed":600,"m02":12,"m01":6}),
+        );
+        let m: f64 = r
+            .summary
+            .iter()
+            .find(|k| k.label.starts_with("Moment resistance"))
+            .unwrap()
+            .value
+            .split_whitespace()
+            .next()
+            .unwrap()
+            .parse()
+            .unwrap();
         assert!((m - 65.89).abs() < 0.05, "{}", m);
     }
 }
@@ -184,45 +582,108 @@ mod hand_calc_tests {
 mod timber_tests {
     use crate::modules::*;
     use serde_json::json;
-    fn joist() -> serde_json::Value { json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","span":3400,"b":63,"h":200,"lb":100,"ov":0,"h_ef":0,"notch_x":0,"notch_i":0,"notch_side":1,"class":4,"service":2,"duration":3,"ksys":1.1,"gk":0.24,"sw":2,"qk":0.9,"psi2":0.3,"restraint":1,"load_level":1,"defl_ratio":250}) }
-    fn col() -> serde_json::Value { json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","n_ed":10,"my_ed":0.35,"mz_ed":0,"b":100,"h":100,"lef_y":3750,"lef_z":3750,"lef_ltb":3750,"class":2,"service":2,"duration":3}) }
-    fn num(s: &str) -> f64 { s.split_whitespace().next().unwrap().trim_end_matches(',').parse().unwrap() }
-    fn chk<'a>(r: &'a crate::module::ModResult, name: &str) -> &'a crate::rc_beam::Check { r.checks.iter().find(|c| c.name.starts_with(name)).unwrap() }
+    fn joist() -> serde_json::Value {
+        json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","span":3400,"b":63,"h":200,"lb":100,"ov":0,"h_ef":0,"notch_x":0,"notch_i":0,"notch_side":1,"class":4,"service":2,"duration":3,"ksys":1.1,"gk":0.24,"sw":2,"qk":0.9,"psi2":0.3,"restraint":1,"load_level":1,"defl_ratio":250})
+    }
+    fn col() -> serde_json::Value {
+        json!({"mode":"design","param_set":"EN1992-1-1:2004/RECOMMENDED","n_ed":10,"my_ed":0.35,"mz_ed":0,"b":100,"h":100,"lef_y":3750,"lef_z":3750,"lef_ltb":3750,"class":2,"service":2,"duration":3})
+    }
+    fn num(s: &str) -> f64 {
+        s.split_whitespace().next().unwrap().trim_end_matches(',').parse().unwrap()
+    }
+    fn chk<'a>(r: &'a crate::module::ModResult, name: &str) -> &'a crate::rc_beam::Check {
+        r.checks.iter().find(|c| c.name.starts_with(name)).unwrap()
+    }
 
-    #[test] fn example_11_1_bending_and_loads() {
-        let r = run("timber", &joist()); assert!(r.ok, "{:?}", r.errors);
-        let md = r.outputs.iter().find(|o| o.key == "m_ed").unwrap().value; assert!((md - 2.42).abs() < 0.02, "M {}", md);     // book: 2.42 kNm
-        let ved = r.outputs.iter().find(|o| o.key == "v_ed").unwrap().value; assert!((ved - 2.85).abs() < 0.02, "V {}", ved);  // book: 2.85 kN
-        let b = chk(&r, "Bending"); assert!((num(&b.capacity) - 14.89).abs() < 0.05, "fm,d {}", b.capacity);                    // book: 14.9 N/mm2
-    }
-    #[test] fn example_11_1_shear_bearing_deflection() {
+    #[test]
+    fn example_11_1_bending_and_loads() {
         let r = run("timber", &joist());
-        let s = chk(&r, "Shear"); assert!((num(&s.demand) - 0.34).abs() < 0.01, "tau {}", s.demand); assert!((num(&s.capacity) - 1.62).abs() < 0.01, "fvd {}", s.capacity); // book 0.34 and 1.62
-        let br = chk(&r, "Bearing"); assert!((num(&br.demand) - 0.45).abs() < 0.01, "sigma90 {}", br.demand); assert!((num(&br.capacity) - 7.9).abs() < 0.15, "kc90*fc90d {}", br.capacity); // book 0.45 and 7.9
-        let d = chk(&r, "Final deflection"); assert!((num(&d.demand) - 6.7).abs() < 0.2, "ufin {}", d.demand); assert!((num(&d.capacity) - 13.6).abs() < 0.01); // book 6.7 and 13.6 mm
+        assert!(r.ok, "{:?}", r.errors);
+        let md = r.outputs.iter().find(|o| o.key == "m_ed").unwrap().value;
+        assert!((md - 2.42).abs() < 0.02, "M {}", md); // book: 2.42 kNm
+        let ved = r.outputs.iter().find(|o| o.key == "v_ed").unwrap().value;
+        assert!((ved - 2.85).abs() < 0.02, "V {}", ved); // book: 2.85 kN
+        let b = chk(&r, "Bending");
+        assert!((num(&b.capacity) - 14.89).abs() < 0.05, "fm,d {}", b.capacity);
+        // book: 14.9 N/mm2
+    }
+    #[test]
+    fn example_11_1_shear_bearing_deflection() {
+        let r = run("timber", &joist());
+        let s = chk(&r, "Shear");
+        assert!((num(&s.demand) - 0.34).abs() < 0.01, "tau {}", s.demand);
+        assert!((num(&s.capacity) - 1.62).abs() < 0.01, "fvd {}", s.capacity); // book 0.34 and 1.62
+        let br = chk(&r, "Bearing");
+        assert!((num(&br.demand) - 0.45).abs() < 0.01, "sigma90 {}", br.demand);
+        assert!((num(&br.capacity) - 7.9).abs() < 0.15, "kc90*fc90d {}", br.capacity); // book 0.45 and 7.9
+        let d = chk(&r, "Final deflection");
+        assert!((num(&d.demand) - 6.7).abs() < 0.2, "ufin {}", d.demand);
+        assert!((num(&d.capacity) - 13.6).abs() < 0.01); // book 6.7 and 13.6 mm
         assert!(r.overall_pass, "{:?}", r.checks);
     }
-    #[test] fn example_11_2_notched_joist() {
-        let mut v = joist(); v["h_ef"] = json!(125); v["notch_x"] = json!(75); v["notch_i"] = json!(2); v["notch_side"] = json!(1);
-        let r = run("timber", &v); assert!(r.ok, "{:?}", r.errors);
-        let s = chk(&r, "Shear at the end notch"); assert!((num(&s.demand) - 0.54).abs() < 0.01, "tau {}", s.demand); assert!((num(&s.capacity) - 0.86).abs() < 0.01, "kv*fvd {}", s.capacity); // book: 0.54 and 0.86 (k_v = 0.53)
+    #[test]
+    fn example_11_2_notched_joist() {
+        let mut v = joist();
+        v["h_ef"] = json!(125);
+        v["notch_x"] = json!(75);
+        v["notch_i"] = json!(2);
+        v["notch_side"] = json!(1);
+        let r = run("timber", &v);
+        assert!(r.ok, "{:?}", r.errors);
+        let s = chk(&r, "Shear at the end notch");
+        assert!((num(&s.demand) - 0.54).abs() < 0.01, "tau {}", s.demand);
+        assert!((num(&s.capacity) - 0.86).abs() < 0.01, "kv*fvd {}", s.capacity);
+        // book: 0.54 and 0.86 (k_v = 0.53)
     }
-    #[test] fn example_11_4_column_capacity() {
-        let mut v = col(); v["my_ed"] = json!(0);
-        let r = run("timbercol", &v); assert!(r.ok, "{:?}", r.errors);
-        let cap = num(&r.summary.iter().find(|k| k.label.starts_with("Axial capacity")).unwrap().value); assert!((cap - 17.7).abs() < 0.3, "N {}", cap); // book: 17.7 kN
-        let kc = num(&r.summary.iter().find(|k| k.label.starts_with("k c,y")).unwrap().value); assert!((kc - 0.17).abs() < 0.005, "kc {}", kc);
+    #[test]
+    fn example_11_4_column_capacity() {
+        let mut v = col();
+        v["my_ed"] = json!(0);
+        let r = run("timbercol", &v);
+        assert!(r.ok, "{:?}", r.errors);
+        let cap = num(&r.summary.iter().find(|k| k.label.starts_with("Axial capacity")).unwrap().value);
+        assert!((cap - 17.7).abs() < 0.3, "N {}", cap); // book: 17.7 kN
+        let kc = num(&r.summary.iter().find(|k| k.label.starts_with("k c,y")).unwrap().value);
+        assert!((kc - 0.17).abs() < 0.005, "kc {}", kc);
     }
-    #[test] fn example_11_5_eccentric_column() {
-        let r = run("timbercol", &col()); assert!(r.ok, "{:?}", r.errors);
-        let c = chk(&r, "Compression and bending, Eq 11.48"); assert!((num(&c.demand) - 0.76).abs() < 0.02, "eq11.48 {}", c.demand); // book: 0.76
+    #[test]
+    fn example_11_5_eccentric_column() {
+        let r = run("timbercol", &col());
+        assert!(r.ok, "{:?}", r.errors);
+        let c = chk(&r, "Compression and bending, Eq 11.48");
+        assert!((num(&c.demand) - 0.76).abs() < 0.02, "eq11.48 {}", c.demand); // book: 0.76
         assert!(r.overall_pass, "{:?}", r.checks);
     }
-    #[test] fn free_compression_edge_triggers_lateral_buckling() {
-        let mut v = joist(); v["restraint"] = json!(2); v["span"] = json!(5000); v["h"] = json!(250); v["b"] = json!(63);
-        let r = run("timber", &v); assert!(r.ok, "{:?}", r.errors); assert!(r.trace.steps.iter().any(|s| s.title == "Lateral buckling" && s.output.contains("k_crit") || s.output.contains("kcrit")));
+    #[test]
+    fn free_compression_edge_triggers_lateral_buckling() {
+        let mut v = joist();
+        v["restraint"] = json!(2);
+        v["span"] = json!(5000);
+        v["h"] = json!(250);
+        v["b"] = json!(63);
+        let r = run("timber", &v);
+        assert!(r.ok, "{:?}", r.errors);
+        assert!(r.trace.steps.iter().any(|s| s.title == "Lateral buckling" && s.output.contains("k_crit") || s.output.contains("kcrit")));
     }
-    #[test] fn d70_needing_e005_is_rejected() { let mut v = col(); v["class"] = json!(15); assert!(!run("timbercol", &v).ok); let mut b = joist(); b["class"] = json!(15); b["restraint"] = json!(2); assert!(!run("timber", &b).ok); }
-    #[test] fn overloaded_joist_fails() { let mut v = joist(); v["qk"] = json!(6.0); assert!(!run("timber", &v).overall_pass); }
-    #[test] fn options_are_exposed_to_the_ui() { let j = defs_json(); assert!(j.contains("\"options\"") && j.contains("C22")); }
+    #[test]
+    fn d70_needing_e005_is_rejected() {
+        let mut v = col();
+        v["class"] = json!(15);
+        assert!(!run("timbercol", &v).ok);
+        let mut b = joist();
+        b["class"] = json!(15);
+        b["restraint"] = json!(2);
+        assert!(!run("timber", &b).ok);
+    }
+    #[test]
+    fn overloaded_joist_fails() {
+        let mut v = joist();
+        v["qk"] = json!(6.0);
+        assert!(!run("timber", &v).overall_pass);
+    }
+    #[test]
+    fn options_are_exposed_to_the_ui() {
+        let j = defs_json();
+        assert!(j.contains("\"options\"") && j.contains("C22"));
+    }
 }
