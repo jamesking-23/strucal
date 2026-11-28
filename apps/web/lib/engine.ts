@@ -29,8 +29,10 @@ export interface Engine {
 }
 
 export const DEFAULT_PARAM_SET = "EN1992-1-1:2004/RECOMMENDED";
-const WASM_JS = "/wasm/strucal_wasm.js";
-const WASM_BIN = "/wasm/strucal_wasm_bg.wasm";
+// The engine files are fetched at run time, so they need the site's base path when it is served from a sub-path.
+const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+const WASM_JS = `${BASE}/wasm/strucal_wasm.js`;
+const WASM_BIN = `${BASE}/wasm/strucal_wasm_bg.wasm`;
 const CRASH = "The calculation engine stopped unexpectedly. Reload the page to restart it; your inputs are kept.";
 
 export function failedResult(errors: string[], version = ""): ModResult {
