@@ -5,7 +5,9 @@ import { DEFAULT_PARAM_SET } from "../../lib/engine";
 import { useEngine } from "../../lib/useEngine";
 import { supabase } from "../../lib/supabase";
 import { askAssistant } from "../../lib/assistant";
-import { parseNumber, visibleFields } from "../../lib/form";
+import { DISCIPLINES, disciplineOf, parseNumber, visibleFields } from "../../lib/form";
+import { REVIEW_THRESHOLD, fmtUtil } from "../../lib/status";
+import { Button, EmptyState, EngineBoot, Notice, Segmented, StatusBadge, StatusDot } from "../ui/primitives";
 import { readJson, writeJson } from "../../lib/storage";
 import { downloadText } from "../../lib/download";
 import type { Link as DepLink, ModDef, NodeResult, ProjectNode, Revision } from "../../lib/types";
@@ -37,7 +39,7 @@ function NumField({ value, onCommit, readOnly, className, label }: { value: numb
   const [draft, setDraft] = useState(String(value));
   useEffect(() => { if (parseNumber(draft) !== value) setDraft(String(value)); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [value]);
   const bad = !readOnly && parseNumber(draft) === null;
-  return <input type="text" inputMode="decimal" aria-label={label} readOnly={readOnly} aria-invalid={bad} className={`input num ${className ?? ""}`} value={readOnly ? String(value) : draft}
+  return <input type="text" inputMode="decimal" aria-label={label} readOnly={readOnly} aria-invalid={bad} className={className ?? "input num"} value={readOnly ? String(value) : draft}
     onChange={(e) => { setDraft(e.target.value); const v = parseNumber(e.target.value); if (v !== null) onCommit?.(v); }} />;
 }
 
@@ -56,6 +58,7 @@ export default function ProjectPage() {
   const [sync, setSync] = useState("");
   const [busy, setBusy] = useState(false);
   const [explain, setExplain] = useState(""); const [exBusy, setExBusy] = useState(false);
+  const [sel, setSel] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const synced = useRef("");
 
@@ -128,6 +131,7 @@ export default function ProjectPage() {
     const values: Record<string, number> = {}; for (const f of d.fields) values[f.key] = f.default;
     let n = 1; while (nodes.some((x) => x.id === `${d.id}${n}`)) n++;
     setNodes([...nodes, { id: `${d.id}${n}`, name: `${d.name} ${n}`, module: d.id, mode: "design", param_set: DEFAULT_PARAM_SET, values, links: [] }]);
+    setSel(`${d.id}${n}`);
   };
   const upd = (id: string, f: (n: ProjectNode) => ProjectNode) => setNodes((all) => all.map((n) => (n.id === id ? f(n) : n)));
   const del = (id: string) => {
@@ -173,139 +177,173 @@ export default function ProjectPage() {
   const rOf = (id: string) => res?.nodes.find((n) => n.id === id);
   const imp = res?.impact;
 
-  const statusBadge = (r: NodeResult | undefined) => !r ? null
-    : r.status === "blocked" ? <span className="badge warn">Blocked</span>
-    : r.status === "error" ? <span className="badge fail">Input error</span>
-    : !r.has_verdict ? <span className="badge info">Results</span>
-    : r.overall_pass ? <span className="badge ok">Pass {(r.max_util * 100).toFixed(0)}%</span>
-    : <span className="badge fail">Fail {(r.max_util * 100).toFixed(0)}%</span>;
+  const statusOf = (r: NodeResult | undefined): "ok" | "warn" | "fail" | "results" | "none" =>
+    !r ? "none" : r.status !== "calculated" ? "fail" : !r.has_verdict ? "results" : !r.overall_pass ? "fail" : r.max_util > REVIEW_THRESHOLD ? "warn" : "ok";
+  const statusText = (r: NodeResult | undefined) =>
+    !r ? "—" : r.status === "blocked" ? "Blocked" : r.status === "error" ? "Input error" : !r.has_verdict ? "Results" : `${r.overall_pass ? "Pass" : "Fail"} · η ${fmtUtil(r.max_util)}`;
 
-  if (!eng) return (
-    <div className="app"><TopBar section="project" />
-      <div className="loading" role="status">{loadErr ? <div className="empty"><h2>The calculation engine did not load</h2><p>{loadErr}</p><button className="btn btn-primary" onClick={retry}>Try again</button></div> : <><span className="spinner" />Loading calculation engine…</>}</div>
-    </div>
-  );
+  if (!eng) return <div className="app"><TopBar section="project" /><EngineBoot error={loadErr} onRetry={retry} /></div>;
+
+  const ordered = res?.ok ? res.order.map((id) => nodes.find((n) => n.id === id)).filter((n): n is ProjectNode => !!n) : nodes;
+  const cur = nodes.find((n) => n.id === sel) ?? ordered[0];
+  const d = cur ? defOf(cur.module) : undefined;
+  const r = cur ? rOf(cur.id) : undefined;
+  const changedMark = (id: string) => (imp ? (imp.edited.includes(id) ? "edited" : imp.affected.includes(id) ? "affected" : "") : "");
+  const options = cur ? nodes.filter((o) => o.id !== cur.id).flatMap((o) => (rOf(o.id)?.outputs ?? []).map((out) => ({ v: `${o.id}|${out.key}`, label: `${o.name} → ${out.label} (${out.unit})` }))) : [];
+  const usedBy = (nodeId: string, key: string) => nodes.filter((n) => n.links.some((l) => l.from === nodeId && l.output === key)).map((n) => n.name);
+
   return (
-    <div className="app">
-      <TopBar section="project" context={cloud ? <>{cloudName || "Cloud project"} · {sync}</> : "Local project in this browser"} />
-      <div className="toolbar pj-bar" role="toolbar" aria-label="Project">
-        <select className="select" value={add} onChange={(e) => setAdd(e.target.value)} aria-label="Module to add">{defs.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select>
-        <button className="btn btn-primary" onClick={addNode}>Add calculation</button>
+    <div className="app pj">
+      <TopBar section="project" context={cloud ? <>{cloudName || "Cloud project"} · {sync}</> : "Local project · this browser"} />
+      <div className="toolbar" role="toolbar" aria-label="Project">
+        <span className="lbl">Add</span>
+        <select className="select pj-add" value={add} onChange={(e) => setAdd(e.target.value)} aria-label="Module to add">{DISCIPLINES.map((g) => <optgroup key={g} label={g}>{defs.filter((x) => disciplineOf(x.id) === g).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</optgroup>)}</select>
+        <Button variant="primary" onClick={addNode}>Add calculation</Button>
         <span className="sep" />
-        <button className="btn" onClick={saveRev} disabled={!res?.ok || busy}>{busy ? "Saving…" : cloud ? "Save revision to cloud" : "Save revision"}</button>
-        <select className="select" value={base} onChange={(e) => setBase(e.target.value)} aria-label="Baseline revision"><option value="">No baseline</option>{revs.map((r) => <option key={r.id} value={r.id}>Compare with {r.name}</option>)}</select>
-        <button className="btn btn-ghost" onClick={restore} disabled={!baseline}>Restore baseline</button>
+        <Button onClick={saveRev} disabled={!res?.ok || busy}>{busy ? "Saving…" : cloud ? "Save revision to cloud" : "Save revision"}</Button>
+        <select className="select pj-base" value={base} onChange={(e) => setBase(e.target.value)} aria-label="Baseline revision"><option value="">No baseline</option>{revs.map((rv) => <option key={rv.id} value={rv.id}>Compare with {rv.name}</option>)}</select>
+        <Button variant="ghost" onClick={restore} disabled={!baseline}>Restore baseline</Button>
         <span className="spacer" />
-        {cloud && <span className="pj-sync" role="status">{sync}</span>}
-        <button className="btn btn-ghost" onClick={() => fileRef.current?.click()}>Import</button>
-        <button className="btn btn-ghost" onClick={exportJson} disabled={nodes.length === 0}>Export</button>
-        <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) importJson(f); e.target.value = ""; }} />
+        <Button variant="ghost" onClick={() => fileRef.current?.click()}>Import</Button>
+        <Button variant="ghost" onClick={exportJson} disabled={nodes.length === 0}>Export</Button>
+        <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={(e) => { const fl = e.target.files?.[0]; if (fl) importJson(fl); e.target.value = ""; }} />
       </div>
 
-      <div className="pj-layout">
-        <main className="pj-main">
-          <header className="page-head"><span className="eyebrow">{cloud ? "Cloud project" : "Local project"}</span><h1>{cloud ? cloudName || "Project" : "Project dependencies"}</h1><p>Link one calculation&apos;s design value to the next calculation&apos;s input. Edits propagate in dependency order and are compared against a saved revision.</p></header>
-          {notice && <div className="alert info" role="status"><span className="grow">{notice}</span><button className="btn btn-sm" onClick={() => setNotice("")}>Dismiss</button></div>}
-          {cloud && sync.startsWith("Conflict") && <div className="alert error" role="alert"><span className="grow">{sync}</span><button className="btn btn-sm" onClick={() => window.location.reload()}>Reload</button></div>}
-          {res && !res.ok && <div className="alert error" role="alert"><div className="grow"><b>The project cannot be analysed.</b><ul>{res.errors.map((e, i) => <li key={i}>{e}</li>)}</ul></div></div>}
-          {nodes.length === 0 && (
-            <div className="card"><div className="empty">
-              <h2>No calculations yet</h2>
-              <ol className="steps">
-                <li>Choose a module in the toolbar and add it, for example an RC wall.</li>
-                <li>Add the member it bears on, for example a strip footing.</li>
-                <li>On the footing&apos;s load input, pick the wall&apos;s ULS load as its source.</li>
-                <li>Save a revision. Later edits show what changed downstream.</li>
+      <div className="pj-grid">
+        <section className="pane pj-list" aria-label="Calculations">
+          <div className="pane-h">Calculations<span className="meta">{nodes.length} · dependency order</span></div>
+          <div className="pane-b">
+            {nodes.length === 0 ? <p className="pj-list-empty">No calculations yet.</p> : (
+              <ol className="pj-nodes">
+                {ordered.map((n, i) => {
+                  const nr = rOf(n.id); const mark = changedMark(n.id);
+                  return (
+                    <li key={n.id}>
+                      <button type="button" className={`pj-node${cur?.id === n.id ? " on" : ""}`} aria-current={cur?.id === n.id} onClick={() => setSel(n.id)}>
+                        <span className="idx mono">{String(i + 1).padStart(2, "0")}</span>
+                        <span className="nm">{n.name}</span>
+                        <StatusDot status={statusOf(nr)} />
+                        <span className="sub mono">{defOf(n.module)?.name ?? n.module}{n.links.length > 0 && ` · ${n.links.length} link${n.links.length > 1 ? "s" : ""}`}</span>
+                        <span className="st mono">{statusText(nr)}</span>
+                        {mark && <span className="mark">{mark}</span>}
+                      </button>
+                    </li>
+                  );
+                })}
               </ol>
-              <button className="btn btn-primary" onClick={addNode}>Add {defOf(add)?.name ?? "calculation"}</button>
-            </div></div>
+            )}
+          </div>
+        </section>
+
+        <main className="pj-main" aria-label="Selected calculation">
+          {notice && <Notice tone="info" onDismiss={() => setNotice("")}>{notice}</Notice>}
+          {cloud && sync.startsWith("Conflict") && <div className="alert error" role="alert"><span className="grow">{sync}</span><Button size="sm" onClick={() => window.location.reload()}>Reload</Button></div>}
+          {res && !res.ok && <Notice tone="error" title="The project cannot be analysed."><ul>{res.errors.map((e, i) => <li key={i}>{e}</li>)}</ul></Notice>}
+
+          {!cur && (
+            <div className="pj-empty">
+              <EmptyState glyph="→" title="Link calculations into a load path">Each calculation can take its inputs from another calculation&apos;s outputs. Edits propagate in dependency order and are compared against a saved revision.</EmptyState>
+              <ol className="pj-steps">
+                <li>Add an RC wall from the toolbar.</li>
+                <li>Add the strip footing it bears on.</li>
+                <li>Set the footing&apos;s load source to the wall&apos;s ULS load.</li>
+                <li>Save a revision; later edits show what changed downstream.</li>
+              </ol>
+              <Button variant="primary" onClick={addNode}>Add {defOf(add)?.name ?? "calculation"}</Button>
+            </div>
           )}
-          {nodes.map((n) => {
-            const d = defOf(n.module); const r = rOf(n.id);
-            if (!d) return (
-              <section className="card" key={n.id}>
-                <div className="card-h"><h2>{n.name}</h2><span className="badge fail">Unknown module</span><span className="spacer" /><button className="btn btn-sm btn-danger" onClick={() => del(n.id)}>Remove</button></div>
-                <div className="card-b"><div className="alert error"><span className="grow">Module &quot;{n.module}&quot; is not available in engine v{eng.version}. Remove this calculation or open the project in a matching version.</span></div></div>
-              </section>
-            );
-            const linked = (k: string) => n.links.find((l) => l.field === k);
-            const options = nodes.filter((o) => o.id !== n.id).flatMap((o) => (rOf(o.id)?.outputs ?? []).map((out) => ({ v: `${o.id}|${out.key}`, label: `${o.name} → ${out.label} (${out.unit})` })));
-            const changed = imp && (imp.edited.includes(n.id) ? "Edited" : imp.affected.includes(n.id) ? "Affected" : "");
-            return (
-              <section className="card" key={n.id} aria-label={n.name}>
-                <div className="card-h node-h">
-                  <input className="nm" value={n.name} aria-label="Calculation name" onChange={(e) => upd(n.id, (x) => ({ ...x, name: e.target.value }))} />
-                  <span className="badge">{d.name}</span>{statusBadge(r)}
-                  {changed && <span className="badge warn" title="Changed since the baseline revision">{changed}</span>}
-                  <span className="spacer" />
-                  {d.has_check_mode && <select className="select" value={n.mode} aria-label="Mode" onChange={(e) => upd(n.id, (x) => ({ ...x, mode: e.target.value === "check" ? "check" : "design" }))}><option value="design">Design</option><option value="check">Check</option></select>}
-                  <select className="select ps" value={n.param_set} aria-label="Parameter set" onChange={(e) => upd(n.id, (x) => ({ ...x, param_set: e.target.value }))}>{eng.paramSets.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</select>
-                  <button className="btn btn-sm btn-danger" onClick={() => del(n.id)}>Remove</button>
-                </div>
-                <div className="card-b">
-                  <div className="node-grid">
-                    {visibleFields(d, n.mode).map((f) => {
-                      const l = linked(f.key); const rv = r?.resolved.find((x) => x.field === f.key);
-                      const setVal = (v: number) => upd(n.id, (x) => ({ ...x, values: { ...x.values, [f.key]: v } }));
-                      const label = `${f.label}${f.unit ? ` (${f.unit})` : ""}`;
-                      return (
-                        <div className="node-field" key={f.key}>
-                          <span className="label" title={label}>{label}</span>
-                          <div className={`row${l ? " linked" : ""}`}>
-                            {f.options && !l ? (<select className="select" aria-label={f.label} value={n.values[f.key]} onChange={(e) => setVal(Number(e.target.value))}>{f.options.map(([v, lab]) => <option key={v} value={v}>{lab}</option>)}</select>)
-                              : l ? <NumField readOnly label={`${f.label} (linked)`} value={rv ? Number(rv.value.toFixed(4)) : ""} /> : <NumField label={f.label} value={n.values[f.key]} onCommit={setVal} />}
-                            <select className={`select src${l ? " on" : ""}`} value={l ? `${l.from}|${l.output}` : ""} title="Source of this input" aria-label={`Source for ${f.label}`} onChange={(e) => upd(n.id, (x) => ({ ...x, links: [...x.links.filter((k) => k.field !== f.key), ...(e.target.value ? [{ field: f.key, from: e.target.value.split("|")[0], output: e.target.value.split("|")[1], factor: l?.factor ?? 1 }] : [])] }))}>
-                              <option value="">Manual</option>{options.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
-                              {l && !options.some((o) => o.v === `${l.from}|${l.output}`) && <option value={`${l.from}|${l.output}`}>{nameOf(l.from)} → {l.output} (unavailable)</option>}
-                            </select>
-                            {l && <NumField className="fac" label={`Multiplier for ${f.label}`} value={l.factor} onCommit={(v) => upd(n.id, (x) => ({ ...x, links: x.links.map((k) => (k.field === f.key ? { ...k, factor: v } : k)) }))} />}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  {r && r.errors.length > 0 && <div className="alert error"><ul className="grow">{r.errors.map((e, i) => <li key={i}>{e}</li>)}</ul></div>}
-                </div>
-                {r && r.outputs.length > 0 && <div className="card-f node-out">{r.outputs.map((o) => <span key={o.key}>{o.label} <b>{o.value.toFixed(2)}</b> {o.unit}</span>)}</div>}
-              </section>
-            );
-          })}
+
+          {cur && !d && (
+            <section className="pj-editor">
+              <header className="pj-ed-head"><h1>{cur.name}</h1><StatusBadge status="fail">Unknown module</StatusBadge><span className="spacer" /><Button size="sm" variant="danger" onClick={() => del(cur.id)}>Remove</Button></header>
+              <Notice tone="error">Module &quot;{cur.module}&quot; is not available in engine v{eng.version}. Remove this calculation or open the project in a matching version.</Notice>
+            </section>
+          )}
+
+          {cur && d && (
+            <section className="pj-editor">
+              <header className="pj-ed-head">
+                <input className="nm" value={cur.name} aria-label="Calculation name" onChange={(e) => upd(cur.id, (x) => ({ ...x, name: e.target.value }))} />
+                <span className="badge">{d.name}</span>
+                <StatusBadge status={statusOf(r)}><span className="nt">{statusText(r)}</span></StatusBadge>
+                {changedMark(cur.id) && <span className="badge warn">{changedMark(cur.id)}</span>}
+                <span className="spacer" />
+                <Segmented label="Mode" value={cur.mode} onChange={(m) => upd(cur.id, (x) => ({ ...x, mode: m }))} options={[{ value: "design", label: "Design" }, { value: "check", label: "Check", disabled: !d.has_check_mode }]} />
+                <select className="select pj-ps" value={cur.param_set} aria-label="Parameter set" onChange={(e) => upd(cur.id, (x) => ({ ...x, param_set: e.target.value }))}>{eng.paramSets.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</select>
+                <Button size="sm" variant="danger" onClick={() => del(cur.id)}>Remove</Button>
+              </header>
+              <p className="pj-ed-sub mono">{d.subtitle}</p>
+              {r && r.errors.length > 0 && <Notice tone="error" title={r.status === "blocked" ? "Blocked by an upstream calculation." : "Input error."}><ul>{r.errors.map((e, i) => <li key={i}>{e}</li>)}</ul></Notice>}
+
+              <div className="pj-sec">
+                <div className="lprop lhead" aria-hidden><span>Parameter</span><span className="r">Value</span><span>Unit</span><span>Source</span><span className="r">×</span></div>
+                {visibleFields(d, cur.mode).map((f) => {
+                  const l = cur.links.find((k) => k.field === f.key); const rv = r?.resolved.find((x) => x.field === f.key);
+                  const setVal = (v: number) => upd(cur.id, (x) => ({ ...x, values: { ...x.values, [f.key]: v } }));
+                  const modified = !l && Math.abs((cur.values[f.key] ?? f.default) - f.default) > 1e-12;
+                  return (
+                    <div className={`lprop${l ? " linked" : modified ? " modified" : ""}`} key={f.key}>
+                      <label htmlFor={`pv-${f.key}`}>{f.label}</label>
+                      {f.options && !l
+                        ? <select id={`pv-${f.key}`} className="val sel" value={cur.values[f.key]} onChange={(e) => setVal(Number(e.target.value))}>{f.options.map(([v, lab]) => <option key={v} value={v}>{lab}</option>)}</select>
+                        : l ? <NumField readOnly className="val" label={`${f.label} (linked)`} value={rv ? Number(rv.value.toFixed(4)) : ""} /> : <NumField className="val" label={f.label} value={cur.values[f.key]} onCommit={setVal} />}
+                      <span className="u">{f.unit}</span>
+                      <select className={`src${l ? " on" : ""}`} value={l ? `${l.from}|${l.output}` : ""} aria-label={`Source for ${f.label}`} onChange={(e) => upd(cur.id, (x) => ({ ...x, links: [...x.links.filter((k) => k.field !== f.key), ...(e.target.value ? [{ field: f.key, from: e.target.value.split("|")[0], output: e.target.value.split("|")[1], factor: l?.factor ?? 1 }] : [])] }))}>
+                        <option value="">Manual</option>{options.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
+                        {l && !options.some((o) => o.v === `${l.from}|${l.output}`) && <option value={`${l.from}|${l.output}`}>{nameOf(l.from)} → {l.output} (unavailable)</option>}
+                      </select>
+                      {l ? <NumField className="val fac" label={`Multiplier for ${f.label}`} value={l.factor} onCommit={(v) => upd(cur.id, (x) => ({ ...x, links: x.links.map((k) => (k.field === f.key ? { ...k, factor: v } : k)) }))} /> : <span />}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="pj-sec">
+                <h2 className="pj-h2">Outputs available to other calculations</h2>
+                {r && r.outputs.length > 0 ? (
+                  <table className="tbl">
+                    <thead><tr><th>Output</th><th className="r">Value</th><th>Unit</th><th>Used by</th></tr></thead>
+                    <tbody>{r.outputs.map((o) => <tr key={o.key}><td>{o.label}</td><td className="m r">{o.value.toFixed(2)}</td><td className="m muted">{o.unit}</td><td className="muted">{usedBy(cur.id, o.key).join(", ") || "—"}</td></tr>)}</tbody>
+                  </table>
+                ) : <p className="muted small">No outputs: the calculation has not run successfully.</p>}
+              </div>
+            </section>
+          )}
         </main>
 
-        <aside className="pj-side" aria-label="Project status">
-          <section className="card">
-            <div className="card-h"><h2>Status</h2><span className="spacer" />{res?.ok && <span className={`badge ${res.overall_pass ? "ok" : "fail"}`}>{res.overall_pass ? "All pass" : "Attention"}</span>}</div>
-            <div className="card-b">
-              {res?.ok ? (<><span className="label">Calculation order</span><div className="order">{res.order.map((i) => <span key={i}>{nameOf(i)}</span>)}</div></>)
-                : <p className="muted">{nodes.length ? "Resolve the project errors to see its status." : "Add calculations to begin."}</p>}
-            </div>
-          </section>
-          <section className="card">
-            <div className="card-h"><h2>Change impact</h2></div>
-            <div className="card-b">
-              {!baseline && <p className="muted">Save a revision, then edit inputs to see what changes. Saved results are never overwritten.</p>}
+        <aside className="pane pj-rail" aria-label="Project status">
+          <div className="pane-h">Project<span className="meta">{res?.ok ? (res.overall_pass ? "all pass" : "attention") : "—"}</span></div>
+          <div className="pane-b">
+            <section className="rail-sec">
+              <h3 className="rail-h">Status</h3>
+              {res?.ok ? (<><StatusBadge status={res.overall_pass ? "ok" : "fail"}>{res.overall_pass ? "All calculations pass" : "Attention required"}</StatusBadge><div className="pj-order">{res.order.map((i) => <span key={i}>{nameOf(i)}</span>)}</div></>)
+                : <p className="muted small">{nodes.length ? "Resolve the project errors to see its status." : "Add calculations to begin."}</p>}
+            </section>
+            <section className="rail-sec">
+              <h3 className="rail-h">Change impact</h3>
+              {!baseline && <p className="muted small">Save a revision, then edit inputs to see what changes. Saved results are never overwritten.</p>}
               {baseline && imp && (<>
-                <div>
-                  <div className="stat-row"><span>Compared with</span><b>{baseline.name}</b></div>
-                  <div className="stat-row"><span>Edited</span><b>{imp.edited.length}</b></div>
-                  <div className="stat-row"><span>Affected downstream</span><b>{imp.affected.length}</b></div>
-                  <div className="stat-row"><span>Newly failing</span><b className={imp.newly_failing.length ? "fail" : ""}>{imp.newly_failing.length}</b></div>
-                  <div className="stat-row"><span>Newly passing</span><b>{imp.newly_passing.length}</b></div>
-                </div>
-                {imp.review_required && <div className="alert warn"><span className="grow">Results changed since {baseline.name}. Review before the next issue.</span></div>}
-                {imp.newly_failing.length > 0 && <div className="alert error"><span className="grow">Now failing: {imp.newly_failing.map((i) => nameOf(i)).join(", ")}</span></div>}
-                {imp.diffs.length > 0 && (<div><span className="label">Output changes</span>{imp.diffs.map((d, i) => <div className="stat-row" key={i}><span>{nameOf(d.node)} · {d.output}</span><b>{d.old.toFixed(1)} → {d.new.toFixed(1)}</b></div>)}</div>)}
-                {(imp.added.length > 0 || imp.removed.length > 0) && <p className="muted" style={{ fontSize: "var(--fs-xs)" }}>{imp.added.length > 0 && <>Added: {imp.added.map((i) => nameOf(i)).join(", ")}. </>}{imp.removed.length > 0 && <>Removed: {imp.removed.join(", ")}.</>}</p>}
-                <button className="btn" disabled={exBusy} onClick={explainChanges}>{exBusy ? "Thinking…" : "Explain these changes (AI)"}</button>
-                {explain && <div className="alert info"><div className="grow" style={{ whiteSpace: "pre-wrap" }}>{explain}<div className="faint" style={{ fontSize: "var(--fs-2xs)", marginTop: 4 }}>AI-generated summary of the change impact. It does not change any result.</div></div></div>}
+                <dl className="kv">
+                  <div><dt>Compared with</dt><dd>{baseline.name}</dd></div>
+                  <div><dt>Edited</dt><dd>{imp.edited.length}</dd></div>
+                  <div><dt>Affected downstream</dt><dd>{imp.affected.length}</dd></div>
+                  <div><dt>Newly failing</dt><dd className={imp.newly_failing.length ? "t-fail" : ""}>{imp.newly_failing.length}</dd></div>
+                  <div><dt>Newly passing</dt><dd>{imp.newly_passing.length}</dd></div>
+                </dl>
+                {imp.review_required && <Notice tone="warn">Results changed since {baseline.name}. Review before the next issue.</Notice>}
+                {imp.newly_failing.length > 0 && <Notice tone="error">Now failing: {imp.newly_failing.map((i) => nameOf(i)).join(", ")}</Notice>}
+                {imp.diffs.length > 0 && <table className="tbl"><thead><tr><th>Output</th><th className="r">Was → now</th></tr></thead><tbody>{imp.diffs.map((df, i) => <tr key={i}><td>{nameOf(df.node)} · {df.output}</td><td className="m r">{df.old.toFixed(1)} → {df.new.toFixed(1)}</td></tr>)}</tbody></table>}
+                {(imp.added.length > 0 || imp.removed.length > 0) && <p className="muted small">{imp.added.length > 0 && <>Added: {imp.added.map((i) => nameOf(i)).join(", ")}. </>}{imp.removed.length > 0 && <>Removed: {imp.removed.join(", ")}.</>}</p>}
+                <Button disabled={exBusy} onClick={explainChanges}>{exBusy ? "Thinking…" : "Explain these changes (AI)"}</Button>
+                {explain && <Notice tone="info"><span style={{ whiteSpace: "pre-wrap" }}>{explain}</span><br /><span className="faint small">AI-generated summary of the change impact. It does not change any result.</span></Notice>}
               </>)}
-            </div>
-          </section>
-          <section className="card">
-            <div className="card-h"><h2>Revisions</h2><span className="spacer" /><span className="num faint">{revs.length}</span></div>
-            <div className="card-b">{revs.length === 0 ? <p className="muted">None saved.</p> : <ul className="rev-list">{revs.map((r) => <li key={r.id}><span>{r.name}</span><span className="faint">{r.savedAt}</span></li>)}</ul>}</div>
-          </section>
-          <div className="alert info"><span className="grow">{cloud ? "Changes save to the cloud automatically." : "Working locally in this browser. Open a project from the Account page to save it to the cloud with approvals."} Links pass design values only: combine load effects with the Load combinations module first.</span></div>
+            </section>
+            <section className="rail-sec">
+              <h3 className="rail-h">Revisions <span className="mono faint">{revs.length}</span></h3>
+              {revs.length === 0 ? <p className="muted small">None saved.</p> : <ul className="pj-revs">{revs.map((rv) => <li key={rv.id} className={rv.id === base ? "on" : undefined}><span>{rv.name}</span><span className="mono faint">{rv.savedAt}</span></li>)}</ul>}
+            </section>
+            <section className="rail-sec"><p className="muted small">{cloud ? "Changes save to the cloud automatically." : "Working locally in this browser. Open a project from the Account page to save it to the cloud with approvals."} Links pass design values only: combine load effects with the Load combinations module first.</p></section>
+          </div>
         </aside>
       </div>
     </div>

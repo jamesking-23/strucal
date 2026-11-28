@@ -1,0 +1,31 @@
+/* Standards: facet rail | parameter-set comparison and formula registry. */
+.sd-grid { flex: 1; display: grid; grid-template-columns: 300px minmax(0, 1fr); }
+.sd-facets { position: sticky; top: var(--topbar-h); height: calc(100vh - var(--topbar-h)); border-right: 1px solid var(--rule); }
+.sd-search { padding: var(--s3) var(--s4); border-bottom: 1px solid var(--rule); }
+.sd-facet { display: grid; padding: var(--s3) var(--s2) var(--s3); border-bottom: 1px solid var(--rule); }
+.sd-facet .rail-h { padding: 0 var(--s2) var(--s2); font-size: var(--fs-11); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+.sd-opt { display: flex; justify-content: space-between; align-items: center; gap: var(--s2); padding: 6px var(--s2); border: 0; background: none; text-align: left; font-size: var(--fs-12); color: var(--ink-2); cursor: pointer; }
+.sd-opt .mono { font-size: var(--fs-11); color: var(--ink-4); }
+.sd-opt:hover { background: var(--panel-2); }
+.sd-opt.on { background: var(--panel-2); color: var(--ink-1); font-weight: 600; box-shadow: inset 2px 0 0 var(--ink); }
+.sd-opt .dot { vertical-align: 1px; margin-right: 4px; }
+.sd-main { min-width: 0; padding: var(--s6) var(--s6) var(--s8); display: grid; gap: var(--s6); align-content: start; max-width: 1200px; }
+.sd-sec { display: grid; gap: var(--s3); }
+.sd-h2 { display: flex; align-items: baseline; gap: var(--s3); padding-bottom: var(--s2); border-bottom: 1px solid var(--rule-strong); font-size: var(--fs-14); font-weight: 650; }
+.sd-h2 .mono { font-size: var(--fs-12); color: var(--ink-4); }
+.sd-h2 em { font-style: normal; font: var(--fs-11) var(--font-mono); color: var(--ink-4); }
+.sd-ps, .sd-fr { background: var(--panel); border: 1px solid var(--rule); }
+.sd-ps th .nt { display: inline-block; max-width: 280px; white-space: normal; text-align: right; font-weight: 600; color: var(--ink-1); font-size: var(--fs-12); }
+.sd-ps .sym { font-family: var(--font-sans); font-style: italic; font-weight: 500; }
+.sd-ps tr.differs td { background: var(--warn-bg); }
+.sd-ps tr.differs td:first-child { box-shadow: inset 2px 0 0 var(--warn); }
+.sd-ps .badge.wrap { justify-self: end; display: inline-flex; }
+.sd-fr td { vertical-align: middle; }
+.sd-fine { font-size: var(--fs-11); color: var(--ink-3); }
+@media (max-width: 960px) {
+  .sd-grid { grid-template-columns: 1fr; }
+  .sd-facets { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--rule); }
+  .sd-facets .pane-b { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); max-height: 280px; overflow: auto; }
+  .sd-search { grid-column: 1 / -1; }
+  .sd-main { padding: var(--s5) var(--s4) var(--s7); }
+}

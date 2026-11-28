@@ -241,3 +241,4 @@
   .vp-canvas { height: auto; background: none; }
   .step-sec { break-inside: avoid; }
 }
+.drawer-b .rail-h { font-size: var(--fs-11); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }

@@ -5,6 +5,7 @@ import { supabase } from "../../lib/supabase";
 import { askAssistant, parseProposal, type AssistantTask } from "../../lib/assistant";
 import { visibleFields } from "../../lib/form";
 import type { FormValues, ModDef, ModResult } from "../../lib/types";
+import { Button, Notice } from "../ui/primitives";
 
 type Props = { open: boolean; onClose: () => void; def: ModDef; values: FormValues; res: ModResult | null; onApply: (patch: Record<string, number>) => void };
 type Proposal = { proposals: Record<string, number>; missing: string[]; notes: string };
@@ -61,33 +62,33 @@ export default function Assistant({ open, onClose, def, values, res, onApply }: 
   return (<>
     <div className="dialog-backdrop" onClick={onClose} aria-hidden />
     <aside className="drawer" role="dialog" aria-modal="true" aria-labelledby="as-title">
-      <div className="drawer-h"><h2 id="as-title" ref={headRef} tabIndex={-1}>Engineering assistant</h2><span className="spacer" /><button className="btn btn-ghost btn-sm" onClick={onClose}>Close</button></div>
+      <div className="drawer-h"><h2 id="as-title" ref={headRef} tabIndex={-1}>Engineering assistant</h2><span className="spacer" /><Button variant="ghost" size="sm" onClick={onClose}>Close <kbd>esc</kbd></Button></div>
       <div className="drawer-b">
         <p className="muted" style={{ fontSize: "var(--fs-xs)" }}>Explains the calculation shown. It never calculates or changes results and cannot approve a design. Every number comes from the deterministic engine.</p>
         {signedIn === null && <div className="loading" style={{ minHeight: 80 }}><span className="spinner" />Checking sign-in…</div>}
-        {signedIn === false && <div className="alert info"><span className="grow">Sign in on the <Link href="/account">Account page</Link> to use the assistant.</span></div>}
+        {signedIn === false && <Notice tone="info">Sign in on the <Link href="/account">Account page</Link> to use the assistant.</Notice>}
         {signedIn && (<>
-          {!res?.ok && <div className="alert warn"><span className="grow">Explanations are available once the calculation runs without errors.</span></div>}
+          {!res?.ok && <Notice tone="warn">Explanations are available once the calculation runs without errors.</Notice>}
           <div className="grp">
-            <div className="section-title">Quick questions</div>
-            <div className="chips">{QUICK.map(([t, l]) => <button key={t} className="btn btn-sm" disabled={busy || !res?.ok} onClick={() => call(t)}>{l}</button>)}</div>
+            <div className="rail-h">Quick questions</div>
+            <div className="chips">{QUICK.map(([t, l]) => <Button key={t} size="sm" disabled={busy || !res?.ok} onClick={() => call(t)}>{l}</Button>)}</div>
           </div>
           {res?.ok && (
             <div className="grp">
-              <div className="section-title">One step</div>
+              <div className="rail-h">One step</div>
               <div style={{ display: "flex", gap: "var(--s2)" }}>
                 <select className="select" aria-label="Step to explain" value={step} onChange={(e) => setStep(Number(e.target.value))}><option value={-1}>Choose a step…</option>{res.trace.steps.map((s, i) => <option key={i} value={i}>{i + 1}. {s.title}</option>)}</select>
-                <button className="btn" disabled={busy || step < 0} onClick={() => call("explain")}>Explain</button>
+                <Button disabled={busy || step < 0} onClick={() => call("explain")}>Explain</Button>
               </div>
             </div>
           )}
           <div className="grp">
-            <div className="section-title">Ask or describe</div>
+            <div className="rail-h">Ask or describe</div>
             <textarea className="textarea" value={q} onChange={(e) => setQ(e.target.value)} rows={4} maxLength={2000} aria-label="Question or member description" placeholder="Ask a question, or describe the member (for example: 300 wide, 500 deep beam, C30/37) to get proposed inputs" />
-            <div className="chips"><button className="btn btn-primary" disabled={busy || !q.trim()} onClick={() => call("chat", q)}>Ask</button><button className="btn" disabled={busy || !q.trim()} onClick={propose}>Propose inputs</button></div>
+            <div className="chips"><Button variant="primary" disabled={busy || !q.trim()} onClick={() => call("chat", q)}>Ask</Button><Button disabled={busy || !q.trim()} onClick={propose}>Propose inputs</Button></div>
           </div>
           {busy && <div className="loading" style={{ minHeight: 60 }} role="status"><span className="spinner" />Thinking…</div>}
-          {err && <div className="alert error" role="alert"><span className="grow">{err}</span></div>}
+          {err && <Notice tone="error">{err}</Notice>}
           {answer && <div className="card"><div className="card-b"><div className="answer">{answer}</div><span className="faint" style={{ fontSize: "var(--fs-2xs)" }}>AI-generated explanation of the deterministic calculation. Check it against the calculation sheet and the standard.</span></div></div>}
           {prop && (
             <div className="card">
@@ -97,11 +98,11 @@ export default function Assistant({ open, onClose, def, values, res, onApply }: 
                   <table className="tbl"><thead><tr><th>Input</th><th className="r">Now</th><th className="r">Proposed</th></tr></thead><tbody>
                     {Object.entries(prop.proposals).map(([k, v]) => <tr key={k}><td>{fieldOf(k)?.label}</td><td className="r num faint">{String(values[k])}</td><td className="r num"><b>{v}</b> {fieldOf(k)?.unit}</td></tr>)}
                   </tbody></table>)}
-                {prop.missing.length > 0 && <div className="alert warn"><span className="grow">Still needed from you: {prop.missing.join("; ")}</span></div>}
+                {prop.missing.length > 0 && <Notice tone="warn">Still needed from you: {prop.missing.join("; ")}</Notice>}
                 {prop.notes && <p className="muted">{prop.notes}</p>}
                 <span className="faint" style={{ fontSize: "var(--fs-2xs)" }}>Review each value. The calculation only runs on values you confirm.</span>
               </div>
-              {Object.keys(prop.proposals).length > 0 && <div className="card-f"><button className="btn btn-primary" onClick={() => { onApply(prop.proposals); setProp(null); }}>Apply to the form</button><button className="btn" onClick={() => setProp(null)}>Discard</button></div>}
+              {Object.keys(prop.proposals).length > 0 && <div className="card-f"><Button variant="primary" onClick={() => { onApply(prop.proposals); setProp(null); }}>Apply to the form</Button><Button onClick={() => setProp(null)}>Discard</Button></div>}
             </div>
           )}
         </>)}
