@@ -216,6 +216,60 @@ function Body({ d, dims }: { d: Drawing; dims: boolean }) {
         </Svg>
       );
     }
+    case "Plate": {
+      const sc = fit(d.b, Math.max(d.t, 1), 360, 60), W = d.b * sc, H = Math.max(10, d.t * sc), ox = M, oy = 40;
+      const holes = range(d.n_holes).map((k) => ox + (W * (k + 1)) / (d.n_holes + 1));
+      return (
+        <Svg w={W + 2 * M} h={H + oy + M + 20} label={`Plate ${d.b} by ${d.t} millimetres with ${d.n_holes} holes`}>
+          <rect x={ox} y={oy} width={W} height={H} className="m-steel m-edge" />
+          {holes.map((x, i) => <rect key={i} x={x - (d.d0 * sc) / 2} y={oy - 1} width={d.d0 * sc} height={H + 2} className="m-hole" />)}
+          {holes.map((x, i) => <line key={`a${i}`} x1={x} x2={x} y1={oy - 12} y2={oy + H + 12} className="m-axis" />)}
+          <Dim show={dims} a={[ox, oy + H]} b={[ox + W, oy + H]} side="below" label={`b = ${fmt(d.b)}`} />
+          <Dim show={dims} a={[ox + W, oy]} b={[ox + W, oy + H]} side="right" off={14} label={`t = ${fmt(d.t)}`} />
+          {dims && d.n_holes > 0 && <Note x={ox + W / 2} y={oy - 18}>{d.n_holes} × d0 = {fmt(d.d0)} · section through holes</Note>}
+        </Svg>
+      );
+    }
+    case "Punching": {
+      const span = Math.max(d.c1, d.c2) + 4 * d.d + 200, sc = fit(span, span, 300, 300);
+      const C1 = d.c1 * sc, C2 = d.c2 * sc, R = 2 * d.d * sc, ox = M + 20, oy = 24, size = span * sc;
+      const cx = d.pos === 1 ? ox + size / 2 : ox + 30 + C1 / 2, cy = d.pos === 3 ? oy + 30 + C2 / 2 : oy + size / 2;
+      const left = cx - C1 / 2, top = cy - C2 / 2;
+      const edgeX = d.pos === 1 ? null : left, edgeY = d.pos === 3 ? top : null;
+      return (
+        <Svg w={size + 2 * M + 40} h={size + oy + M} label={`Punching control perimeter around a ${d.c1} by ${d.c2} column`}>
+          <rect x={ox} y={oy} width={size} height={size} className="m-plate-2" />
+          {edgeX !== null && <line x1={edgeX} x2={edgeX} y1={oy} y2={oy + size} className="m-edge" />}
+          {edgeY !== null && <line x1={ox} x2={ox + size} y1={edgeY} y2={edgeY} className="m-edge" />}
+          <rect x={left - R} y={top - R} width={C1 + 2 * R} height={C2 + 2 * R} rx={R} className="m-perim" clipPath={undefined} />
+          {edgeX !== null && <rect x={ox} y={oy} width={Math.max(0, edgeX - ox)} height={size} className="m-void" />}
+          {edgeY !== null && <rect x={ox} y={oy} width={size} height={Math.max(0, edgeY - oy)} className="m-void" />}
+          <rect x={left} y={top} width={C1} height={C2} className="m-concrete m-edge" />
+          <Dim show={dims} a={[left, top + C2]} b={[left + C1, top + C2]} side="below" off={R + 14} label={`c1 = ${fmt(d.c1)}`} />
+          <Dim show={dims} a={[left + C1, top]} b={[left + C1, top + C2]} side="right" off={R + 14} label={`c2 = ${fmt(d.c2)}`} />
+          {dims && <Note x={left + C1 + R * 0.72 + 6} y={top - R * 0.72 - 4} anchor="start">u1 at 2d = {fmt(2 * d.d)}</Note>}
+          {dims && <Note x={ox + size / 2} y={oy + size + 18}>plan · h = {fmt(d.h)} · d = {fmt(d.d)} · {d.pos === 1 ? "internal" : d.pos === 2 ? "edge" : "corner"} column</Note>}
+        </Svg>
+      );
+    }
+    case "Masonry": {
+      const sc = fit(d.t, d.h, 120, 280), W = Math.max(14, d.t * sc), H = d.h * sc, ox = M + 60, oy = 50, course = Math.max(4, 75 * sc);
+      const courses = range(H / course);
+      return (
+        <Svg w={W + 2 * M + 140} h={H + oy + M} label={`Masonry wall ${d.t} millimetres thick, ${d.h} high`}>
+          <rect x={ox - 30} y={oy - 14} width={W + 60} height={14} className="m-plate-2 m-edge" />
+          <rect x={ox - 30} y={oy + H} width={W + 60} height={14} className="m-plate-2 m-edge" />
+          <rect x={ox} y={oy} width={W} height={H} className="m-masonry m-edge" />
+          {courses.map((i) => <line key={i} x1={ox} x2={ox + W} y1={oy + (i + 1) * course} y2={oy + (i + 1) * course} className="m-mortar" />)}
+          <line x1={ox + W / 2} x2={ox + W / 2} y1={oy - 30} y2={oy + H + 30} className="m-axis" />
+          <line x1={ox + W / 2 + d.e * sc} x2={ox + W / 2 + d.e * sc} y1={oy - 46} y2={oy - 18} className="m-load" />
+          <polygon points={`${ox + W / 2 + d.e * sc},${oy - 16} ${ox + W / 2 + d.e * sc - 4},${oy - 24} ${ox + W / 2 + d.e * sc + 4},${oy - 24}`} className="m-load-head" />
+          <Dim show={dims} a={[ox, oy + H + 14]} b={[ox + W, oy + H + 14]} side="below" label={`t = ${fmt(d.t)}`} />
+          <Dim show={dims} a={[ox, oy]} b={[ox, oy + H]} side="left" off={40} label={`h = ${fmt(d.h)}`} />
+          {dims && <Note x={ox + W / 2 + d.e * sc + 8} y={oy - 34} anchor="start">N Ed at e = {fmt(d.e)}</Note>}
+        </Svg>
+      );
+    }
     default:
       return null;
   }

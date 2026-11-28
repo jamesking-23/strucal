@@ -35,6 +35,8 @@
   --m-grain: #9d7a49;
   --m-soil: #ebe5d8;
   --m-water: #cfe0f5;
+  --m-masonry: #e6cfb8;
+  --m-mortar: #b8a48f;
   --m-load: #b91c1c;
   --overlay: rgba(10, 12, 15, 0.38);
   --shadow: 0 0 0 1px var(--line-strong), 0 12px 32px rgba(10, 12, 15, 0.14);
@@ -70,6 +72,8 @@
   --m-grain: #b8955f;
   --m-soil: #2a2620;
   --m-water: #18304f;
+  --m-masonry: #4a3a2e;
+  --m-mortar: #2a221b;
   --m-load: #f2545b;
   --overlay: rgba(0, 0, 0, 0.62);
   --shadow: 0 0 0 1px var(--line-strong), 0 12px 32px rgba(0, 0, 0, 0.6);
@@ -362,6 +366,12 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 .m-plate-2 { fill: var(--m-concrete); }
 .m-hole { fill: var(--surface); stroke: var(--ink); stroke-width: 1.2; }
 .m-weld { fill: var(--ink); }
+.m-masonry { fill: var(--m-masonry); }
+.m-mortar { stroke: var(--m-mortar); stroke-width: 1; }
+.m-perim { fill: none; stroke: var(--signal); stroke-width: 1.4; stroke-dasharray: 6 4; }
+.m-void { fill: var(--sunken); }
+.m-load { stroke: var(--m-load); stroke-width: 1.6; }
+.m-load-head { fill: var(--m-load); }
 .m-soil { fill: var(--m-soil); stroke: var(--line-strong); stroke-dasharray: 2 3; }
 .m-timber { fill: var(--m-timber); }
 .m-grain { fill: none; stroke: var(--m-grain); stroke-width: 0.9; }
@@ -372,3 +382,103 @@ kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; b
 .dim-tick { stroke: var(--signal); stroke-width: 1.3; }
 .dim-txt { font: 500 10.5px var(--font-mono); fill: var(--signal); }
 .note-txt { font: 10.5px var(--font-mono); fill: var(--ink-3); }
+
+/* ============================== enterprise finish ==============================
+   Structural panes stay square and hairline-crisp; controls, icon containers, badges and overlays get soft radii,
+   inner highlights, 150–200 ms state transitions, visible keyboard focus rings and quiet elevation. */
+:root {
+  --r-xs: 4px;
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --dur: 160ms;
+  --ring: 0 0 0 2px var(--bg), 0 0 0 4px color-mix(in srgb, var(--signal) 70%, transparent);
+  --hl: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  --elev-1: 0 1px 0 rgba(10, 12, 15, 0.04), 0 1px 2px rgba(10, 12, 15, 0.06);
+  --elev-2: 0 0 0 1px var(--line-strong), 0 8px 24px -6px rgba(10, 12, 15, 0.18), 0 2px 6px rgba(10, 12, 15, 0.06);
+}
+[data-theme="obsidian"] {
+  --hl: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --elev-1: 0 1px 0 rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.5);
+  --elev-2: 0 0 0 1px var(--line-strong), 0 10px 28px -6px rgba(0, 0, 0, 0.7), 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
+/* rounded controls and icon containers */
+.btn, .input, .select, .textarea, .seg, .s-cmd, .ui-box, .pj-num, .pj-src, .pj-name, .notice, .vr-gov, .wb-menu, .empty .glyph { border-radius: var(--r-sm); }
+.btn.sm, .btn.icon.sm, kbd, .badge { border-radius: var(--r-xs); }
+.btn.lg { border-radius: var(--r-md); }
+.seg { overflow: hidden; }
+.seg button:first-child { border-radius: calc(var(--r-sm) - 1px) 0 0 calc(var(--r-sm) - 1px); }
+.seg button:last-child { border-radius: 0 calc(var(--r-sm) - 1px) calc(var(--r-sm) - 1px) 0; }
+.s-brand i, .ld-mark i { border-radius: var(--r-md); }
+.s-avatar { border-radius: 50%; }
+.s-nav a, .s-rail-btn { margin: 0 8px; border-radius: var(--r-md); }
+.s-nav a[aria-current="page"] { background: var(--surface-2); box-shadow: var(--hl), inset 0 0 0 1px var(--line); }
+.s-nav a[aria-current="page"]::before { left: -8px; border-radius: 0 2px 2px 0; }
+.dot { border-radius: 2px; }
+.ubar, .ubar > i { border-radius: 999px; }
+.palette, .drawer { border-radius: var(--r-lg); overflow: hidden; }
+.drawer { top: 8px; right: 8px; bottom: 8px; width: min(460px, calc(100vw - 16px)); }
+.palette, .drawer, .wb-menu { box-shadow: var(--elev-2); }
+.lp, .auth-form { border-radius: var(--r-lg); overflow: hidden; }
+.palette .opt { margin: 0 6px; border-radius: var(--r-sm); }
+.palette .opt.hi { box-shadow: inset 2px 0 0 var(--signal); }
+
+/* inner highlights and quiet elevation on raised controls */
+.btn:not(.ghost), .seg, .input, .select { box-shadow: var(--hl), var(--elev-1); }
+.btn.primary { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), var(--elev-1); }
+.s-bar, .s-status { box-shadow: var(--hl); }
+
+/* state transitions */
+.btn, .input, .select, .textarea, .seg button, .s-nav a, .s-rail-btn, .s-cmd, .tabs button, .palette .opt, .ui-box, .ui-row, .pj-item, .sd-opt, .vr-gov, .notice, .badge, .ubar > i {
+  transition: background-color var(--dur) var(--ease), border-color var(--dur) var(--ease), color var(--dur) var(--ease), box-shadow var(--dur) var(--ease), opacity var(--dur) var(--ease), width 200ms var(--ease);
+}
+.btn:active:not(:disabled) { transform: translateY(0.5px); }
+
+/* keyboard focus rings (pointer focus stays quiet) */
+:focus-visible { outline: none; box-shadow: var(--ring); }
+.btn:focus-visible, .seg button:focus-visible, .s-nav a:focus-visible, .s-rail-btn:focus-visible, .tabs button:focus-visible, .s-cmd:focus-visible, .vr-gov:focus-visible, .sd-opt:focus-visible, .pj-item:focus-visible { box-shadow: var(--ring); position: relative; z-index: 1; }
+.input:focus-visible, .select:focus-visible, .textarea:focus-visible { box-shadow: inset 0 0 0 1px var(--signal), 0 0 0 3px color-mix(in srgb, var(--signal) 22%, transparent); }
+
+/* tooltips */
+.s-nav a .tip, .s-rail-btn .tip { border-radius: var(--r-sm); box-shadow: var(--elev-2); transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease); }
+
+/* status indicators: live dot pulse for the active verdict */
+.st .dot.pass, .st .dot.warn, .st .dot.fail { box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 0%, transparent); }
+.st .dot.fail { animation: dot-pulse 2s var(--ease) infinite; color: var(--fail); }
+@keyframes dot-pulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--fail) 45%, transparent); } 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--fail) 0%, transparent); } }
+
+/* empty and error states */
+.empty .glyph { background: var(--surface); box-shadow: var(--hl), var(--elev-1); color: var(--ink-2); }
+.notice { box-shadow: var(--hl); }
+
+/* refined scrollbars */
+* { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--line-strong); border: 3px solid transparent; border-radius: 999px; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background-color: var(--ink-4); }
+
+/* ============================== StruCal Assistant: traveling edge light ==============================
+   A thin conic highlight orbits the icon container's border on hover, keyboard focus and while active.
+   The light sits behind a 1.5px inset mask, never covers text, and ignores the pointer. */
+@property --ai-a { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+.ai-btn { gap: 7px; padding-left: 4px; }
+.ai-ico { position: relative; isolation: isolate; display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 7px; color: var(--ink); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line-strong), var(--hl); transition: box-shadow 200ms var(--ease), color 200ms var(--ease); }
+.ai-ico svg { position: relative; z-index: 1; }
+.ai-ico::before, .ai-ico::after { content: ""; position: absolute; border-radius: inherit; pointer-events: none; }
+.ai-ico::before { inset: 0; z-index: -1; padding: 1.5px; background: conic-gradient(from var(--ai-a), transparent 0deg, transparent 220deg, color-mix(in srgb, var(--signal) 35%, transparent) 270deg, var(--signal) 320deg, #7fe0c4 345deg, transparent 360deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); opacity: 0; transition: opacity 200ms var(--ease); animation: ai-orbit 2.6s linear infinite; animation-play-state: paused; }
+.ai-ico::after { inset: -4px; z-index: -2; border-radius: 10px; background: radial-gradient(closest-side, color-mix(in srgb, var(--signal) 22%, transparent), transparent); opacity: 0; transition: opacity 200ms var(--ease); }
+.ai-btn:hover .ai-ico::before, .ai-btn:focus-visible .ai-ico::before, .ai-ico[data-active]::before, .ai-btn[data-active] .ai-ico::before { opacity: 1; animation-play-state: running; }
+.ai-btn:hover .ai-ico::after, .ai-btn:focus-visible .ai-ico::after, .ai-btn[data-active] .ai-ico::after, .ai-ico[data-busy]::after { opacity: 1; }
+.ai-btn:hover .ai-ico, .ai-btn[data-active] .ai-ico, .ai-ico[data-active] { color: var(--signal); box-shadow: inset 0 0 0 1px transparent, var(--hl); }
+.ai-ico[data-busy]::before { animation-duration: 1.1s; }
+.drawer-h .ai-ico { margin-right: 2px; }
+@keyframes ai-orbit { to { --ai-a: 360deg; } }
+@media (prefers-reduced-motion: reduce) { .ai-ico::before { animation: none !important; background: conic-gradient(from 300deg, transparent 0 60%, var(--signal) 85%, transparent); } }
+.ai-btn[aria-pressed="true"] { background: var(--surface-2); color: var(--ink); border-color: var(--line); }
+/* text fields draw their own focus treatment */
+.ui-box input:focus-visible, .palette input:focus-visible, .pj-name:focus-visible { box-shadow: none; }
+.pj-num:focus-visible, .pj-src:focus-visible { box-shadow: inset 0 0 0 1px var(--signal), 0 0 0 3px color-mix(in srgb, var(--signal) 22%, transparent); }

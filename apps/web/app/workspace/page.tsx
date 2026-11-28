@@ -136,7 +136,7 @@ function Workbench() {
   const actions = (<>
     <Button size="sm" icon variant="ghost" aria-pressed={ui.insp} onClick={() => setUi((u) => ({ ...u, insp: !u.insp }))} aria-label="Toggle inspector" title="Inspector  [" className="wb-hide-m"><IconPanelLeft width={15} height={15} /></Button>
     <Button size="sm" icon variant="ghost" aria-pressed={ui.rail} onClick={() => setUi((u) => ({ ...u, rail: !u.rail }))} aria-label="Toggle verification rail" title="Verification  ]" className="wb-hide-m"><IconPanelRight width={15} height={15} /></Button>
-    <Button size="sm" variant="ghost" onClick={() => setAssistant(true)}><IconSpark width={14} height={14} /><span className="wb-hide-m">Assistant</span></Button>
+    <button type="button" className="btn sm ghost ai-btn" data-active={assistant || undefined} aria-pressed={assistant} onClick={() => setAssistant(true)} title="StruCal Assistant"><span className="ai-ico" aria-hidden><IconSpark width={13} height={13} /></span><span className="wb-hide-m">Assistant</span></button>
     <div className="wb-menu-wrap" ref={menuRef}>
       <Button size="sm" variant="primary" disabled={!res?.ok} aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu(!menu)}><IconExport width={14} height={14} />Export</Button>
       {menu && <div className="wb-menu" role="menu">

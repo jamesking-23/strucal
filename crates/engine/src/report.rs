@@ -33,6 +33,60 @@ fn esc(s: &str) -> String {
 
 fn drawing_svg(d: &Drawing) -> String {
     match d {
+        Drawing::Plate { b, t, n_holes, d0 } => {
+            let sc = 200.0 / b.max(1.0);
+            let (ox, oy) = (20.0, 10.0);
+            let (pw, ph) = (b * sc, (t * sc * 4.0).max(16.0));
+            let mut s = format!("<svg width='{}' height='{}' xmlns='http://www.w3.org/2000/svg'><rect x='{ox}' y='{oy}' width='{pw}' height='{ph}' fill='#f4f5f7' stroke='#222' stroke-width='1.5'/>", pw + 40.0, ph + 30.0);
+            let n = *n_holes as f64;
+            for k in 0..*n_holes {
+                let x = ox + pw * (k as f64 + 1.0) / (n + 1.0);
+                s += &format!(
+                    "<rect x='{}' y='{oy}' width='{}' height='{ph}' fill='#fff' stroke='#111' stroke-dasharray='3 2'/>",
+                    x - d0 * sc / 2.0,
+                    d0 * sc
+                );
+            }
+            s + &format!("<text x='{}' y='{}' font-size='10' text-anchor='middle'>{} × {} plate, {} holes of {} mm (section through holes)</text></svg>", ox + pw / 2.0, oy + ph + 18.0, b, t, n_holes, d0)
+        }
+        Drawing::Punching { c1, c2, h, d, pos } => {
+            let span = c1.max(*c2) + 4.0 * d + 2.0 * d;
+            let sc = 180.0 / span.max(1.0);
+            let (cx, cy) = (110.0, 110.0);
+            let mut s = format!("<svg width='240' height='{}' xmlns='http://www.w3.org/2000/svg'>", 250.0);
+            s += &format!(
+                "<rect x='{}' y='{}' width='{}' height='{}' fill='#d8d8d1' stroke='#222' stroke-width='1.5'/>",
+                cx - c1 * sc / 2.0,
+                cy - c2 * sc / 2.0,
+                c1 * sc,
+                c2 * sc
+            );
+            s += &format!(
+                "<rect x='{}' y='{}' width='{}' height='{}' rx='{}' fill='none' stroke='#1f4fe0' stroke-dasharray='5 3'/>",
+                cx - (c1 / 2.0 + 2.0 * d) * sc,
+                cy - (c2 / 2.0 + 2.0 * d) * sc,
+                (c1 + 4.0 * d) * sc,
+                (c2 + 4.0 * d) * sc,
+                2.0 * d * sc
+            );
+            s + &format!(
+                "<text x='120' y='238' font-size='10' text-anchor='middle'>column {} × {} · h = {} · u1 at 2d ({})</text></svg>",
+                c1,
+                c2,
+                h,
+                match pos {
+                    2 => "edge",
+                    3 => "corner",
+                    _ => "internal",
+                }
+            )
+        }
+        Drawing::Masonry { t, h, e } => {
+            let sc = 180.0 / h.max(1.0);
+            let (ox, oy) = (60.0, 10.0);
+            let (pw, ph) = ((t * sc).max(12.0), h * sc);
+            format!("<svg width='200' height='{}' xmlns='http://www.w3.org/2000/svg'><rect x='{ox}' y='{oy}' width='{pw}' height='{ph}' fill='#e9d9c6' stroke='#222' stroke-width='1.5'/><text x='{}' y='{}' font-size='10' text-anchor='middle'>t = {} · h = {} · e = {}</text></svg>", ph + 30.0, ox + pw / 2.0, oy + ph + 18.0, t, h, e)
+        }
         Drawing::Beam { b, h, cover, link_dia, bar_dia, n_bars } => {
             let sc = 150.0 / h.max(*b);
             let (pw, ph) = (b * sc, h * sc);

@@ -194,6 +194,22 @@ pub fn red_bg() -> Color32 {
     p().fail_bg
 }
 
+/// Masonry unit and mortar colours (material tokens --m-masonry / --m-mortar on the web).
+pub fn masonry() -> Color32 {
+    if DARK.load(Ordering::Relaxed) {
+        hex(0x4a3a2e)
+    } else {
+        hex(0xe6cfb8)
+    }
+}
+pub fn mortar() -> Color32 {
+    if DARK.load(Ordering::Relaxed) {
+        hex(0x2a221b)
+    } else {
+        hex(0xb8a48f)
+    }
+}
+
 /// Status of a check: crimson when failing, amber at or above the review threshold, emerald otherwise.
 pub fn status_color(pass: bool, util: f64) -> Color32 {
     if !pass {
@@ -264,18 +280,21 @@ pub fn apply(ctx: &egui::Context, t: Theme) {
     v.faint_bg_color = c.surface2;
     v.code_bg_color = c.surface2;
     v.window_stroke = Stroke::new(1.0_f32, c.line_strong);
-    v.window_shadow = egui::epaint::Shadow::NONE;
-    v.popup_shadow = egui::epaint::Shadow::NONE;
+    let sh = if t == Theme::Obsidian { 110 } else { 40 };
+    v.window_shadow = egui::epaint::Shadow { offset: [0, 10], blur: 28, spread: 0, color: Color32::from_black_alpha(sh) };
+    v.popup_shadow = egui::epaint::Shadow { offset: [0, 6], blur: 18, spread: 0, color: Color32::from_black_alpha(sh) };
+    v.interact_cursor = Some(egui::CursorIcon::PointingHand);
     v.selection.bg_fill = c.signal_bg;
     v.selection.stroke = Stroke::new(1.0_f32, c.signal);
     v.hyperlink_color = c.signal;
     v.warn_fg_color = c.warn;
     v.error_fg_color = c.fail;
-    v.window_corner_radius = CornerRadius::ZERO;
-    v.menu_corner_radius = CornerRadius::ZERO;
+    // Structural panes stay square; controls, menus and windows take soft radii (enterprise finish).
+    v.window_corner_radius = CornerRadius::same(12);
+    v.menu_corner_radius = CornerRadius::same(8);
     v.override_text_color = None;
     for w in [&mut v.widgets.noninteractive, &mut v.widgets.inactive, &mut v.widgets.hovered, &mut v.widgets.active, &mut v.widgets.open] {
-        w.corner_radius = CornerRadius::ZERO;
+        w.corner_radius = CornerRadius::same(6);
         w.expansion = 0.0;
     }
     v.widgets.noninteractive.bg_fill = c.surface;
@@ -305,6 +324,10 @@ pub fn apply(ctx: &egui::Context, t: Theme) {
     st.spacing.button_padding = egui::vec2(10.0, 4.0);
     st.spacing.interact_size.y = 26.0;
     st.spacing.scroll = egui::style::ScrollStyle::thin();
+    st.spacing.scroll.floating = true;
+    st.spacing.scroll.bar_width = 8.0;
+    // 160 ms state transitions for hover/active/open (egui animates widget visuals over this time).
+    st.animation_time = 0.16;
     for (ts, sz) in [
         (egui::TextStyle::Body, 13.0),
         (egui::TextStyle::Button, 12.5),

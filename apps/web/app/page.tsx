@@ -7,9 +7,10 @@ const RELEASES = "https://github.com/jamesking-23/strucal/releases/latest";
 const MODULES: [string, string, string, boolean][] = [
   ["Actions", "Load combinations", "EN 1990", false],
   ["Concrete", "RC beam", "EN 1992-1-1", true], ["Concrete", "RC column", "EN 1992-1-1", true], ["Concrete", "RC wall", "EN 1992-1-1", true],
-  ["Concrete", "One-way slab", "EN 1992-1-1", true], ["Concrete", "Staircase", "EN 1992-1-1", true],
-  ["Steel", "Steel beam", "EN 1993-1-1", false], ["Steel", "Steel column", "EN 1993-1-1", false], ["Steel", "Bolted connection", "EN 1993-1-8", false], ["Steel", "Fillet weld", "EN 1993-1-8", false],
-  ["Timber", "Timber beam", "EN 1995-1-1", false], ["Timber", "Timber column", "EN 1995-1-1", false],
+  ["Concrete", "One-way slab", "EN 1992-1-1", true], ["Concrete", "Staircase", "EN 1992-1-1", true], ["Concrete", "Punching shear", "EN 1992-1-1", false],
+  ["Steel", "Steel beam", "EN 1993-1-1", false], ["Steel", "Steel column", "EN 1993-1-1", false], ["Steel", "Steel beam-column", "EN 1993-1-1", false], ["Steel", "Steel tension member", "EN 1993-1-1", false], ["Steel", "Bolted connection", "EN 1993-1-8", false], ["Steel", "Fillet weld", "EN 1993-1-8", false],
+  ["Timber", "Timber beam", "EN 1995-1-1", false], ["Timber", "Timber column", "EN 1995-1-1", false], ["Timber", "Timber tension member", "EN 1995-1-1", false],
+  ["Masonry", "Masonry wall", "EN 1996-1-1", false],
   ["Foundations", "Pad footing", "EN 1992-1-1", true], ["Foundations", "Strip footing", "EN 1992-1-1", true], ["Foundations", "Raft foundation", "EN 1992-1-1", false], ["Foundations", "Retaining wall", "EN 1997-1", false],
 ];
 
@@ -24,7 +25,7 @@ export default function Home() {
 
       <section className="ld-hero">
         <div className="ld-hero-l">
-          <p className="eyebrow">Structural calculation · verification · v0.16</p>
+          <p className="eyebrow">Structural calculation · verification · v0.17</p>
           <h1>Deterministic<br />structural<br />verification.</h1>
           <p className="ld-lead">A Rust calculation engine with clause-referenced, auditable working — the same bytes in your browser through WebAssembly and on your desktop as a native application.</p>
           <div className="ld-cta">
@@ -32,8 +33,8 @@ export default function Home() {
             <a href={RELEASES} className="btn lg">Windows desktop</a>
           </div>
           <dl className="ld-spec">
-            <div><dt>Modules</dt><dd className="mono">16</dd></div>
-            <div><dt>Eurocodes</dt><dd className="mono">EN 1990 · 1992 · 1993 · 1995 · 1997</dd></div>
+            <div><dt>Modules</dt><dd className="mono">21</dd></div>
+            <div><dt>Eurocodes</dt><dd className="mono">EN 1990 · 1992 · 1993 · 1995 · 1996 · 1997</dd></div>
             <div><dt>Reproducibility</dt><dd className="mono">SHA-256 trace per run</dd></div>
           </dl>
         </div>
@@ -43,7 +44,7 @@ export default function Home() {
       <section className="ld-sec" id="engine">
         <header className="ld-sec-h"><span className="mono">01</span><h2>One engine. Two native surfaces.</h2><p>Every number on every screen comes from a single deterministic Rust crate. The browser and the desktop do not reimplement calculations; they render the engine&apos;s trace.</p></header>
         <div className="ld-arch" role="img" aria-label="Architecture: Rust engine compiled to WebAssembly for the web workbench and natively for the desktop application">
-          <div className="arch-node core"><span className="mono">crates/engine</span><b>Calculation engine</b><ul><li>Rust · dimensionally typed quantities</li><li>16 Eurocode modules · formula registry</li><li>Trace: clause · formula · substitution · result</li><li>SHA-256 hash of the ordered trace</li></ul></div>
+          <div className="arch-node core"><span className="mono">crates/engine</span><b>Calculation engine</b><ul><li>Rust · dimensionally typed quantities</li><li>21 Eurocode modules · formula registry</li><li>Trace: clause · formula · substitution · result</li><li>SHA-256 hash of the ordered trace</li></ul></div>
           <div className="arch-links" aria-hidden><span /><span /></div>
           <div className="arch-col">
             <div className="arch-node"><span className="mono">crates/wasm → apps/web</span><b>Web workbench</b><ul><li>wasm-bindgen · runs in the browser</li><li>No server round-trip for calculations</li></ul></div>
@@ -69,7 +70,7 @@ export default function Home() {
       </section>
 
       <section className="ld-sec" id="coverage">
-        <header className="ld-sec-h"><span className="mono">03</span><h2>Coverage</h2><p>Sixteen modules in the current engine. A PASS applies only to the implemented checks listed on each ledger.</p></header>
+        <header className="ld-sec-h"><span className="mono">03</span><h2>Coverage</h2><p>Twenty-one modules in the current engine. A PASS applies only to the implemented checks listed on each ledger.</p></header>
         <div className="tbl-wrap">
           <table className="tbl ld-cov">
             <thead><tr><th>Discipline</th><th>Module</th><th>Standard</th><th>Design</th><th>Check Mode</th></tr></thead>

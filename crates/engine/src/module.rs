@@ -57,6 +57,9 @@ pub enum Drawing {
     Wall { h: f64, cover: f64, bar_dia: f64, spacing: f64 },
     Strip { width: f64, t: f64, h: f64 },
     Column { b: f64, h: f64, cover: f64, link_dia: f64, bar_dia: f64, n_face: u32 },
+    Plate { b: f64, t: f64, n_holes: u32, d0: f64 },
+    Punching { c1: f64, c2: f64, h: f64, d: f64, pos: u32 },
+    Masonry { t: f64, h: f64, e: f64 },
 }
 
 #[derive(Serialize, Debug, Default)]
@@ -113,7 +116,20 @@ pub fn require(v: &Value, def: &ModDef, check_mode: bool) -> Result<Vec<f64>, Ve
                 if x == 0.0
                     && matches!(
                         f.key,
-                        "qk" | "gk" | "q_sur" | "hw" | "ov" | "h_ef" | "notch_x" | "notch_i" | "psi2" | "my_ed" | "mz_ed"
+                        "qk" | "gk"
+                            | "q_sur"
+                            | "hw"
+                            | "ov"
+                            | "h_ef"
+                            | "notch_x"
+                            | "notch_i"
+                            | "psi2"
+                            | "my_ed"
+                            | "mz_ed"
+                            | "n_holes"
+                            | "asw"
+                            | "a_hole"
+                            | "e_load"
                     ) =>
             {
                 out.push(0.0)

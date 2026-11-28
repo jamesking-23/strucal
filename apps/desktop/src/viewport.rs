@@ -1,9 +1,10 @@
-//! Section viewport: drafting-grid canvas with a dimensioned, proportional schematic of the member.
+//! Section drawings: dimensioned, proportional schematics of the member, recorded into a canvas `Sink`.
 //! Geometry mirrors apps/web/app/workspace/SectionDrawing.tsx so both editions draw the same thing.
 use eframe::egui::{self, Align2, Color32, FontId, Pos2, Rect, Shape, Stroke, StrokeKind};
 use strucal_engine::module::Drawing;
 
-use crate::theme::{blue, mute, p as pal, surf, tx};
+use crate::canvas::Sink;
+use crate::theme::{blue, mute, p as pal, red, surf, tx};
 
 const M: f32 = 56.0;
 
@@ -20,7 +21,7 @@ fn fmt(v: f64) -> String {
 
 /// Painter in drawing coordinates (like the web SVG viewBox), offset to the canvas origin.
 struct Pen<'a> {
-    p: &'a egui::Painter,
+    p: &'a Sink,
     o: Pos2,
     dims: bool,
 }
@@ -130,6 +131,19 @@ fn extent(d: &Drawing) -> (f32, f32) {
             let sc = fit(*width, h + 600.0, 280.0, 220.0);
             (*width as f32 * sc + 2.0 * M, (600.0 + *h as f32) * sc + 24.0 + M)
         }
+        Drawing::Plate { b, t, .. } => {
+            let sc = fit(*b, t.max(1.0), 360.0, 60.0);
+            (*b as f32 * sc + 2.0 * M, (*t as f32 * sc).max(10.0) + 40.0 + M + 20.0)
+        }
+        Drawing::Punching { c1, c2, d, .. } => {
+            let span = c1.max(*c2) + 4.0 * d + 200.0;
+            let size = span as f32 * fit(span, span, 300.0, 300.0);
+            (size + 2.0 * M + 40.0, size + 24.0 + M)
+        }
+        Drawing::Masonry { t, h, .. } => {
+            let sc = fit(*t, *h, 120.0, 280.0);
+            ((*t as f32 * sc).max(14.0) + 2.0 * M + 140.0, *h as f32 * sc + 50.0 + M)
+        }
     }
 }
 
@@ -146,54 +160,19 @@ fn valid(d: &Drawing) -> bool {
         Drawing::ISection { h, b, tw, tf } => vec![*h, *b, *tw, *tf],
         Drawing::Rect { b, h } => vec![*b, *h],
         Drawing::Strip { width, t, h } => vec![*width, *t, *h],
+        Drawing::Plate { b, t, d0, .. } => vec![*b, *t, *d0],
+        Drawing::Punching { c1, c2, h, d, .. } => vec![*c1, *c2, *h, *d],
+        Drawing::Masonry { t, h, e } => vec![*t, *h, *e],
     };
     v.iter().all(|x| x.is_finite() && *x >= 0.0)
 }
 
-fn paint_grid(p: &egui::Painter, r: Rect) {
-    p.rect_filled(r, 0.0, pal().sunken);
-    let mut x = r.left();
-    let mut i = 0;
-    while x <= r.right() {
-        p.line_segment(
-            [Pos2::new(x, r.top()), Pos2::new(x, r.bottom())],
-            Stroke::new(1.0_f32, if i % 5 == 0 { pal().grid_major } else { pal().grid_minor }),
-        );
-        x += 16.0;
-        i += 1;
-    }
-    let mut y = r.top();
-    i = 0;
-    while y <= r.bottom() {
-        p.line_segment(
-            [Pos2::new(r.left(), y), Pos2::new(r.right(), y)],
-            Stroke::new(1.0_f32, if i % 5 == 0 { pal().grid_major } else { pal().grid_minor }),
-        );
-        y += 16.0;
-        i += 1;
-    }
-}
-
-/// Paints the viewport (grid + drawing) into a canvas of the given height. `None` shows an empty-state message.
-pub fn paint(ui: &mut egui::Ui, d: Option<&Drawing>, empty: &str, dims: bool, height: f32) {
-    let (r, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), height), egui::Sense::hover());
-    let p = ui.painter_at(r);
-    paint_grid(&p, r);
-    let Some(d) = d.filter(|d| valid(d)) else {
-        p.text(r.center(), Align2::CENTER_CENTER, empty, FontId::proportional(13.0), mute());
-        return;
-    };
-    let (w, h) = extent(d);
-    let o = Pos2::new(r.center().x - w / 2.0, r.center().y - h / 2.0);
-    let pen = Pen { p: &p, o, dims };
+/// Records the section drawing at the drawing origin and returns its extent, or `None` when there is nothing to draw.
+pub fn section(sink: &Sink, d: Option<&Drawing>, dims: bool) -> Option<(f32, f32)> {
+    let d = d.filter(|d| valid(d))?;
+    let pen = Pen { p: sink, o: Pos2::ZERO, dims };
     draw(&pen, d);
-    p.text(
-        Pos2::new(r.left() + 10.0, r.bottom() - 10.0),
-        Align2::LEFT_BOTTOM,
-        "schematic · proportional · mm",
-        FontId::monospace(10.0),
-        mute(),
-    );
+    Some(extent(d))
 }
 
 fn draw(pen: &Pen, d: &Drawing) {
@@ -405,6 +384,116 @@ fn draw(pen: &Pen, d: &Drawing) {
             pen.dim_h(ox, ox + w, oy + wall_h + hh, 22.0, &format!("B = {}", fmt(*width)));
             pen.dim_v(oy + wall_h, oy + wall_h + hh, ox + w, 22.0, &format!("h = {}", fmt(*h)));
             pen.dim_h(ox + (w - tw) / 2.0, ox + (w + tw) / 2.0, oy, -10.0, &format!("t = {}", fmt(*t)));
+        }
+        Drawing::Plate { b, t, n_holes, d0 } => {
+            let sc = fit(*b, t.max(1.0), 360.0, 60.0);
+            let (w, hh, ox, oy) = (*b as f32 * sc, (*t as f32 * sc).max(10.0), M, 40.0);
+            pen.rect(ox, oy, w, hh, pal().m_steel, true);
+            let n = *n_holes as f32;
+            for k in 0..*n_holes {
+                let x = ox + w * (k as f32 + 1.0) / (n + 1.0);
+                pen.rect(x - *d0 as f32 * sc / 2.0, oy - 1.0, *d0 as f32 * sc, hh + 2.0, surf(), false);
+                pen.p.rect_stroke(
+                    Rect::from_min_size(pen.at(x - *d0 as f32 * sc / 2.0, oy - 1.0), egui::vec2(*d0 as f32 * sc, hh + 2.0)),
+                    0.0,
+                    Stroke::new(1.2_f32, tx()),
+                    StrokeKind::Middle,
+                );
+                pen.axis(x, oy - 12.0, x, oy + hh + 12.0);
+            }
+            pen.dim_h(ox, ox + w, oy + hh, 22.0, &format!("b = {}", fmt(*b)));
+            pen.dim_v(oy, oy + hh, ox + w, 14.0, &format!("t = {}", fmt(*t)));
+            if pen.dims && *n_holes > 0 {
+                pen.note(
+                    ox + w / 2.0,
+                    oy - 18.0,
+                    &format!("{} × d0 = {} · section through holes", n_holes, fmt(*d0)),
+                    Align2::CENTER_CENTER,
+                );
+            }
+        }
+        Drawing::Punching { c1, c2, h, d, pos } => {
+            let span = c1.max(*c2) + 4.0 * d + 200.0;
+            let sc = fit(span, span, 300.0, 300.0);
+            let (cw, ch, rr, ox, oy, size) = (*c1 as f32 * sc, *c2 as f32 * sc, 2.0 * *d as f32 * sc, M + 20.0, 24.0, span as f32 * sc);
+            let cx = if *pos == 1 { ox + size / 2.0 } else { ox + 30.0 + cw / 2.0 };
+            let cy = if *pos == 3 { oy + 30.0 + ch / 2.0 } else { oy + size / 2.0 };
+            let (left, top) = (cx - cw / 2.0, cy - ch / 2.0);
+            pen.rect(ox, oy, size, size, pal().m_concrete.gamma_multiply(0.55), false);
+            let perim = Rect::from_min_size(pen.at(left - rr, top - rr), egui::vec2(cw + 2.0 * rr, ch + 2.0 * rr));
+            let pts: Vec<Pos2> = {
+                let mut v = vec![];
+                let corners = [
+                    (perim.right() - rr, perim.top() + rr, -90.0_f32),
+                    (perim.right() - rr, perim.bottom() - rr, 0.0),
+                    (perim.left() + rr, perim.bottom() - rr, 90.0),
+                    (perim.left() + rr, perim.top() + rr, 180.0),
+                ];
+                for (x, y, a0) in corners {
+                    for k in 0..=8 {
+                        let a = (a0 + k as f32 * 11.25).to_radians();
+                        v.push(Pos2::new(x + rr * a.cos(), y + rr * a.sin()));
+                    }
+                }
+                v.push(v[0]);
+                v
+            };
+            pen.p.extend(Shape::dashed_line(&pts, Stroke::new(1.4_f32, blue()), 6.0, 4.0));
+            if *pos != 1 {
+                pen.rect(ox, oy, (left - ox).max(0.0), size, pal().sunken, false);
+                pen.p.line_segment([pen.at(left, oy), pen.at(left, oy + size)], Stroke::new(1.4_f32, tx()));
+            }
+            if *pos == 3 {
+                pen.rect(ox, oy, size, (top - oy).max(0.0), pal().sunken, false);
+                pen.p.line_segment([pen.at(ox, top), pen.at(ox + size, top)], Stroke::new(1.4_f32, tx()));
+            }
+            pen.rect(left, top, cw, ch, pal().m_concrete, true);
+            pen.dim_h(left, left + cw, top + ch, rr + 14.0, &format!("c1 = {}", fmt(*c1)));
+            pen.dim_v(top, top + ch, left + cw, rr + 14.0, &format!("c2 = {}", fmt(*c2)));
+            if pen.dims {
+                pen.note(left + cw + rr * 0.72 + 6.0, top - rr * 0.72 - 4.0, &format!("u1 at 2d = {}", fmt(2.0 * d)), Align2::LEFT_BOTTOM);
+                pen.note(
+                    ox + size / 2.0,
+                    oy + size + 16.0,
+                    &format!(
+                        "plan · h = {} · d = {} · {} column",
+                        fmt(*h),
+                        fmt(*d),
+                        match pos {
+                            2 => "edge",
+                            3 => "corner",
+                            _ => "internal",
+                        }
+                    ),
+                    Align2::CENTER_CENTER,
+                );
+            }
+        }
+        Drawing::Masonry { t, h, e } => {
+            let sc = fit(*t, *h, 120.0, 280.0);
+            let (w, hh, ox, oy) = ((*t as f32 * sc).max(14.0), *h as f32 * sc, M + 60.0, 50.0);
+            let course = (75.0 * sc).max(4.0);
+            pen.rect(ox - 30.0, oy - 14.0, w + 60.0, 14.0, pal().m_concrete, true);
+            pen.rect(ox - 30.0, oy + hh, w + 60.0, 14.0, pal().m_concrete, true);
+            pen.rect(ox, oy, w, hh, crate::theme::masonry(), true);
+            let mut y = oy + course;
+            while y < oy + hh {
+                pen.p.line_segment([pen.at(ox, y), pen.at(ox + w, y)], Stroke::new(1.0_f32, crate::theme::mortar()));
+                y += course;
+            }
+            pen.axis(ox + w / 2.0, oy - 30.0, ox + w / 2.0, oy + hh + 30.0);
+            let ex = ox + w / 2.0 + *e as f32 * sc;
+            pen.p.line_segment([pen.at(ex, oy - 46.0), pen.at(ex, oy - 22.0)], Stroke::new(1.6_f32, red()));
+            pen.p.add(Shape::convex_polygon(
+                vec![pen.at(ex, oy - 15.0), pen.at(ex - 4.0, oy - 24.0), pen.at(ex + 4.0, oy - 24.0)],
+                red(),
+                Stroke::NONE,
+            ));
+            pen.dim_h(ox, ox + w, oy + hh + 14.0, 22.0, &format!("t = {}", fmt(*t)));
+            pen.dim_v(oy, oy + hh, ox, -40.0, &format!("h = {}", fmt(*h)));
+            if pen.dims {
+                pen.note(ex + 8.0, oy - 34.0, &format!("N Ed at e = {}", fmt(*e)), Align2::LEFT_CENTER);
+            }
         }
     }
 }

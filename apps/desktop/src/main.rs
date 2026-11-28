@@ -1,7 +1,9 @@
 #![cfg_attr(all(not(debug_assertions), windows), windows_subsystem = "windows")]
 mod account_page;
 mod assistant_page;
+mod canvas;
 mod cloud;
+mod loading;
 mod presets;
 mod project_page;
 mod secure_store;
@@ -78,6 +80,19 @@ enum SessionUi {
 }
 
 #[derive(PartialEq, Clone, Copy)]
+enum VpTab {
+    Section,
+    Loading,
+}
+
+#[derive(PartialEq, Clone, Copy)]
+enum ExportKind {
+    Html,
+    Doc,
+    Print,
+}
+
+#[derive(PartialEq, Clone, Copy)]
 enum LedgerTab {
     Ledger,
     Checks,
@@ -117,6 +132,15 @@ struct App {
     srx: Option<Receiver<cloud::Restore>>,
     next_retry: Option<Instant>,
     prefs_dirty: bool,
+    vp_tab: VpTab,
+    vp_views: [canvas::View; 2],
+    /// One-frame override for every ledger section (Expand all / Collapse all).
+    ledger_force: Option<bool>,
+    /// Verification rail order: by utilisation (true) or as on the calculation sheet.
+    eta_order: bool,
+    show_insp: bool,
+    show_rail: bool,
+    confirm_reset: bool,
 }
 
 // ---------------------------------------------------------------- primitives shared by every page
@@ -136,7 +160,7 @@ fn tbtn(ui: &mut egui::Ui, t: &str, on: bool) -> egui::Response {
         egui::Button::new(RichText::new(t).font(medium(12.5)).color(if on { on_ink() } else { tx() }))
             .fill(if on { tx() } else { surf() })
             .stroke(Stroke::new(1.0_f32, if on { tx() } else { p().line_strong }))
-            .corner_radius(CornerRadius::ZERO)
+            .corner_radius(CornerRadius::same(6))
             .min_size(egui::vec2(0.0, 28.0)),
     )
 }
@@ -146,7 +170,17 @@ fn primary(ui: &mut egui::Ui, t: &str) -> egui::Response {
         egui::Button::new(RichText::new(t).font(strong(12.5)).color(on_ink()))
             .fill(tx())
             .stroke(Stroke::new(1.0_f32, tx()))
-            .corner_radius(CornerRadius::ZERO)
+            .corner_radius(CornerRadius::same(6))
+            .min_size(egui::vec2(0.0, 28.0)),
+    )
+}
+/// Layout toggle chip: quiet surface when off, raised tinted surface when on.
+fn chip(ui: &mut egui::Ui, t: &str, on: bool) -> egui::Response {
+    ui.add(
+        egui::Button::new(RichText::new(t).font(medium(12.0)).color(if on { tx() } else { mute() }))
+            .fill(if on { head() } else { surf() })
+            .stroke(Stroke::new(1.0_f32, if on { p().line_strong } else { line() }))
+            .corner_radius(CornerRadius::same(6))
             .min_size(egui::vec2(0.0, 28.0)),
     )
 }
@@ -220,18 +254,27 @@ fn badge(ui: &mut egui::Ui, t: &str, fg: Color32, bg: Color32) -> egui::Response
     egui::Frame::new()
         .fill(bg)
         .stroke(Stroke::new(1.0_f32, fg))
+        .corner_radius(CornerRadius::same(4))
         .inner_margin(egui::Margin::symmetric(6, 2))
         .show(ui, |ui| ui.label(RichText::new(t.to_uppercase()).font(mono_strong(10.0)).color(fg)))
         .response
 }
 /// Notice strip with a 2px tone edge.
 fn notice(ui: &mut egui::Ui, fg: Color32, bg: Color32, add: impl FnOnce(&mut egui::Ui)) {
-    let r = egui::Frame::new().fill(bg).inner_margin(egui::Margin { left: 14, right: 12, top: 9, bottom: 9 }).show(ui, |ui| {
-        ui.set_width(ui.available_width());
-        add(ui)
-    });
+    let r = egui::Frame::new()
+        .fill(bg)
+        .corner_radius(CornerRadius::same(6))
+        .inner_margin(egui::Margin { left: 14, right: 12, top: 9, bottom: 9 })
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            add(ui)
+        });
     let rect = r.response.rect;
-    ui.painter().rect_filled(egui::Rect::from_min_size(rect.min, egui::vec2(2.0, rect.height())), 0.0, fg);
+    ui.painter().rect_filled(
+        egui::Rect::from_min_size(rect.min, egui::vec2(3.0, rect.height())),
+        CornerRadius { nw: 6, sw: 6, ne: 0, se: 0 },
+        fg,
+    );
 }
 /// Numbers as typed: trims, accepts a decimal comma, rejects empty and non-finite values (apps/web/lib/form.ts parseNumber).
 fn parse_number(s: &str) -> Option<f64> {
@@ -253,13 +296,14 @@ fn fmt_num(v: f64) -> String {
 fn discipline_of(id: &str) -> &'static str {
     match id {
         "combos" => "Actions",
-        "steelbeam" | "steelcol" | "bolted" | "weld" => "Structural steel",
-        "timber" | "timbercol" => "Timber",
+        "steelbeam" | "steelcol" | "beamcol" | "steeltension" | "bolted" | "weld" => "Structural steel",
+        "timber" | "timbercol" | "timbertension" => "Timber",
+        "masonry" => "Masonry",
         "pad" | "strip" | "raft" | "retaining" => "Foundations & geotechnics",
         _ => "Reinforced concrete",
     }
 }
-const DISCIPLINES: [&str; 5] = ["Actions", "Reinforced concrete", "Structural steel", "Timber", "Foundations & geotechnics"];
+const DISCIPLINES: [&str; 6] = ["Actions", "Reinforced concrete", "Structural steel", "Timber", "Masonry", "Foundations & geotechnics"];
 fn standard_of(d: &ModDef) -> &str {
     d.subtitle.split('·').next().unwrap_or("").trim()
 }
@@ -363,6 +407,13 @@ impl App {
             srx,
             next_retry: None,
             prefs_dirty: false,
+            vp_tab: VpTab::Section,
+            vp_views: [canvas::View::default(); 2],
+            ledger_force: None,
+            eta_order: true,
+            show_insp: prefs["show_insp"].as_bool().unwrap_or(true),
+            show_rail: prefs["show_rail"].as_bool().unwrap_or(true),
+            confirm_reset: false,
         };
         a.run();
         a
@@ -405,8 +456,30 @@ impl App {
         if i != self.mi {
             self.mi = i;
             self.saved.clear();
+            self.vp_views = [canvas::View::default(); 2];
             self.run();
+            // Modules without a cross-section open on their loading diagram.
+            if self.result.as_ref().is_some_and(|r| r.ok && r.drawing.is_none()) {
+                self.vp_tab = VpTab::Loading;
+            }
         }
+    }
+    /// Engine validation messages assigned to the field they name (by label or key); the rest stay general.
+    fn split_engine_errors(&self) -> (std::collections::HashMap<&'static str, String>, Vec<String>) {
+        let mut by = std::collections::HashMap::new();
+        let mut general = vec![];
+        let Some(r) = self.result.as_ref().filter(|r| !r.ok) else { return (by, general) };
+        let mut fields: Vec<&strucal_engine::module::Field> = self.defs[self.mi].fields.iter().collect();
+        fields.sort_by(|a, b| b.label.len().cmp(&a.label.len()));
+        for e in &r.errors {
+            match fields.iter().find(|f| e.starts_with(&format!("{} ", f.label)) || e.starts_with(&format!("{} ", f.key))) {
+                Some(f) if !by.contains_key(f.key) => {
+                    by.insert(f.key, e.clone());
+                }
+                _ => general.push(e.clone()),
+            }
+        }
+        (by, general)
     }
     fn set_theme(&mut self, ctx: &egui::Context, t: Theme) {
         theme::apply(ctx, t);
@@ -430,31 +503,37 @@ impl App {
                 "page": self.page.id(),
                 "module": self.defs[self.mi].id,
                 "dims": self.dims,
+                "show_insp": self.show_insp,
+                "show_rail": self.show_rail,
                 "modules": modules,
             }),
         );
         self.prefs_dirty = false;
     }
 
-    fn export(&mut self) {
+    fn export(&mut self, kind: ExportKind) {
         let Some(r) = &self.result else { return };
-        if !r.ok {
+        if !r.ok || !self.input_errors().is_empty() {
             return;
         }
         let dir = user_dir(&["Downloads"]);
         let def = &self.defs[self.mi];
         let html = report::generic(def, &self.json(), r);
         let stem = format!("StruCal-{}-{}", def.id, &r.trace_hash[..8]);
-        let (h, w) = (dir.join(format!("{stem}.html")), dir.join(format!("{stem}.doc")));
-        self.saved = match (std::fs::write(&h, &html), std::fs::write(&w, &html)) {
-            (Ok(_), Ok(_)) => {
+        let (file, what) = match kind {
+            ExportKind::Html => (dir.join(format!("{stem}.html")), "calculation sheet (.html)"),
+            ExportKind::Doc => (dir.join(format!("{stem}.doc")), "Word document (.doc)"),
+            ExportKind::Print => (dir.join(format!("{stem}-print.html")), "print sheet: use the browser's Print / Save as PDF"),
+        };
+        self.saved = match std::fs::write(&file, &html) {
+            Ok(_) => {
                 #[cfg(windows)]
                 {
-                    let _ = std::process::Command::new("cmd").args(["/C", "start", "", &h.to_string_lossy()]).spawn();
+                    let _ = std::process::Command::new("cmd").args(["/C", "start", "", &file.to_string_lossy()]).spawn();
                 }
-                format!("Saved to Downloads: {stem}.html (print to PDF) and {stem}.doc (opens in Word)")
+                format!("Saved to Downloads: {} — {}", file.file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or_default(), what)
             }
-            _ => "Could not write to the Downloads folder".to_string(),
+            Err(e) => format!("Could not write to the Downloads folder: {e}"),
         };
     }
 
@@ -524,7 +603,7 @@ impl App {
                 ui.spacing_mut().item_spacing.y = 0.0;
                 let (b, br) = ui.allocate_exact_size(egui::vec2(56.0, 44.0), Sense::click());
                 let m = egui::Rect::from_center_size(b.center(), egui::vec2(26.0, 26.0));
-                ui.painter().rect_filled(m, 0.0, tx());
+                ui.painter().rect_filled(m, 7.0, tx());
                 ui.painter().text(m.center(), egui::Align2::CENTER_CENTER, "S", strong(15.0), on_ink());
                 ui.painter().line_segment([b.left_bottom(), b.right_bottom()], Stroke::new(1.0_f32, line()));
                 if br.on_hover_text("StruCal · open command palette (Ctrl+K)").clicked() {
@@ -550,7 +629,7 @@ impl App {
                     } else {
                         "—".into()
                     };
-                    ui.painter().rect_filled(av, 0.0, if signed { tx() } else { head() });
+                    ui.painter().rect_filled(av, 13.0, if signed { tx() } else { head() });
                     ui.painter().rect_stroke(
                         av,
                         0.0,
@@ -596,11 +675,17 @@ impl App {
     fn rail_item(&mut self, ui: &mut egui::Ui, pg: Page) {
         let (r, resp) = ui.allocate_exact_size(egui::vec2(56.0, 46.0), Sense::click());
         let on = self.page == pg;
+        let pill = r.shrink2(egui::vec2(8.0, 3.0));
         if on {
-            ui.painter().rect_filled(r, 0.0, head());
-            ui.painter().rect_filled(egui::Rect::from_min_size(r.min, egui::vec2(2.0, r.height())), 0.0, tx());
+            ui.painter().rect_filled(pill, 8.0, head());
+            ui.painter().rect_stroke(pill, 8.0, Stroke::new(1.0_f32, line()), StrokeKind::Inside);
+            ui.painter().rect_filled(
+                egui::Rect::from_min_size(egui::pos2(r.left(), pill.top() + 6.0), egui::vec2(2.0, pill.height() - 12.0)),
+                CornerRadius { nw: 0, sw: 0, ne: 2, se: 2 },
+                tx(),
+            );
         } else if resp.hovered() {
-            ui.painter().rect_filled(r, 0.0, head());
+            ui.painter().rect_filled(pill, 8.0, head());
         }
         paint_icon(ui.painter(), r.center(), pg, if on || resp.hovered() { tx() } else { mute() });
         if resp.on_hover_text(pg.label()).clicked() {
@@ -609,8 +694,8 @@ impl App {
         }
     }
 
-    fn command_bar(&mut self, ctx: &egui::Context) -> (bool, bool) {
-        let (mut export, mut reset) = (false, false);
+    fn command_bar(&mut self, ctx: &egui::Context) -> (Option<ExportKind>, bool) {
+        let (mut export, mut reset) = (None, false);
         egui::TopBottomPanel::top("bar")
             .exact_height(44.0)
             .frame(egui::Frame::new().fill(surf()).stroke(Stroke::new(1.0_f32, line())).inner_margin(egui::Margin::symmetric(16, 0)))
@@ -633,10 +718,10 @@ impl App {
                     }
                     ui.add_space(14.0);
                     let (r, resp) = ui.allocate_exact_size(egui::vec2(260.0, 28.0), Sense::click());
-                    ui.painter().rect_filled(r, 0.0, p().sunken);
+                    ui.painter().rect_filled(r, 6.0, p().sunken);
                     ui.painter().rect_stroke(
                         r,
-                        0.0,
+                        6.0,
                         Stroke::new(1.0_f32, if resp.hovered() { p().ink4 } else { line() }),
                         StrokeKind::Inside,
                     );
@@ -654,22 +739,51 @@ impl App {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if self.page == Page::Workspace {
                             let can = self.result.as_ref().is_some_and(|r| r.ok) && self.input_errors().is_empty();
-                            if ui
-                                .add_enabled_ui(can, |ui| primary(ui, "Export"))
-                                .inner
-                                .on_hover_text("Save the calculation sheet (.html and .doc) to Downloads")
-                                .clicked()
-                            {
-                                export = true;
-                            }
-                            if tbtn(ui, "Assistant", self.asst.open)
-                                .on_hover_text("Explain this calculation (needs a signed-in account)")
+                            ui.add_enabled_ui(can, |ui| {
+                                let mb = egui::Button::new(RichText::new("Export…").font(strong(12.5)).color(on_ink()))
+                                    .fill(tx())
+                                    .stroke(Stroke::new(1.0_f32, tx()))
+                                    .corner_radius(CornerRadius::same(6))
+                                    .min_size(egui::vec2(0.0, 28.0));
+                                egui::menu::menu_custom_button(ui, mb, |ui| {
+                                    ui.set_min_width(260.0);
+                                    for (k, t, h) in [
+                                        (ExportKind::Html, "Calculation sheet", ".html · full working, A4 print layout"),
+                                        (ExportKind::Doc, "Word document", ".doc · editable in Microsoft Word"),
+                                        (ExportKind::Print, "Print / PDF", "opens the sheet in the browser to print"),
+                                    ] {
+                                        let resp = ui.add(
+                                            egui::Button::new(RichText::new(format!("{t}\n")).font(strong(12.5)))
+                                                .frame(false)
+                                                .min_size(egui::vec2(250.0, 34.0)),
+                                        );
+                                        ui.painter().text(
+                                            resp.rect.left_bottom() + egui::vec2(8.0, -7.0),
+                                            egui::Align2::LEFT_BOTTOM,
+                                            h,
+                                            mono(10.0),
+                                            mute(),
+                                        );
+                                        if resp.clicked() {
+                                            export = Some(k);
+                                            ui.close_menu();
+                                        }
+                                    }
+                                });
+                            });
+                            if self
+                                .assistant_button(ui)
+                                .on_hover_text("StruCal Assistant · explains this calculation (needs a signed-in account)")
                                 .clicked()
                             {
                                 self.asst.open = !self.asst.open;
                             }
-                            if tbtn(ui, "Dims", self.dims).on_hover_text("Show or hide dimensions in the viewport").clicked() {
-                                self.dims = !self.dims;
+                            if chip(ui, "Verification ]", self.show_rail).on_hover_text("Show or hide the verification rail").clicked() {
+                                self.show_rail = !self.show_rail;
+                                self.prefs_dirty = true;
+                            }
+                            if chip(ui, "[ Inspector", self.show_insp).on_hover_text("Show or hide the inspector").clicked() {
+                                self.show_insp = !self.show_insp;
                                 self.prefs_dirty = true;
                             }
                             if ghost(ui, "Reset").on_hover_text("Reset this module's inputs to their defaults").clicked() {
@@ -682,6 +796,100 @@ impl App {
                 });
             });
         (export, reset)
+    }
+
+    /// StruCal Assistant button: rounded icon container whose edge carries a traveling light on hover and while the
+    /// assistant is open. The light is painted under the icon and does not intercept the pointer.
+    fn assistant_button(&mut self, ui: &mut egui::Ui) -> egui::Response {
+        let (r, resp) = ui.allocate_exact_size(egui::vec2(112.0, 28.0), Sense::click());
+        let active = self.asst.open;
+        let lit = active || resp.hovered() || resp.has_focus();
+        let pt = ui.painter();
+        pt.rect_filled(r, 6.0, if resp.hovered() { head() } else { surf() });
+        pt.rect_stroke(r, 6.0, Stroke::new(1.0_f32, if lit { p().line_strong } else { line() }), StrokeKind::Inside);
+        let ico = egui::Rect::from_min_size(r.left_top() + egui::vec2(4.0, 3.0), egui::vec2(22.0, 22.0));
+        let t = ui.input(|i| i.time) as f32;
+        if lit {
+            // soft halo
+            for (k, a) in [(5.0_f32, 18u8), (3.0, 30), (1.5, 46)] {
+                pt.rect_filled(ico.expand(k), 7.0 + k, blue().gamma_multiply(a as f32 / 255.0));
+            }
+        }
+        pt.rect_filled(ico, 7.0, head());
+        pt.rect_stroke(ico, 7.0, Stroke::new(1.0_f32, if lit { blue().gamma_multiply(0.35) } else { p().line_strong }), StrokeKind::Inside);
+        if lit {
+            // traveling light: a gradient tail running clockwise around the rounded container edge
+            let rr = 7.0_f32;
+            let e = ico.shrink(0.75);
+            let (w, h) = (e.width() - 2.0 * rr, e.height() - 2.0 * rr);
+            let per = 2.0 * (w + h) + 2.0 * std::f32::consts::PI * rr;
+            let at = |d: f32| -> egui::Pos2 {
+                let mut d = d.rem_euclid(per);
+                let arc = std::f32::consts::FRAC_PI_2 * rr;
+                let segs: [(f32, u8); 8] = [(w, 0), (arc, 1), (h, 2), (arc, 3), (w, 4), (arc, 5), (h, 6), (arc, 7)];
+                for (len, k) in segs {
+                    if d <= len {
+                        let f = if len > 0.0 { d / len } else { 0.0 };
+                        let c = |x: f32, y: f32| egui::pos2(x, y);
+                        let ang = |a0: f32| a0 + f * std::f32::consts::FRAC_PI_2;
+                        return match k {
+                            0 => c(e.left() + rr + f * w, e.top()),
+                            1 => {
+                                let a = ang(-std::f32::consts::FRAC_PI_2);
+                                c(e.right() - rr + rr * a.cos(), e.top() + rr + rr * a.sin())
+                            }
+                            2 => c(e.right(), e.top() + rr + f * h),
+                            3 => {
+                                let a = ang(0.0);
+                                c(e.right() - rr + rr * a.cos(), e.bottom() - rr + rr * a.sin())
+                            }
+                            4 => c(e.right() - rr - f * w, e.bottom()),
+                            5 => {
+                                let a = ang(std::f32::consts::FRAC_PI_2);
+                                c(e.left() + rr + rr * a.cos(), e.bottom() - rr + rr * a.sin())
+                            }
+                            6 => c(e.left(), e.bottom() - rr - f * h),
+                            _ => {
+                                let a = ang(std::f32::consts::PI);
+                                c(e.left() + rr + rr * a.cos(), e.top() + rr + rr * a.sin())
+                            }
+                        };
+                    }
+                    d -= len;
+                }
+                e.left_top()
+            };
+            let speed = if active { per / 1.6 } else { per / 2.6 };
+            let head_d = t * speed;
+            let tail = per * 0.42;
+            let n = 28;
+            for k in 0..n {
+                let d0 = head_d - tail * (k as f32 / n as f32);
+                let d1 = head_d - tail * ((k + 1) as f32 / n as f32);
+                let fade = 1.0 - k as f32 / n as f32;
+                let col = if k < 3 { egui::Color32::from_rgb(127, 224, 196) } else { blue() };
+                pt.line_segment([at(d0), at(d1)], Stroke::new(1.6_f32, col.gamma_multiply(fade * fade)));
+            }
+            ui.ctx().request_repaint();
+        }
+        // spark glyph
+        let c = ico.center();
+        let gcol = if lit { blue() } else { tx() };
+        for (a, l0, l1) in [
+            (0.0_f32, 1.5_f32, 6.0_f32),
+            (90.0, 1.5, 6.0),
+            (180.0, 1.5, 6.0),
+            (270.0, 1.5, 6.0),
+            (45.0, 2.5, 4.6),
+            (135.0, 2.5, 4.6),
+            (225.0, 2.5, 4.6),
+            (315.0, 2.5, 4.6),
+        ] {
+            let (sn, cs) = a.to_radians().sin_cos();
+            pt.line_segment([c + egui::vec2(cs * l0, sn * l0), c + egui::vec2(cs * l1, sn * l1)], Stroke::new(1.3_f32, gcol));
+        }
+        pt.text(egui::pos2(ico.right() + 8.0, r.center().y), egui::Align2::LEFT_CENTER, "Assistant", medium(12.5), tx());
+        resp
     }
 
     fn status_bar(&mut self, ctx: &egui::Context) {
@@ -706,6 +914,24 @@ impl App {
                         let (d, _) = ui.allocate_exact_size(egui::vec2(8.0, 8.0), Sense::hover());
                         ui.painter().rect_filled(d.shrink(0.5), 0.0, dot);
                         ui.label(t(state, tx()));
+                        if let Some(g) = self
+                            .result
+                            .as_ref()
+                            .filter(|r| r.ok && errs == 0)
+                            .and_then(|r| r.checks.iter().max_by(|a, b| a.utilisation.total_cmp(&b.utilisation)))
+                        {
+                            ui.add_space(12.0);
+                            ui.label(t(format!("η max {} — {}", util_text(g.utilisation), g.name), mute()));
+                        }
+                        let d = &self.defs[self.mi];
+                        let changed = d
+                            .fields
+                            .iter()
+                            .zip(&self.st[self.mi].vals)
+                            .filter(|(f, v)| (!f.check_only || self.st[self.mi].mode == "check") && (**v - f.default).abs() > 1e-12)
+                            .count();
+                        ui.add_space(12.0);
+                        ui.label(t(format!("{changed} changed"), mute()));
                         ui.add_space(12.0);
                         ui.label(t(self.st[self.mi].param.clone(), mute()));
                     }
@@ -742,12 +968,36 @@ impl App {
             Go(Page),
             Theme(Theme),
             SignOut,
+            Export(ExportKind),
+            Reset,
+            Assistant,
+            ToggleInsp,
+            ToggleRail,
+            View(VpTab),
         }
         let q = self.pq.trim().to_lowercase();
         let mut items: Vec<(String, String, String, Cmd)> = vec![];
         for (i, d) in self.defs.iter().enumerate() {
             items.push(("Modules".into(), d.name.into(), standard_of(d).into(), Cmd::Module(i)));
         }
+        for (k, t) in [
+            (ExportKind::Html, "Export calculation sheet (.html)"),
+            (ExportKind::Doc, "Export Word document (.doc)"),
+            (ExportKind::Print, "Print or save as PDF"),
+        ] {
+            items.push(("Calculation".into(), t.into(), String::new(), Cmd::Export(k)));
+        }
+        items.push(("Calculation".into(), "Reset inputs to defaults".into(), String::new(), Cmd::Reset));
+        items.push(("Calculation".into(), "Open StruCal Assistant".into(), String::new(), Cmd::Assistant));
+        items.push(("Layout".into(), if self.show_insp { "Hide inspector" } else { "Show inspector" }.into(), "[".into(), Cmd::ToggleInsp));
+        items.push((
+            "Layout".into(),
+            if self.show_rail { "Hide verification rail" } else { "Show verification rail" }.into(),
+            "]".into(),
+            Cmd::ToggleRail,
+        ));
+        items.push(("Layout".into(), "Viewport: section".into(), String::new(), Cmd::View(VpTab::Section)));
+        items.push(("Layout".into(), "Viewport: loading".into(), String::new(), Cmd::View(VpTab::Loading)));
         for pg in [Page::Workspace, Page::Project, Page::Standards, Page::Account, Page::Settings] {
             items.push(("Go to".into(), pg.label().into(), String::new(), Cmd::Go(pg)));
         }
@@ -777,7 +1027,13 @@ impl App {
             .max_width(560.0)
             .default_width(560.0)
             .anchor(egui::Align2::CENTER_TOP, [0.0, 90.0])
-            .frame(egui::Frame::new().fill(surf()).stroke(Stroke::new(1.0_f32, p().line_strong)))
+            .frame(
+                egui::Frame::new()
+                    .fill(surf())
+                    .stroke(Stroke::new(1.0_f32, p().line_strong))
+                    .corner_radius(CornerRadius::same(12))
+                    .shadow(egui::epaint::Shadow { offset: [0, 10], blur: 28, spread: 0, color: Color32::from_black_alpha(60) }),
+            )
             .show(ctx, |ui| {
                 ui.spacing_mut().item_spacing.y = 0.0;
                 egui::Frame::new().inner_margin(egui::Margin::symmetric(14, 10)).show(ui, |ui| {
@@ -805,7 +1061,7 @@ impl App {
                         }
                         let (r, resp) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 32.0), Sense::click());
                         if resp.hovered() || k == 0 {
-                            ui.painter().rect_filled(r, 0.0, head());
+                            ui.painter().rect_filled(r.shrink2(egui::vec2(6.0, 1.0)), 6.0, head());
                         }
                         ui.painter().text(
                             r.left_center() + egui::vec2(14.0, 0.0),
@@ -841,6 +1097,25 @@ impl App {
                 Cmd::SignOut => {
                     self.cl.sign_out();
                     self.session = SessionUi::SignedOut;
+                }
+                Cmd::Export(k) => {
+                    let k = *k;
+                    self.page = Page::Workspace;
+                    self.export(k);
+                }
+                Cmd::Reset => {
+                    self.page = Page::Workspace;
+                    self.confirm_reset = true;
+                }
+                Cmd::Assistant => {
+                    self.page = Page::Workspace;
+                    self.asst.open = true;
+                }
+                Cmd::ToggleInsp => self.show_insp = !self.show_insp,
+                Cmd::ToggleRail => self.show_rail = !self.show_rail,
+                Cmd::View(v) => {
+                    self.vp_tab = *v;
+                    self.page = Page::Workspace;
                 }
             }
             self.prefs_dirty = true;
@@ -901,7 +1176,11 @@ impl App {
                             let b = egui::Button::new(RichText::new(n).font(medium(12.5)).color(if on { on_ink() } else { tx() }))
                                 .fill(if on { tx() } else { surf() })
                                 .stroke(Stroke::new(1.0_f32, if on { tx() } else { p().line_strong }))
-                                .corner_radius(CornerRadius::ZERO)
+                                .corner_radius(if m == "design" {
+                                    CornerRadius { nw: 6, sw: 6, ne: 0, se: 0 }
+                                } else {
+                                    CornerRadius { nw: 0, sw: 0, ne: 6, se: 6 }
+                                })
                                 .min_size(egui::vec2(w, 28.0));
                             if ui.add_enabled(enabled, b).on_disabled_hover_text("This module has no Check Mode").clicked() && !on {
                                 self.st[mi].mode = m.into();
@@ -934,7 +1213,7 @@ impl App {
                 });
                 rule(ui);
 
-                let errs: Vec<String> = self.result.as_ref().filter(|r| !r.ok).map(|r| r.errors.clone()).unwrap_or_default();
+                let (field_errs, errs) = self.split_engine_errors();
                 let groups = presets::presets_for(def);
                 let n_changed = def
                     .fields
@@ -1115,10 +1394,10 @@ impl App {
                                         } else {
                                             line()
                                         };
-                                        ui.painter().rect_filled(rect, 0.0, fill);
+                                        ui.painter().rect_filled(rect, 6.0, fill);
                                         ui.painter().rect_stroke(
                                             rect,
-                                            0.0,
+                                            6.0,
                                             Stroke::new(if focus { 1.5_f32 } else { 1.0 }, stroke),
                                             StrokeKind::Inside,
                                         );
@@ -1184,6 +1463,12 @@ impl App {
                                                 .color(red()),
                                         );
                                     });
+                                } else if let Some(msg) = field_errs.get(f.key) {
+                                    ui.horizontal(|ui| {
+                                        ui.add_space(12.0);
+                                        ui.add(egui::Label::new(RichText::new(msg).size(11.0).color(red())).wrap());
+                                    });
+                                    ui.add_space(4.0);
                                 }
                                 ui.painter().line_segment(
                                     [egui::pos2(r.left() - 16.0, r.bottom()), egui::pos2(r.right() + 16.0, r.bottom())],
@@ -1214,6 +1499,8 @@ impl App {
 
     fn verification_rail(&mut self, ctx: &egui::Context) {
         let errs = self.input_errors();
+        let mut open_checks = false;
+        let mut eta_order = self.eta_order;
         egui::SidePanel::right("verify")
             .exact_width(320.0)
             .resizable(false)
@@ -1290,9 +1577,10 @@ impl App {
                         ui.label(RichText::new("Implemented checks only · not an engineer's approval").size(11.0).color(p().ink4));
                         if let Some(g) = gov {
                             heading(ui, "Governing limit state");
-                            egui::Frame::new()
+                            let card = egui::Frame::new()
                                 .fill(p().sunken)
                                 .stroke(Stroke::new(1.0_f32, p().line_strong))
+                                .corner_radius(CornerRadius::same(8))
                                 .inner_margin(egui::Margin::same(12))
                                 .show(ui, |ui| {
                                     ui.set_width(ui.available_width());
@@ -1316,12 +1604,38 @@ impl App {
                                     );
                                     util_bar(ui, g.utilisation, col, 6.0);
                                 });
+                            let click = ui
+                                .interact(card.response.rect, ui.id().with("gov-card"), Sense::click())
+                                .on_hover_text("Open the itemised checks in the ledger");
+                            if click.hovered() {
+                                ui.painter().rect_stroke(card.response.rect, 8.0, Stroke::new(1.0_f32, tx()), StrokeKind::Inside);
+                            }
+                            if click.clicked() {
+                                open_checks = true;
+                            }
                         }
                         if !r.checks.is_empty() {
-                            heading(ui, "Utilisation · Ed / Rd");
+                            ui.add_space(14.0);
+                            ui.horizontal(|ui| {
+                                ui.label(RichText::new("UTILISATION · ED / RD").font(strong(10.5)).extra_letter_spacing(0.9).color(mute()));
+                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                    ui.spacing_mut().item_spacing.x = 0.0;
+                                    if tbtn(ui, "Sheet", !eta_order).clicked() {
+                                        eta_order = false;
+                                    }
+                                    if tbtn(ui, "η", eta_order).clicked() {
+                                        eta_order = true;
+                                    }
+                                });
+                            });
+                            ui.add_space(4.0);
+                            rule(ui);
+                            ui.add_space(6.0);
                         }
                         let mut sorted: Vec<_> = r.checks.iter().collect();
-                        sorted.sort_by(|a, b| b.utilisation.total_cmp(&a.utilisation));
+                        if eta_order {
+                            sorted.sort_by(|a, b| b.utilisation.total_cmp(&a.utilisation));
+                        }
                         for k in sorted {
                             let col = status_color(k.pass, k.utilisation);
                             ui.horizontal(|ui| {
@@ -1361,6 +1675,10 @@ impl App {
                     });
                 });
             });
+        self.eta_order = eta_order;
+        if open_checks {
+            self.ledger = LedgerTab::Checks;
+        }
     }
 
     fn center(&mut self, ctx: &egui::Context) {
@@ -1416,6 +1734,18 @@ impl App {
                                     self.ledger = t;
                                 }
                             }
+                            if self.ledger == LedgerTab::Ledger && ok {
+                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                    ui.spacing_mut().item_spacing.x = 14.0;
+                                    ui.add_space(4.0);
+                                    if ghost(ui, "Collapse all").clicked() {
+                                        self.ledger_force = Some(false);
+                                    }
+                                    if ghost(ui, "Expand all").clicked() {
+                                        self.ledger_force = Some(true);
+                                    }
+                                });
+                            }
                         });
                     });
                     rule(ui);
@@ -1460,7 +1790,7 @@ impl App {
                                 ui.colored_label(amber(), wn);
                             }
                             match self.ledger {
-                                LedgerTab::Ledger => Self::ledger_steps(ui, &self.defs[mi], r, w),
+                                LedgerTab::Ledger => Self::ledger_steps(ui, &self.defs[mi], r, w, self.ledger_force),
                                 LedgerTab::Checks => Self::ledger_checks(ui, r),
                                 LedgerTab::Summary => {
                                     egui::Grid::new("sum").num_columns(2).spacing([28.0, 8.0]).show(ui, |ui| {
@@ -1487,40 +1817,98 @@ impl App {
                     });
                 });
 
-            // ---------- viewport ----------
+            // ---------- viewport: Section and Loading on a pannable, zoomable drafting grid ----------
             egui::CentralPanel::default().frame(egui::Frame::new().fill(p().sunken)).show_inside(ui, |ui| {
                 ui.spacing_mut().item_spacing.y = 0.0;
-                let def = &self.defs[mi];
-                egui::Frame::new().fill(surf()).inner_margin(egui::Margin::symmetric(16, 0)).show(ui, |ui| {
+                let def_id = self.defs[mi].id;
+                let has_section = errs_n == 0 && self.result.as_ref().is_some_and(|r| r.ok && r.drawing.is_some());
+                let vi = if self.vp_tab == VpTab::Section { 0 } else { 1 };
+                egui::Frame::new().fill(surf()).inner_margin(egui::Margin { left: 0, right: 12, top: 0, bottom: 0 }).show(ui, |ui| {
                     ui.set_width(ui.available_width());
-                    ui.set_height(34.0);
+                    ui.set_height(36.0);
                     ui.horizontal_centered(|ui| {
-                        ui.label(RichText::new("SECTION").font(strong(11.0)).color(tx()));
-                        ui.label(
-                            RichText::new(format!("· {} · proportional · mm", def.name.to_lowercase())).font(mono(10.5)).color(mute()),
-                        );
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            ui.label(
-                                RichText::new(if self.st[mi].mode == "check" { "independent check" } else { "design" })
-                                    .font(mono(10.5))
-                                    .color(mute()),
+                        ui.spacing_mut().item_spacing.x = 0.0;
+                        for (t, n) in [(VpTab::Section, "SECTION"), (VpTab::Loading, "LOADING")] {
+                            let on = self.vp_tab == t;
+                            let (rr, resp) = ui.allocate_exact_size(egui::vec2(96.0, 36.0), Sense::click());
+                            if on {
+                                ui.painter().rect_filled(
+                                    egui::Rect::from_min_max(egui::pos2(rr.left(), rr.bottom() - 2.0), rr.right_bottom()),
+                                    0.0,
+                                    tx(),
+                                );
+                            }
+                            ui.painter().text(
+                                rr.center(),
+                                egui::Align2::CENTER_CENTER,
+                                n,
+                                strong(11.0),
+                                if on || resp.hovered() { tx() } else { mute() },
                             );
+                            ui.painter().line_segment([rr.right_top(), rr.right_bottom()], Stroke::new(1.0_f32, line()));
+                            if resp.clicked() {
+                                self.vp_tab = t;
+                            }
+                        }
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            ui.spacing_mut().item_spacing.x = 4.0;
+                            if tbtn(ui, "Fit", false).on_hover_text("Fit to view (double-click the canvas)").clicked() {
+                                self.vp_views[vi].fit();
+                            }
+                            if tbtn(ui, "+", false).on_hover_text("Zoom in").clicked() {
+                                self.vp_views[vi].zoom_by(1.2);
+                            }
+                            ui.label(RichText::new(format!("{:>3.0}%", self.vp_views[vi].zoom * 100.0)).font(mono(11.0)).color(mute()));
+                            if tbtn(ui, "−", false).on_hover_text("Zoom out").clicked() {
+                                self.vp_views[vi].zoom_by(1.0 / 1.2);
+                            }
+                            let can_dims = self.vp_tab == VpTab::Section && has_section;
+                            if ui
+                                .add_enabled_ui(can_dims, |ui| tbtn(ui, "Dims", self.dims))
+                                .inner
+                                .on_hover_text("Show or hide dimensions")
+                                .clicked()
+                            {
+                                self.dims = !self.dims;
+                                self.prefs_dirty = true;
+                            }
                         });
                     });
                 });
                 rule(ui);
-                let (drawing, empty) = match &self.result {
-                    _ if errs_n > 0 => (None, "Geometry appears when every input is a number."),
-                    Some(r) if r.ok => (r.drawing.as_ref(), "This module works on action effects; it has no section geometry."),
-                    _ => (None, "Geometry appears when every input is valid."),
-                };
                 let h = ui.available_height().max(120.0);
-                viewport::paint(ui, drawing, empty, self.dims, h);
+                let dims = self.dims;
+                match self.vp_tab {
+                    VpTab::Section => {
+                        let drawing = self.result.as_ref().filter(|r| r.ok && errs_n == 0).and_then(|r| r.drawing.clone());
+                        let empty = if errs_n > 0 || !self.result.as_ref().is_some_and(|r| r.ok) {
+                            "Geometry appears when every input is valid."
+                        } else {
+                            "This module works on action effects and has no cross-section. See Loading."
+                        };
+                        canvas::show(ui, h, &mut self.vp_views[0], "SECTION · proportional · mm", empty, |sink| {
+                            viewport::section(sink, drawing.as_ref(), dims)
+                        });
+                    }
+                    VpTab::Loading => {
+                        let vals: Vec<(&'static str, f64)> =
+                            self.defs[mi].fields.iter().map(|f| f.key).zip(self.st[mi].vals.iter().copied()).collect();
+                        let read = move |k: &str| vals.iter().find(|(key, _)| *key == k).map(|(_, v)| *v).unwrap_or(0.0);
+                        canvas::show(
+                            ui,
+                            h,
+                            &mut self.vp_views[1],
+                            "LOADING · schematic · inputs only",
+                            "No loading diagram for this module.",
+                            |sink| loading::draw(sink, def_id, &read),
+                        );
+                    }
+                }
             });
         });
     }
 
-    fn ledger_steps(ui: &mut egui::Ui, def: &ModDef, r: &ModResult, w: f32) {
+    fn ledger_steps(ui: &mut egui::Ui, def: &ModDef, r: &ModResult, w: f32, force: Option<bool>) {
         let ref_w = 150.0;
         let num_w = 30.0;
         let out_w = 170.0;
@@ -1541,61 +1929,62 @@ impl App {
         while i < r.trace.steps.len() {
             let sec = &r.trace.steps[i].section;
             let j = r.trace.steps[i..].iter().position(|s| &s.section != sec).map(|p| i + p).unwrap_or(r.trace.steps.len());
-            egui::CollapsingHeader::new(RichText::new(format!("{sec}   · {} steps", j - i)).font(strong(13.0)).color(tx()))
-                .id_salt(("sec", def.id, i))
-                .default_open(true)
-                .show(ui, |ui| {
-                    for s in &r.trace.steps[i..j] {
-                        n += 1;
-                        let row = ui.horizontal(|ui| {
-                            ui.allocate_ui_with_layout(egui::vec2(num_w, 0.0), egui::Layout::top_down(egui::Align::Min), |ui| {
-                                ui.set_width(num_w);
-                                ui.label(RichText::new(format!("{n:02}")).font(mono(11.0)).color(p().ink4));
-                            });
-                            ui.allocate_ui_with_layout(egui::vec2(ref_w, 0.0), egui::Layout::top_down(egui::Align::Min), |ui| {
-                                ui.set_width(ref_w);
-                                ui.add(
-                                    egui::Label::new(
-                                        RichText::new(if s.reference.is_empty() { "—" } else { &s.reference })
-                                            .font(mono(11.0))
-                                            .color(blue()),
-                                    )
-                                    .wrap(),
-                                );
-                            });
-                            ui.vertical(|ui| {
-                                ui.set_width(calc_w);
-                                ui.label(RichText::new(&s.title).font(strong(12.5)));
-                                let f = trace::plain(&s.formula);
-                                if !f.is_empty() {
-                                    ui.add(egui::Label::new(RichText::new(f).font(mono(12.0)).color(p().ink2)).wrap());
-                                }
-                                if !s.calculation.is_empty() {
-                                    ui.add(egui::Label::new(RichText::new(&s.calculation).font(mono(11.5)).color(tx())).wrap());
-                                }
-                                if !s.comment.is_empty() {
-                                    ui.add(egui::Label::new(RichText::new(&s.comment).size(11.0).color(mute())).wrap());
-                                }
-                            });
-                            ui.allocate_ui_with_layout(egui::vec2(out_w, 0.0), egui::Layout::top_down(egui::Align::Max), |ui| {
-                                ui.set_width(out_w);
-                                let col = match s.output.as_str() {
-                                    "PASS" => green(),
-                                    "FAIL" => red(),
-                                    _ => tx(),
-                                };
-                                ui.add(egui::Label::new(RichText::new(&s.output).font(mono_strong(12.0)).color(col)).wrap());
-                            });
+            egui::CollapsingHeader::new(
+                RichText::new(format!("{sec}   · {} step{}", j - i, if j - i == 1 { "" } else { "s" })).font(strong(13.0)).color(tx()),
+            )
+            .id_salt(("sec", def.id, i))
+            .default_open(true)
+            .open(force)
+            .show(ui, |ui| {
+                for s in &r.trace.steps[i..j] {
+                    n += 1;
+                    let row = ui.horizontal(|ui| {
+                        ui.allocate_ui_with_layout(egui::vec2(num_w, 0.0), egui::Layout::top_down(egui::Align::Min), |ui| {
+                            ui.set_width(num_w);
+                            ui.label(RichText::new(format!("{n:02}")).font(mono(11.0)).color(p().ink4));
                         });
-                        let rr = row.response.rect;
-                        ui.add_space(4.0);
-                        ui.painter().line_segment(
-                            [egui::pos2(rr.left(), rr.bottom() + 2.0), egui::pos2(rr.right(), rr.bottom() + 2.0)],
-                            Stroke::new(1.0_f32, line()),
-                        );
-                        ui.add_space(4.0);
-                    }
-                });
+                        ui.allocate_ui_with_layout(egui::vec2(ref_w, 0.0), egui::Layout::top_down(egui::Align::Min), |ui| {
+                            ui.set_width(ref_w);
+                            ui.add(
+                                egui::Label::new(
+                                    RichText::new(if s.reference.is_empty() { "—" } else { &s.reference }).font(mono(11.0)).color(blue()),
+                                )
+                                .wrap(),
+                            );
+                        });
+                        ui.vertical(|ui| {
+                            ui.set_width(calc_w);
+                            ui.label(RichText::new(&s.title).font(strong(12.5)));
+                            let f = trace::plain(&s.formula);
+                            if !f.is_empty() {
+                                ui.add(egui::Label::new(RichText::new(f).font(mono(12.0)).color(p().ink2)).wrap());
+                            }
+                            if !s.calculation.is_empty() {
+                                ui.add(egui::Label::new(RichText::new(&s.calculation).font(mono(11.5)).color(tx())).wrap());
+                            }
+                            if !s.comment.is_empty() {
+                                ui.add(egui::Label::new(RichText::new(&s.comment).size(11.0).color(mute())).wrap());
+                            }
+                        });
+                        ui.allocate_ui_with_layout(egui::vec2(out_w, 0.0), egui::Layout::top_down(egui::Align::Max), |ui| {
+                            ui.set_width(out_w);
+                            let col = match s.output.as_str() {
+                                "PASS" => green(),
+                                "FAIL" => red(),
+                                _ => tx(),
+                            };
+                            ui.add(egui::Label::new(RichText::new(&s.output).font(mono_strong(12.0)).color(col)).wrap());
+                        });
+                    });
+                    let rr = row.response.rect;
+                    ui.add_space(4.0);
+                    ui.painter().line_segment(
+                        [egui::pos2(rr.left(), rr.bottom() + 2.0), egui::pos2(rr.right(), rr.bottom() + 2.0)],
+                        Stroke::new(1.0_f32, line()),
+                    );
+                    ui.add_space(4.0);
+                }
+            });
             i = j;
         }
     }
@@ -1869,20 +2258,77 @@ impl eframe::App for App {
         let (export, reset) = self.command_bar(ctx);
         self.status_bar(ctx);
         if reset {
-            let d = &self.defs[self.mi];
-            self.st[self.mi].vals = d.fields.iter().map(|f| f.default).collect();
-            self.sync_text(self.mi);
-            self.saved.clear();
-            self.run();
+            self.confirm_reset = true;
         }
-        if export {
-            self.export();
+        if let Some(k) = export {
+            self.export(k);
+        }
+        // Layout shortcuts, as on the web: [ toggles the inspector, ] the verification rail (not while typing).
+        if self.page == Page::Workspace && !self.palette && !ctx.wants_keyboard_input() {
+            let (l, r) = ctx.input(|i| {
+                let mut l = false;
+                let mut r = false;
+                for e in &i.events {
+                    if let egui::Event::Text(t) = e {
+                        l |= t == "[";
+                        r |= t == "]";
+                    }
+                }
+                (l, r)
+            });
+            if l {
+                self.show_insp = !self.show_insp;
+                self.prefs_dirty = true;
+            }
+            if r {
+                self.show_rail = !self.show_rail;
+                self.prefs_dirty = true;
+            }
+        }
+        if self.confirm_reset {
+            let name = self.defs[self.mi].name;
+            let mut close = false;
+            let mut go = false;
+            egui::Window::new("Reset inputs")
+                .collapsible(false)
+                .resizable(false)
+                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+                .frame(
+                    egui::Frame::new()
+                        .fill(surf())
+                        .stroke(Stroke::new(1.0_f32, p().line_strong))
+                        .corner_radius(CornerRadius::same(12))
+                        .inner_margin(egui::Margin::same(18)),
+                )
+                .show(ctx, |ui| {
+                    ui.label(RichText::new(format!("Reset all {name} inputs to their defaults?")).font(strong(14.0)));
+                    ui.label(RichText::new("The current values are discarded. Saved projects are not affected.").size(12.0).color(mute()));
+                    ui.add_space(8.0);
+                    ui.horizontal(|ui| {
+                        if primary(ui, "Reset inputs").clicked() {
+                            go = true;
+                        }
+                        if tbtn(ui, "Cancel", false).clicked() || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+                            close = true;
+                        }
+                    });
+                });
+            if go {
+                let d = &self.defs[self.mi];
+                self.st[self.mi].vals = d.fields.iter().map(|f| f.default).collect();
+                self.sync_text(self.mi);
+                self.saved.clear();
+                self.run();
+            }
+            if go || close {
+                self.confirm_reset = false;
+            }
         }
 
         match self.page {
             Page::Workspace => {
                 self.assistant_ui(ctx);
-                if self.inspector(ctx) {
+                if self.show_insp && self.inspector(ctx) {
                     self.saved.clear();
                     if self.input_errors().is_empty() {
                         self.run();
@@ -1890,8 +2336,11 @@ impl eframe::App for App {
                         self.prefs_dirty = true;
                     }
                 }
-                self.verification_rail(ctx);
+                if self.show_rail {
+                    self.verification_rail(ctx);
+                }
                 self.center(ctx);
+                self.ledger_force = None;
             }
             Page::Project => {
                 self.pj.ui(ctx, &self.defs, &mut self.cl);
