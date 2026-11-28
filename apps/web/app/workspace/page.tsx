@@ -1,39 +1,48 @@
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import TopBar from "../components/TopBar";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import AppShell from "../shell/AppShell";
+import type { Command } from "../shell/CommandPalette";
 import { useEngine } from "../../lib/useEngine";
-import { entryErrors, initialValues, mergeValues, parseNumber, splitEngineErrors, standardOf, toPayload, visibleFields } from "../../lib/form";
+import { disciplineOf, entryErrors, initialValues, mergeValues, parseNumber, splitEngineErrors, toPayload, visibleFields } from "../../lib/form";
 import { readJson, writeJson } from "../../lib/storage";
 import { downloadText, printHtml } from "../../lib/download";
-import { governing, fmtUtil, verdictOf } from "../../lib/status";
+import { fmtUtil, governing, verdictOf, VERDICT_WORD } from "../../lib/status";
 import type { FormValues, ModDef, ModResult } from "../../lib/types";
-import { Button, EngineBoot, EmptyState, Notice, Segmented, StatusDot } from "../ui/primitives";
-import ModulePicker from "./ModulePicker";
+import { Button, EngineBoot, EmptyState, Notice, StatusDot } from "../ui/primitives";
+import { IconExport, IconPanelLeft, IconPanelRight, IconReset, IconSpark } from "../ui/icons";
 import Inspector from "./Inspector";
 import Viewport from "./Viewport";
-import CalcSheet from "./CalcSheet";
+import Ledger from "./Ledger";
 import VerificationRail from "./VerificationRail";
 import Assistant from "./Assistant";
-import "./workspace.css";
+import "./workbench.css";
 
 const STORE = "strucal.workspace.v1";
-const UI_STORE = "strucal.workspace.ui.v1";
+const UI_STORE = "strucal.workbench.ui.v2";
 type Saved = { mid?: string; values?: Record<string, unknown> };
-type Pane = "inputs" | "section" | "sheet" | "checks";
+type Ui = { insp: boolean; rail: boolean; split: number; collapsed: Record<string, Record<string, boolean>> };
+type LedgerTab = "ledger" | "checks" | "summary" | "scope";
+type MobilePane = "inputs" | "model" | "ledger" | "verdict";
+const UI_DEFAULT: Ui = { insp: true, rail: true, split: 0.46, collapsed: {} };
 
-export default function Workspace() {
+function Workbench() {
+  const router = useRouter();
+  const params = useSearchParams();
   const { engine: eng, error: loadErr, retry } = useEngine();
   const [mid, setMid] = useState("beam");
   const [vals, setVals] = useState<Record<string, FormValues>>({});
-  const [collapsed, setCollapsed] = useState<Record<string, Record<string, boolean>>>({});
+  const [ui, setUi] = useState<Ui>(UI_DEFAULT);
+  const [ledgerTab, setLedgerTab] = useState<LedgerTab>("ledger");
+  const [pane, setPane] = useState<MobilePane>("inputs");
   const [menu, setMenu] = useState(false);
   const [notice, setNotice] = useState("");
-  const [pane, setPane] = useState<Pane>("inputs");
   const [assistant, setAssistant] = useState(false);
+  const [restored, setRestored] = useState(false);
+  const center = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const centerRef = useRef<HTMLDivElement>(null);
 
-  // Restore saved inputs and panel state once the engine (and so the module definitions) is available.
+  // Restore inputs, layout and the module (URL ?m= wins over the last session) once the engine is ready.
   useEffect(() => {
     if (!eng) return;
     const saved = readJson<Saved>(STORE) ?? {};
@@ -41,136 +50,166 @@ export default function Workspace() {
     const v: Record<string, FormValues> = {};
     for (const d of eng.defs) v[d.id] = mergeValues(d, saved.values?.[d.id], ids);
     setVals(v);
-    setCollapsed(readJson<Record<string, Record<string, boolean>>>(UI_STORE) ?? {});
-    if (saved.mid && eng.defs.some((d) => d.id === saved.mid)) setMid(saved.mid);
-    else if (!eng.defs.some((d) => d.id === "beam") && eng.defs[0]) setMid(eng.defs[0].id);
+    const u = readJson<Partial<Ui>>(UI_STORE);
+    if (u) setUi({ ...UI_DEFAULT, ...u, split: Math.min(0.8, Math.max(0.2, Number(u.split) || UI_DEFAULT.split)) });
+    const want = params.get("m") ?? saved.mid;
+    setMid(want && eng.defs.some((d) => d.id === want) ? want : eng.defs.some((d) => d.id === "beam") ? "beam" : eng.defs[0].id);
+    setRestored(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eng]);
 
-  // Persist inputs on every change so a reload or closed tab never loses work (the payload is small).
-  useEffect(() => { if (eng && Object.keys(vals).length > 0) writeJson(STORE, { mid, values: vals }); }, [eng, mid, vals]);
-  useEffect(() => { if (eng) writeJson(UI_STORE, collapsed); }, [eng, collapsed]);
+  useEffect(() => { if (restored) writeJson(STORE, { mid, values: vals }); }, [restored, mid, vals]);
+  useEffect(() => { if (restored) writeJson(UI_STORE, ui); }, [restored, ui]);
+  // Keep the module in the URL so a link reopens the same calculation.
+  useEffect(() => { if (restored && params.get("m") !== mid) router.replace(`/workspace?m=${mid}`, { scroll: false }); }, [restored, mid, params, router]);
 
-  // Close the export menu on outside click or Escape.
   useEffect(() => {
     if (!menu) return;
     const down = (e: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenu(false); };
     const key = (e: KeyboardEvent) => { if (e.key === "Escape") setMenu(false); };
-    document.addEventListener("mousedown", down);
-    document.addEventListener("keydown", key);
+    document.addEventListener("mousedown", down); document.addEventListener("keydown", key);
     return () => { document.removeEventListener("mousedown", down); document.removeEventListener("keydown", key); };
   }, [menu]);
+
+  // [ and ] toggle the side panes (when not typing).
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement;
+      if (["INPUT", "SELECT", "TEXTAREA"].includes(t.tagName) || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === "[") setUi((u) => ({ ...u, insp: !u.insp }));
+      if (e.key === "]") setUi((u) => ({ ...u, rail: !u.rail }));
+    };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, []);
 
   const def: ModDef | undefined = eng?.defs.find((d) => d.id === mid);
   const f = vals[mid];
   const setF = useCallback((patch: Partial<FormValues>) => setVals((all) => ({ ...all, [mid]: { ...all[mid], ...patch } as FormValues })), [mid]);
   const entry = useMemo(() => (def && f ? entryErrors(def, f) : {}), [def, f]);
   const payload = useMemo(() => (def && f ? toPayload(def, f) : null), [def, f]);
-  const res: ModResult | null = useMemo(() => {
-    if (!eng || !def || !payload || Object.keys(entry).length) return null;
-    return eng.run(def.id, payload);
-  }, [eng, def, payload, entry]);
+  const res: ModResult | null = useMemo(() => (eng && def && payload && Object.keys(entry).length === 0 ? eng.run(def.id, payload) : null), [eng, def, payload, entry]);
   const engineErr = useMemo(() => (def && res && !res.ok ? splitEngineErrors(def, res.errors) : { byField: {}, general: [] as string[] }), [def, res]);
-  const fieldErrors = useMemo(() => ({ ...engineErr.byField, ...entry }), [engineErr, entry]);
-
+  const errors = useMemo(() => ({ ...engineErr.byField, ...entry }), [engineErr, entry]);
   const verdict = verdictOf(res);
   const gov = governing(res);
   const tag = res?.trace_hash ? res.trace_hash.slice(0, 8) : "";
-  const exportAs = (kind: "html" | "doc" | "print") => {
-    if (!eng || !def || !payload) return;
+
+  const exportAs = useCallback((kind: "html" | "doc" | "print") => {
+    if (!eng || !def || !payload || !res?.ok) return;
     const html = eng.report(def.id, payload);
     setMenu(false);
     if (kind === "print") { if (!printHtml(html)) setNotice("Pop-ups are blocked. Allow pop-ups for this site, or export the .html sheet and print it."); return; }
     downloadText(`StruCal-${def.id}-${tag || "calc"}.${kind}`, html, kind === "html" ? "text/html" : "application/msword");
+  }, [eng, def, payload, res, tag]);
+  const resetAll = useCallback(() => { if (def && confirm(`Reset all ${def.name} inputs to their defaults?`)) setVals((all) => ({ ...all, [def.id]: initialValues(def) })); }, [def]);
+
+  const commands = useMemo<Command[]>(() => !eng ? [] : [
+    ...eng.defs.map((d) => ({ id: `m-${d.id}`, group: "Modules", title: d.name, hint: disciplineOf(d.id), keywords: `${d.title} ${d.subtitle}`, run: () => setMid(d.id) })),
+    { id: "a-export", group: "Calculation", title: "Export calculation sheet (.html)", run: () => exportAs("html") },
+    { id: "a-doc", group: "Calculation", title: "Export Word document (.doc)", run: () => exportAs("doc") },
+    { id: "a-print", group: "Calculation", title: "Print or save as PDF", run: () => exportAs("print") },
+    { id: "a-reset", group: "Calculation", title: "Reset inputs to defaults", run: resetAll },
+    { id: "a-assist", group: "Calculation", title: "Open engineering assistant", run: () => setAssistant(true) },
+    { id: "v-insp", group: "Layout", title: ui.insp ? "Hide inspector" : "Show inspector", hint: "[", run: () => setUi((u) => ({ ...u, insp: !u.insp })) },
+    { id: "v-rail", group: "Layout", title: ui.rail ? "Hide verification rail" : "Show verification rail", hint: "]", run: () => setUi((u) => ({ ...u, rail: !u.rail })) },
+  ], [eng, exportAs, resetAll, ui.insp, ui.rail]);
+
+  // Splitter between viewport and ledger (pointer drag or arrow keys).
+  const startSplit = (e: React.PointerEvent) => {
+    const el = center.current;
+    if (!el) return;
+    const box = el.getBoundingClientRect();
+    const move = (ev: PointerEvent) => setUi((u) => ({ ...u, split: Math.min(0.8, Math.max(0.2, (ev.clientY - box.top) / box.height)) }));
+    const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
+    window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
+    e.preventDefault();
   };
 
-  if (!eng || !def || !f) return <div className="app"><TopBar section="workspace" /><EngineBoot error={loadErr} onRetry={retry} /></div>;
+  if (!eng || !def || !f) return <AppShell section="workbench" crumbs={["Workbench"]}><EngineBoot error={loadErr} onRetry={retry} /></AppShell>;
 
-  const paramSet = eng.paramSets.find((s) => s.id === f.param_set);
+  const ps = eng.paramSets.find((p) => p.id === f.param_set);
   const fields = visibleFields(def, f.mode);
+  const nInvalid = Object.keys(errors).length;
   const nChanged = fields.filter((x) => { const v = parseNumber(f[x.key]); return v !== null && Math.abs(v - x.default) > 1e-12; }).length;
-  const nInvalid = Object.keys(fieldErrors).length;
-  const reset = () => { if (confirm(`Reset all ${def.name} parameters to their defaults?`)) setVals((all) => ({ ...all, [mid]: initialValues(def) })); };
-  const showScope = () => { setPane("sheet"); setTimeout(() => document.getElementById("sc-h")?.scrollIntoView({ behavior: "smooth" }), 0); };
-  const vpState = res?.ok ? "ready" : nInvalid > 0 || (res && !res.ok) ? "invalid" : "none";
+
+  const actions = (<>
+    <Button size="sm" icon variant="ghost" aria-pressed={ui.insp} onClick={() => setUi((u) => ({ ...u, insp: !u.insp }))} aria-label="Toggle inspector" title="Inspector  [" className="wb-hide-m"><IconPanelLeft width={15} height={15} /></Button>
+    <Button size="sm" icon variant="ghost" aria-pressed={ui.rail} onClick={() => setUi((u) => ({ ...u, rail: !u.rail }))} aria-label="Toggle verification rail" title="Verification  ]" className="wb-hide-m"><IconPanelRight width={15} height={15} /></Button>
+    <Button size="sm" variant="ghost" onClick={() => setAssistant(true)}><IconSpark width={14} height={14} /><span className="wb-hide-m">Assistant</span></Button>
+    <div className="wb-menu-wrap" ref={menuRef}>
+      <Button size="sm" variant="primary" disabled={!res?.ok} aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu(!menu)}><IconExport width={14} height={14} />Export</Button>
+      {menu && <div className="wb-menu" role="menu">
+        <button role="menuitem" onClick={() => exportAs("html")}><b>Calculation sheet</b><span>.html · full working, A4 print layout</span></button>
+        <button role="menuitem" onClick={() => exportAs("doc")}><b>Word document</b><span>.doc · editable in Microsoft Word</span></button>
+        <button role="menuitem" onClick={() => exportAs("print")}><b>Print / PDF</b><span>browser print dialog</span></button>
+      </div>}
+    </div>
+  </>);
+
+  const status = (<>
+    <span className="st"><StatusDot status={verdict} />{verdict === "none" ? (nInvalid ? `${nInvalid} invalid input${nInvalid > 1 ? "s" : ""}` : "Not calculated") : verdict === "results" ? "Design values" : `${VERDICT_WORD[verdict]}${verdict === "warn" ? " · review" : ""}`}</span>
+    {gov && <span>η max {fmtUtil(gov.utilisation)} — {gov.name}</span>}
+    <span className="grow" />
+    <span>{nChanged} changed</span>
+    <span>{f.param_set}</span>
+    {tag && <span>trace {tag}</span>}
+    <span>engine v{eng.version}</span>
+  </>);
+
+  const cols = `${ui.insp ? "340px" : "0px"} minmax(0, 1fr) ${ui.rail ? "300px" : "0px"}`;
 
   return (
-    <div className="app wb" data-pane={pane}>
-      <TopBar section="workspace" context={<>{def.name} · {standardOf(def)}{tag && ` · ${tag}`}</>} />
-
-      <div className="toolbar wb-bar" role="toolbar" aria-label="Calculation">
-        <ModulePicker defs={eng.defs} upcoming={eng.upcoming} value={mid} onChange={(id) => { setMid(id); setNotice(""); }} />
-        <Segmented label="Mode" value={f.mode} onChange={(m) => setF({ mode: m })} options={[
-          { value: "design", label: "Design" },
-          { value: "check", label: "Check", disabled: !def.has_check_mode, title: def.has_check_mode ? "Verify the member as drawn" : "This module has no Check Mode" },
-        ]} />
-        <span className="sep" />
-        <span className="lbl">Basis</span>
-        <select className="select wb-params" aria-label="Parameter set" value={f.param_set} onChange={(e) => setF({ param_set: e.target.value })}>{eng.paramSets.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</select>
-        <span className="spacer" />
-        <Button variant="ghost" onClick={() => setAssistant(true)}>Assistant</Button>
-        <div className="rel" ref={menuRef}>
-          <Button variant="primary" disabled={!res?.ok} aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu(!menu)}>Export ▾</Button>
-          {menu && <div className="menu" role="menu">
-            <button role="menuitem" onClick={() => exportAs("html")}>Calculation sheet (.html)<small>Full step-by-step working, A4 print layout</small></button>
-            <button role="menuitem" onClick={() => exportAs("doc")}>Word document (.doc)<small>Opens and edits in Microsoft Word</small></button>
-            <button role="menuitem" onClick={() => exportAs("print")}>Print or save as PDF<small>Uses the browser print dialog</small></button>
-          </div>}
+    <AppShell section="workbench" crumbs={["Workbench", disciplineOf(def.id), def.name]} actions={actions} status={status} commands={commands}>
+      <div className="wb" data-pane={pane} style={{ gridTemplateColumns: cols }}>
+        <div className="wb-mtabs" role="tablist" aria-label="Workbench panes">
+          {([["inputs", "Inputs"], ["model", "Model"], ["ledger", "Ledger"], ["verdict", "Verdict"]] as [MobilePane, string][]).map(([p, l]) => (
+            <button key={p} role="tab" aria-selected={pane === p} onClick={() => setPane(p)}>{l}{p === "inputs" && nInvalid > 0 && <span className="badge fail">{nInvalid}</span>}{p === "verdict" && verdict !== "none" && <StatusDot status={verdict} />}</button>
+          ))}
         </div>
-      </div>
 
-      <div className="tabs wb-tabs" role="tablist" aria-label="Workbench panes">
-        {([["inputs", "Inputs"], ["section", "Section"], ["sheet", "Sheet"], ["checks", "Checks"]] as [Pane, string][]).map(([p, l]) => (
-          <button key={p} role="tab" aria-selected={pane === p} onClick={() => setPane(p)}>
-            {l}{p === "inputs" && nInvalid > 0 && <span className="badge fail">{nInvalid}</span>}{p === "checks" && verdict !== "none" && <StatusDot status={verdict} />}
-          </button>
-        ))}
-      </div>
-
-      <div className="wb-grid">
-        <section className="pane wb-insp" aria-label="Parameters">
-          <div className="pane-h">Parameters<span className="meta">{fields.length} · {f.mode}</span></div>
-          <div className="pane-b">
-            <Inspector def={def} values={f} errors={fieldErrors} collapsed={collapsed[mid] ?? {}}
-              onToggle={(g, open) => setCollapsed((c) => ({ ...c, [mid]: { ...(c[mid] ?? {}), [g]: !open } }))} onChange={setF} />
+        <aside className={`wb-insp${ui.insp ? "" : " off"}`} aria-label="Inspector">
+          <div className="wb-insp-b">
+            <Inspector defs={eng.defs} def={def} values={f} paramSets={eng.paramSets} errors={errors} collapsed={ui.collapsed[mid] ?? {}}
+              onToggle={(g) => setUi((u) => ({ ...u, collapsed: { ...u.collapsed, [mid]: { ...(u.collapsed[mid] ?? {}), [g]: !(u.collapsed[mid]?.[g] ?? false) } } }))}
+              onChange={setF} onModule={setMid} />
           </div>
-          <div className="wb-insp-foot">
-            <span>{nInvalid > 0 ? <span className="t-fail">{nInvalid} invalid</span> : `${nChanged} changed from defaults`}</span>
-            <span className="spacer" />
-            <Button size="sm" variant="ghost" disabled={nChanged === 0 && f.mode === "design"} onClick={reset}>Reset all</Button>
+          <div className="wb-insp-f">
+            <span className="mono">{nInvalid > 0 ? <span className="t-fail">{nInvalid} invalid</span> : `${nChanged} of ${fields.length} changed`}</span>
+            <span className="grow" />
+            <Button size="sm" variant="ghost" onClick={resetAll} disabled={nChanged === 0}><IconReset width={13} height={13} />Reset</Button>
           </div>
-        </section>
+        </aside>
 
-        <main className="wb-center" ref={centerRef} aria-label="Section and calculation sheet">
-          <Viewport drawing={res?.ok ? res.drawing : null} title={`Section · ${def.name}`} state={vpState} />
-          <div className="wb-sheet">
-            {notice && <div className="sheet" style={{ paddingBottom: 0 }}><Notice tone="info" onDismiss={() => setNotice("")}>{notice}</Notice></div>}
-            {!res?.ok ? (
-              <div className="sheet">
+        <div className="wb-center" ref={center} style={{ gridTemplateRows: `${ui.split * 100}% 7px minmax(0, 1fr)` }}>
+          <div className="wb-vp"><Viewport moduleId={def.id} drawing={res?.ok ? res.drawing : null} values={payload ?? {}} state={res?.ok ? "ready" : "invalid"} /></div>
+          <div className="wb-split" role="separator" aria-orientation="horizontal" aria-label="Resize viewport and ledger" tabIndex={0}
+            aria-valuenow={Math.round(ui.split * 100)} aria-valuemin={20} aria-valuemax={80} onPointerDown={startSplit}
+            onKeyDown={(e) => { if (e.key === "ArrowUp" || e.key === "ArrowDown") { e.preventDefault(); setUi((u) => ({ ...u, split: Math.min(0.8, Math.max(0.2, u.split + (e.key === "ArrowUp" ? -0.04 : 0.04))) })); } }} />
+          <div className="wb-ledger">
+            {notice && <div className="wb-pad"><Notice tone="info" onDismiss={() => setNotice("")}>{notice}</Notice></div>}
+            {res?.ok ? <Ledger res={res} paramStatus={ps?.status ?? ""} tab={ledgerTab} onTab={setLedgerTab} /> : (
+              <div className="wb-pad">
                 <Notice tone="error" title="The calculation cannot run.">
-                  {nInvalid > 0 ? `Correct ${nInvalid} parameter${nInvalid > 1 ? "s" : ""} marked in the inspector.` : "Check the inputs below."}
+                  {nInvalid > 0 ? `Correct ${nInvalid} parameter${nInvalid > 1 ? "s" : ""} marked in the inspector.` : "Review the inputs."}
                   {engineErr.general.length > 0 && <ul>{engineErr.general.map((e, i) => <li key={i}>{e}</li>)}</ul>}
                 </Notice>
-                <EmptyState glyph="Σ" title="No calculation sheet yet">The sheet is generated from the engine trace as soon as every parameter is valid.</EmptyState>
+                <EmptyState glyph="Σ" title="Ledger pending">The verification ledger is generated from the engine trace as soon as every input is valid.</EmptyState>
               </div>
-            ) : (
-              <CalcSheet def={def} values={f} res={res} verdict={verdict} paramLabel={paramSet?.label ?? f.param_set} paramStatus={paramSet?.status ?? ""} />
             )}
           </div>
-        </main>
+        </div>
 
-        <section className="pane wb-rail" aria-label="Verification">
+        <aside className={`wb-rail${ui.rail ? "" : " off"}`} aria-label="Verification">
           <div className="pane-h">Verification<span className="meta">{res?.ok ? `${res.checks.length} checks` : "—"}</span></div>
-          <div className="pane-b"><VerificationRail res={res} verdict={verdict} onShowScope={showScope} /></div>
-        </section>
+          <div className="wb-rail-b"><VerificationRail res={res} verdict={verdict} onOpenChecks={() => { setLedgerTab("checks"); setPane("ledger"); }} /></div>
+        </aside>
       </div>
-
-      <footer className="wb-status">
-        <span className="st"><StatusDot status={verdict} />{verdict === "none" ? "Not calculated" : verdict === "results" ? "Calculated" : verdict === "fail" ? "Checks failing" : verdict === "warn" ? "All checks satisfied · review" : "All checks satisfied"}</span>
-        {gov && <span>η max {fmtUtil(gov.utilisation)} · {gov.name}</span>}
-        <span className="spacer" />
-        <span>{f.param_set}</span>{tag && <span>trace {tag}</span>}<span>engine v{eng.version}</span>
-      </footer>
       <Assistant open={assistant} onClose={() => setAssistant(false)} def={def} values={f} res={res} onApply={(patch) => setF(patch)} />
-    </div>
+    </AppShell>
   );
+}
+
+export default function WorkbenchPage() {
+  return <Suspense fallback={<div className="boot"><span className="spinner" /></div>}><Workbench /></Suspense>;
 }

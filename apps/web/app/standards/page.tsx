@@ -1,9 +1,9 @@
 "use client";
 import { useMemo, useState } from "react";
-import TopBar from "../components/TopBar";
+import AppShell from "../shell/AppShell";
 import { useEngine } from "../../lib/useEngine";
 import type { Formula, ParamSet } from "../../lib/types";
-import { Button, EmptyState, EngineBoot } from "../ui/primitives";
+import { Button, EmptyState, EngineBoot, SectionHeader } from "../ui/primitives";
 import "./standards.css";
 
 const FACTORS: [keyof ParamSet, string, string][] = [
@@ -32,15 +32,15 @@ export default function Standards() {
   }, [all, q, std, state]);
   const count = (pred: (f: Formula) => boolean) => all.filter(pred).length;
 
-  if (!eng) return <div className="app"><TopBar section="standards" /><EngineBoot error={error} onRetry={retry} /></div>;
+  if (!eng) return <AppShell section="standards" crumbs={["Standards"]}><EngineBoot error={error} onRetry={retry} /></AppShell>;
 
   return (
-    <div className="app">
-      <TopBar section="standards" context={`Engine v${eng.version} · ${all.length} formulas · ${eng.paramSets.length} parameter sets`} />
+    <AppShell section="standards" crumbs={["Standards", "Formula registry"]}
+      status={<><span>{all.length} formulas</span><span>{eng.paramSets.length} parameter sets</span><span className="grow" /><span>{rows.length} shown</span><span>engine v{eng.version}</span></>}>
       <div className="sd-grid">
-        <aside className="pane sd-facets" aria-label="Filters">
-          <div className="pane-h">Filter<span className="meta">{rows.length} / {all.length}</span></div>
-          <div className="pane-b">
+        <aside className="sd-facets" aria-label="Filters">
+          <SectionHeader title="Filter" meta={`${rows.length} / ${all.length}`} />
+          <div className="sd-facets-b">
             <div className="sd-search"><label className="sr-only" htmlFor="sd-q">Search formulas</label><input id="sd-q" className="input" type="search" placeholder="ID, name or clause" value={q} onChange={(e) => setQ(e.target.value)} /></div>
             <div className="sd-facet">
               <h3 className="rail-h">Standard</h3>
@@ -50,7 +50,7 @@ export default function Standards() {
             <div className="sd-facet">
               <h3 className="rail-h">Verification state</h3>
               <button type="button" className={`sd-opt${state === "" ? " on" : ""}`} onClick={() => setState("")}><span>Any</span><span className="mono">{all.length}</span></button>
-              {(["checked", "pending", "other"] as State[]).map((s) => <button type="button" key={s} className={`sd-opt${state === s ? " on" : ""}`} onClick={() => setState(state === s ? "" : s)}><span><i className={`dot ${s === "checked" ? "ok" : s === "pending" ? "warn" : ""}`} /> {STATE_LABEL[s]}</span><span className="mono">{count((f) => stateOf(f.verification) === s)}</span></button>)}
+              {(["checked", "pending", "other"] as State[]).map((s) => <button type="button" key={s} className={`sd-opt${state === s ? " on" : ""}`} onClick={() => setState(state === s ? "" : s)}><span><i className={`dot ${s === "checked" ? "pass" : s === "pending" ? "warn" : ""}`} /> {STATE_LABEL[s]}</span><span className="mono">{count((f) => stateOf(f.verification) === s)}</span></button>)}
             </div>
           </div>
         </aside>
@@ -80,7 +80,7 @@ export default function Standards() {
                       </tr>
                     );
                   })}
-                  <tr className="status-row"><td className="muted">Status</td>{eng.paramSets.map((p) => <td key={p.id} className="r"><span className={`badge wrap ${/NOT/.test(p.status) ? "warn" : "ok"}`}>{p.status}</span></td>)}</tr>
+                  <tr className="status-row"><td className="muted">Status</td>{eng.paramSets.map((p) => <td key={p.id} className="r"><span className={`badge wrap ${/NOT/.test(p.status) ? "warn" : "pass"}`}>{p.status}</span></td>)}</tr>
                   <tr><td className="muted">Source</td>{eng.paramSets.map((p) => <td key={p.id} className="r small muted">{p.source}</td>)}</tr>
                 </tbody>
               </table>
@@ -105,7 +105,7 @@ export default function Standards() {
                         <td className="m muted">{f.standard}</td>
                         <td className="clause">{f.clause}</td>
                         <td className="m faint">{f.module_version}</td>
-                        <td><span className={`badge wrap ${s === "checked" ? "ok" : s === "pending" ? "warn" : ""}`}>{f.verification}</span></td>
+                        <td><span className={`badge wrap ${s === "checked" ? "pass" : s === "pending" ? "warn" : ""}`}>{f.verification}</span></td>
                       </tr>
                     );
                   })}</tbody>
@@ -116,6 +116,6 @@ export default function Standards() {
           </section>
         </main>
       </div>
-    </div>
+    </AppShell>
   );
 }

@@ -5,7 +5,7 @@ use std::sync::mpsc::{channel, Receiver};
 
 #[derive(Default)]
 pub struct Asst {
-    open: bool,
+    pub(crate) open: bool,
     q: String,
     step: usize,
     busy: bool,
@@ -40,7 +40,7 @@ impl App {
     }
     fn asst_call(&mut self, task: &str, question: String, context: Value) {
         if !self.cl.signed_in() {
-            self.asst.err = "Sign in on the Account tab to use the assistant.".into();
+            self.asst.err = "Sign in on the Account page to use the assistant.".into();
             return;
         }
         let (tx, rx) = channel();
@@ -49,7 +49,7 @@ impl App {
         self.asst.err.clear();
         self.asst.answer.clear();
         self.asst.prop = None;
-        let mut c = self.cl.clone();
+        let c = self.cl.clone();
         let t = task.to_string();
         std::thread::spawn(move || {
             let r = c.function("assistant", &json!({"task": t, "question": question, "context": context}));
@@ -112,11 +112,6 @@ impl App {
                 }
             }
         }
-        egui::Area::new("asstbtn".into()).anchor(egui::Align2::RIGHT_BOTTOM, [-14.0, -34.0]).show(ctx, |ui| {
-            if !self.asst.open && ui.add(egui::Button::new(RichText::new("Assistant").strong().color(Color32::WHITE)).fill(TX)).clicked() {
-                self.asst.open = true;
-            }
-        });
         if !self.asst.open {
             return;
         }
@@ -124,9 +119,9 @@ impl App {
         let mut call: Option<(&'static str, String)> = None;
         let mut apply = false;
         let mut discard = false;
-        egui::Window::new("StruCal Assistant").open(&mut open).anchor(egui::Align2::RIGHT_BOTTOM, [-14.0, -34.0]).default_width(380.0).resizable(true).show(ctx, |ui| {
-            ui.label(RichText::new("The assistant explains the calculation shown. It never calculates or changes results, and cannot approve a design. All numbers come from the deterministic engine.").size(11.5).color(MUTE));
-            if !self.cl.signed_in() { ui.colored_label(AMBER, "Sign in on the Account tab to use the assistant."); return; }
+        egui::Window::new("StruCal Assistant").open(&mut open).anchor(egui::Align2::RIGHT_TOP, [-334.0, 54.0]).default_width(380.0).resizable(true).show(ctx, |ui| {
+            ui.label(RichText::new("The assistant explains the calculation shown. It never calculates or changes results, and cannot approve a design. All numbers come from the deterministic engine.").size(11.5).color(mute()));
+            if !self.cl.signed_in() { ui.colored_label(amber(), "Sign in on the Account page to use the assistant."); return; }
             let ok = self.result.as_ref().is_some_and(|r| r.ok);
             ui.horizontal_wrapped(|ui| { for (t, l) in [("summarise", "Summarise result"), ("governing", "Why does this check govern?"), ("explain", "Explain the working"), ("missing", "What might be missing?")] { if ui.add_enabled(!self.asst.busy && ok, egui::Button::new(l)).clicked() { call = Some((t, String::new())); } } });
             if let Some(r) = &self.result { if r.ok { ui.horizontal(|ui| {
@@ -141,19 +136,19 @@ impl App {
                 if ui.add_enabled(!self.asst.busy && !self.asst.q.trim().is_empty(), egui::Button::new("Ask")).clicked() { call = Some(("chat", self.asst.q.clone())); }
                 if ui.add_enabled(!self.asst.busy && !self.asst.q.trim().is_empty(), egui::Button::new("Propose inputs from description")).clicked() { call = Some(("propose", self.asst.q.clone())); }
             });
-            if self.asst.busy { ui.label(RichText::new("Thinking...").color(MUTE)); }
-            if !self.asst.err.is_empty() { ui.colored_label(RED, &self.asst.err); }
+            if self.asst.busy { ui.label(RichText::new("Thinking...").color(mute())); }
+            if !self.asst.err.is_empty() { ui.colored_label(red(), &self.asst.err); }
             egui::ScrollArea::vertical().max_height(300.0).show(ui, |ui| {
-                if !self.asst.answer.is_empty() { ui.label(&self.asst.answer); ui.label(RichText::new("AI-generated explanation of the deterministic calculation. Check it against the calculation sheet and the standard.").size(10.5).color(MUTE)); }
+                if !self.asst.answer.is_empty() { ui.label(&self.asst.answer); ui.label(RichText::new("AI-generated explanation of the deterministic calculation. Check it against the calculation sheet and the standard.").size(10.5).color(mute())); }
                 if let Some((props, missing, notes)) = &self.asst.prop {
                     ui.label(RichText::new("Proposed inputs (not applied yet)").strong());
-                    if props.is_empty() { ui.label(RichText::new("No input values could be taken from the description.").color(MUTE)); }
+                    if props.is_empty() { ui.label(RichText::new("No input values could be taken from the description.").color(mute())); }
                     let d = &self.defs[self.mi];
-                    egui::Grid::new("asstprop").num_columns(3).show(ui, |ui| { for (k, v) in props { if let Some((i, f)) = d.fields.iter().enumerate().find(|(_, f)| f.key == k) { ui.label(f.label); ui.label(RichText::new(self.st[self.mi].vals[i].to_string()).color(MUTE)); ui.label(RichText::new(format!("→ {} {}", v, f.unit)).strong()); ui.end_row(); } } });
-                    if !missing.is_empty() { ui.colored_label(AMBER, format!("Still needed from you: {}", missing.join("; "))); }
-                    if !notes.is_empty() { ui.label(RichText::new(notes).size(11.0).color(MUTE)); }
-                    if !props.is_empty() { ui.horizontal(|ui| { if ui.add(egui::Button::new(RichText::new("Apply to the form").color(Color32::WHITE)).fill(TX)).clicked() { apply = true; } if ui.button("Discard").clicked() { discard = true; } }); }
-                    ui.label(RichText::new("Review each value. The calculation only runs on values you confirm.").size(10.5).color(MUTE));
+                    egui::Grid::new("asstprop").num_columns(3).show(ui, |ui| { for (k, v) in props { if let Some((i, f)) = d.fields.iter().enumerate().find(|(_, f)| f.key == k) { ui.label(f.label); ui.label(RichText::new(self.st[self.mi].vals[i].to_string()).color(mute())); ui.label(RichText::new(format!("→ {} {}", v, f.unit)).strong()); ui.end_row(); } } });
+                    if !missing.is_empty() { ui.colored_label(amber(), format!("Still needed from you: {}", missing.join("; "))); }
+                    if !notes.is_empty() { ui.label(RichText::new(notes).size(11.0).color(mute())); }
+                    if !props.is_empty() { ui.horizontal(|ui| { if ui.add(egui::Button::new(RichText::new("Apply to the form").color(on_ink())).fill(tx())).clicked() { apply = true; } if ui.button("Discard").clicked() { discard = true; } }); }
+                    ui.label(RichText::new("Review each value. The calculation only runs on values you confirm.").size(10.5).color(mute()));
                 }
             });
         });
@@ -168,6 +163,7 @@ impl App {
                         self.st[self.mi].vals[i] = v;
                     }
                 }
+                self.sync_text(self.mi);
                 self.run();
             }
         }

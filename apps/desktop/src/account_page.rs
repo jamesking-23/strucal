@@ -140,7 +140,7 @@ impl Acct {
     }
 
     fn load_orgs(&mut self, cl: &mut Client) {
-        let r = cl.get(&format!("memberships?select=role,organisations(id,name,require_mfa_approval)&user_id=eq.{}", cl.user_id));
+        let r = cl.get(&format!("memberships?select=role,organisations(id,name,require_mfa_approval)&user_id=eq.{}", cl.user_id()));
         if let Some(v) = self.ok(r, "") {
             self.orgs = v
                 .as_array()
@@ -235,8 +235,8 @@ impl Acct {
         let busy = job.rx.is_some();
         let mut acts: Vec<Act> = vec![];
         let mut open = None;
-        if !busy && cl.signed_in() && self.loaded_for != cl.user_id {
-            self.loaded_for = cl.user_id.clone();
+        if !busy && cl.signed_in() && self.loaded_for != cl.user_id() {
+            self.loaded_for = cl.user_id().clone();
             acts.push(Act::LoadAll);
         }
         if !cl.signed_in() {
@@ -248,7 +248,7 @@ impl Acct {
                 |ui| {
                     ui.label(q);
                     ui.horizontal(|ui| {
-                        if ui.add(egui::Button::new(RichText::new("Confirm").color(Color32::WHITE)).fill(RED)).clicked() {
+                        if ui.add(egui::Button::new(RichText::new("Confirm").color(on_ink())).fill(red())).clicked() {
                             acts.push(a.clone());
                             self.confirm = None;
                         }
@@ -259,36 +259,104 @@ impl Acct {
                 },
             );
         }
-        egui::CentralPanel::default().frame(egui::Frame::new().fill(BG).inner_margin(egui::Margin::same(10))).show(ctx, |ui| {
+        egui::CentralPanel::default().frame(egui::Frame::new().fill(bg()).inner_margin(egui::Margin::same(10))).show(ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 ui.set_max_width(1100.0);
-                if busy { ui.horizontal(|ui| { ui.spinner(); ui.label(RichText::new("Working…").color(MUTE)); }); ui.disable(); }
+                if busy { ui.horizontal(|ui| { ui.spinner(); ui.label(RichText::new("Working…").color(mute())); }); ui.disable(); }
                 if self.confirm.is_some() { ui.disable(); }
-                if !self.err.is_empty() { ui.colored_label(RED, &self.err); }
-                if !self.msg.is_empty() { ui.colored_label(GREEN, &self.msg); }
+                if !self.err.is_empty() { ui.colored_label(red(), &self.err); }
+                if !self.msg.is_empty() { ui.colored_label(green(), &self.msg); }
                 if !cl.signed_in() {
-                    card(ui, |ui| { egui::Frame::new().inner_margin(egui::Margin::same(14)).show(ui, |ui| {
-                        ui.label(RichText::new(if self.signup { "Create account" } else { "Sign in" }).size(18.0).strong());
-                        if self.signup { ui.label("Display name"); ui.text_edit_singleline(&mut self.name); }
-                        ui.label("Email"); ui.text_edit_singleline(&mut self.email);
-                        ui.label("Password (at least 8 characters)"); let pw = ui.add(egui::TextEdit::singleline(&mut self.pw).password(true));
-                        let go = ui.add(egui::Button::new(RichText::new(if self.signup { "Create account" } else { "Sign in" }).color(Color32::WHITE)).fill(TX)).clicked() || (pw.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)));
-                        if go { acts.push(if self.signup { Act::SignUp } else { Act::SignIn }); }
-                        if ui.button(if self.signup { "I already have an account" } else { "Create an account" }).clicked() { self.signup = !self.signup; self.err.clear(); }
-                    }); });
+                    ui.add_space(40.0);
+                    ui.horizontal_top(|ui| {
+                        ui.add_space(((ui.available_width() - 980.0) / 2.0).max(0.0));
+                        // copy column
+                        ui.vertical(|ui| {
+                            ui.set_width(520.0);
+                            ui.label(RichText::new("STRUCAL ACCOUNT").font(strong(10.5)).extra_letter_spacing(1.2).color(mute()));
+                            ui.add_space(6.0);
+                            ui.label(RichText::new("Sign in to share projects and sign off revisions.").font(strong(30.0)).color(tx()));
+                            ui.add_space(14.0);
+                            let (hr, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 2.0), egui::Sense::hover());
+                            ui.painter().rect_filled(hr, 0.0, tx());
+                            for (t, d) in [
+                                ("Cloud projects", "Linked calculations saved with optimistic locking."),
+                                ("Check and approval", "Designer, checker and approver are three different people."),
+                                ("Audit trail", "Every action recorded in a tamper-evident chain."),
+                                ("Stays signed in", "Your session is kept securely and restored when StruCal starts."),
+                            ] {
+                                ui.add_space(8.0);
+                                ui.horizontal(|ui| {
+                                    ui.allocate_ui_with_layout(egui::vec2(170.0, 18.0), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                                        ui.set_width(170.0);
+                                        ui.label(RichText::new(t).font(strong(13.0)));
+                                    });
+                                    ui.label(RichText::new(d).color(mute()));
+                                });
+                                ui.add_space(8.0);
+                                rule(ui);
+                            }
+                            ui.add_space(10.0);
+                            ui.label(RichText::new("The workbench works without an account; inputs stay on this computer.").size(12.0).color(p().ink4));
+                        });
+                        ui.add_space(48.0);
+                        // form column
+                        ui.vertical(|ui| {
+                            ui.set_width(400.0);
+                            let r = egui::Frame::new().fill(surf()).stroke(egui::Stroke::new(1.0_f32, p().line_strong)).inner_margin(egui::Margin::same(20)).show(ui, |ui| {
+                                ui.set_width(ui.available_width());
+                                ui.spacing_mut().item_spacing.y = 8.0;
+                                ui.horizontal(|ui| {
+                                    ui.spacing_mut().item_spacing.x = 0.0;
+                                    let w = ui.available_width() / 2.0;
+                                    for (up, l) in [(false, "Sign in"), (true, "Create account")] {
+                                        let on = self.signup == up;
+                                        let b = egui::Button::new(RichText::new(l).font(medium(12.5)).color(if on { on_ink() } else { tx() }))
+                                            .fill(if on { tx() } else { surf() })
+                                            .stroke(egui::Stroke::new(1.0_f32, if on { tx() } else { p().line_strong }))
+                                            .corner_radius(egui::CornerRadius::ZERO)
+                                            .min_size(egui::vec2(w, 30.0));
+                                        if ui.add(b).clicked() && !on {
+                                            self.signup = up;
+                                            self.err.clear();
+                                        }
+                                    }
+                                });
+                                let field = |ui: &mut egui::Ui, l: &str| ui.label(RichText::new(l.to_uppercase()).font(strong(10.5)).extra_letter_spacing(0.7).color(mute()));
+                                if self.signup {
+                                    field(ui, "Display name · shown on reviews and approvals");
+                                    ui.add(egui::TextEdit::singleline(&mut self.name).desired_width(f32::INFINITY).margin(egui::Margin::symmetric(8, 6)));
+                                }
+                                field(ui, "Email");
+                                ui.add(egui::TextEdit::singleline(&mut self.email).desired_width(f32::INFINITY).margin(egui::Margin::symmetric(8, 6)));
+                                field(ui, "Password · at least 8 characters");
+                                let pw = ui.add(egui::TextEdit::singleline(&mut self.pw).password(true).desired_width(f32::INFINITY).margin(egui::Margin::symmetric(8, 6)));
+                                ui.add_space(4.0);
+                                let label = if self.signup { "Create account" } else { "Sign in" };
+                                let b = egui::Button::new(RichText::new(label).font(strong(13.0)).color(on_ink())).fill(tx()).corner_radius(egui::CornerRadius::ZERO).min_size(egui::vec2(ui.available_width(), 36.0));
+                                let go = ui.add(b).clicked() || (pw.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)));
+                                if go {
+                                    acts.push(if self.signup { Act::SignUp } else { Act::SignIn });
+                                }
+                                ui.label(RichText::new("Preview backend: single sign-on (SAML) is not enabled; data is held in a development database with no uptime guarantee.").size(11.0).color(p().ink4));
+                            });
+                            let rect = r.response.rect;
+                            ui.painter().rect_filled(egui::Rect::from_min_size(rect.min, egui::vec2(rect.width(), 3.0)), 0.0, tx());
+                        });
+                    });
                     return;
                 }
                 card(ui, |ui| { egui::Frame::new().inner_margin(egui::Margin::same(12)).show(ui, |ui| {
-                    ui.horizontal(|ui| { ui.label(RichText::new(&cl.name).strong().size(15.0)); ui.label(RichText::new(&cl.email).color(MUTE)); ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| { if ui.button("Sign out").clicked() { acts.push(Act::SignOut); } if ui.button("Refresh").clicked() { acts.push(Act::Reload); } }); });
+                    ui.horizontal(|ui| { ui.label(RichText::new(&cl.name()).strong().size(15.0)); ui.label(RichText::new(&cl.email()).color(mute())); ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| { if ui.button("Sign out").clicked() { acts.push(Act::SignOut); } if ui.button("Refresh").clicked() { acts.push(Act::Reload); } }); });
                     ui.separator(); ui.label(RichText::new("Two-factor authentication (authenticator app)").strong());
                     if self.mfa_secret.is_empty() { if ui.button("Set up authenticator app").clicked() { acts.push(Act::MfaEnroll); } }
                     else { ui.label(RichText::new(format!("Add this secret to your authenticator app: {}", self.mfa_secret)).font(FontId::monospace(12.0))); ui.horizontal(|ui| { ui.add(egui::TextEdit::singleline(&mut self.mfa_code).hint_text("6-digit code").desired_width(110.0)); if ui.button("Verify and enable").clicked() { acts.push(Act::MfaVerify); } }); }
                 }); });
-                if !cl.factor.is_empty() && !cl.aal2 {
+                if !cl.factor().is_empty() && !cl.aal2() {
                     ui.add_space(6.0);
                     card(ui, |ui| { egui::Frame::new().inner_margin(egui::Margin::same(12)).show(ui, |ui| {
                         ui.label(RichText::new("Verify two-factor authentication").strong());
-                        ui.label(RichText::new("Enter the code from your authenticator app to check or approve revisions in this session.").size(11.5).color(MUTE));
+                        ui.label(RichText::new("Enter the code from your authenticator app to check or approve revisions in this session.").size(11.5).color(mute()));
                         ui.horizontal(|ui| { let r = ui.add(egui::TextEdit::singleline(&mut self.step_code).hint_text("6-digit code").desired_width(110.0)); if ui.button("Verify").clicked() || (r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter))) { acts.push(Act::StepUp); } });
                     }); });
                 }
@@ -301,17 +369,17 @@ impl Acct {
                         ui.add(egui::TextEdit::singleline(&mut self.new_org).hint_text("New organisation name").desired_width(200.0));
                         if ui.button("Create").clicked() { acts.push(Act::CreateOrg); }
                     });
-                    if self.orgs.is_empty() { ui.label(RichText::new("Create an organisation to start. You become its owner.").color(MUTE)); }
+                    if self.orgs.is_empty() { ui.label(RichText::new("Create an organisation to start. You become its owner.").color(mute())); }
                 }); });
                 if self.orgs.is_empty() { return; }
                 ui.add_space(6.0);
                 card(ui, |ui| { egui::Frame::new().inner_margin(egui::Margin::same(12)).show(ui, |ui| {
                     ui.label(RichText::new(format!("Members and roles - your role: {}", role_label(&self.role()))).strong());
-                    let admin = self.is_admin(); let me = cl.user_id.clone();
+                    let admin = self.is_admin(); let me = cl.user_id().clone();
                     egui::Grid::new("acmem").num_columns(4).spacing([14.0, 6.0]).show(ui, |ui| {
                         for m in &self.members {
                             let uid = s(m, "user_id"); let role = s(m, "role");
-                            ui.label(s(m, "display_name")); ui.label(RichText::new(s(m, "email")).color(MUTE));
+                            ui.label(s(m, "display_name")); ui.label(RichText::new(s(m, "email")).color(mute()));
                             let mut sel = role.clone();
                             ui.add_enabled_ui(admin, |ui| { egui::ComboBox::from_id_salt(format!("r{uid}")).selected_text(role_label(&sel)).show_ui(ui, |ui| { for (v, l) in ROLES { ui.selectable_value(&mut sel, v.to_string(), l); } }); });
                             if sel != role { acts.push(Act::SetRole(uid.clone(), sel)); }
@@ -338,25 +406,25 @@ impl Acct {
                         ui.label(RichText::new("Projects").strong());
                         let cur = self.projects.get(self.proj).map(|p| s(p, "name")).unwrap_or("none".into());
                         egui::ComboBox::from_id_salt("acproj").selected_text(cur).show_ui(ui, |ui| { for i in 0..self.projects.len() { let n = s(&self.projects[i], "name"); if ui.selectable_value(&mut self.proj, i, n).changed() { acts.push(Act::LoadRevs); } } });
-                        if let Some(p) = self.projects.get(self.proj) { if ui.add(egui::Button::new(RichText::new("Open in Project page").color(Color32::WHITE)).fill(TX)).clicked() { open = Some((s(p, "id"), s(p, "name"))); } }
+                        if let Some(p) = self.projects.get(self.proj) { if ui.add(egui::Button::new(RichText::new("Open in Project page").color(on_ink())).fill(tx())).clicked() { open = Some((s(p, "id"), s(p, "name"))); } }
                         ui.add(egui::TextEdit::singleline(&mut self.new_proj).hint_text("New project name").desired_width(200.0));
                         if ui.button("Create").clicked() { acts.push(Act::CreateProj); }
                     });
                     if !self.revs.is_empty() || !self.projects.is_empty() {
                         ui.separator(); ui.label(RichText::new("Revisions and approval").strong());
-                        ui.label(RichText::new("The designer submits, a different person with the Checker role reviews, and a third person with the Approver role signs off. Approved revisions are permanently locked.").size(11.5).color(MUTE));
+                        ui.label(RichText::new("The designer submits, a different person with the Checker role reviews, and a third person with the Approver role signs off. Approved revisions are permanently locked.").size(11.5).color(mute()));
                     }
-                    let role = self.role(); let me = cl.user_id.clone();
+                    let role = self.role(); let me = cl.user_id().clone();
                     for r in self.revs.clone() {
                         let rid = s(&r, "id"); let st = s(&r, "status"); let mine = s(&r, "created_by") == me;
-                        egui::Frame::new().stroke(Stroke::new(1.0_f32, LINE)).inner_margin(egui::Margin::same(8)).show(ui, |ui| {
+                        egui::Frame::new().stroke(Stroke::new(1.0_f32, line())).inner_margin(egui::Margin::same(8)).show(ui, |ui| {
                             ui.set_width(ui.available_width());
                             ui.horizontal(|ui| {
                                 ui.label(RichText::new(s(&r, "name")).strong());
-                                let c = match st.as_str() { "approved" => GREEN, "rejected" => RED, "checked" => BLUE, _ => AMBER };
+                                let c = match st.as_str() { "approved" => green(), "rejected" => red(), "checked" => blue(), _ => amber() };
                                 ui.label(RichText::new(status_label(&st)).strong().color(c));
-                                ui.label(RichText::new(format!("hash {}", &s(&r, "content_hash")[..10.min(s(&r, "content_hash").len())])).font(FontId::monospace(11.0)).color(MUTE));
-                                ui.label(RichText::new(format!("by {} · {}", self.who(&s(&r, "created_by")), s(&r, "created_at"))).size(11.5).color(MUTE));
+                                ui.label(RichText::new(format!("hash {}", &s(&r, "content_hash")[..10.min(s(&r, "content_hash").len())])).font(FontId::monospace(11.0)).color(mute()));
+                                ui.label(RichText::new(format!("by {} · {}", self.who(&s(&r, "created_by")), s(&r, "created_at"))).size(11.5).color(mute()));
                                 if (st == "draft" || st == "changes_requested") && matches!(role.as_str(), "owner" | "administrator" | "project_manager" | "designer" | "student") && ui.button("Submit for checking").clicked() { acts.push(Act::Submit(rid.clone())); }
                             });
                             for x in self.reviews.iter().filter(|x| s(x, "revision_id") == rid) { ui.label(RichText::new(format!("{} · {} · {}{}", self.who(&s(x, "reviewer")), s(x, "kind").replace('_', " "), s(x, "created_at"), if s(x, "comment").is_empty() { String::new() } else { format!(" - {}", s(x, "comment")) })).size(11.5)); }
@@ -364,7 +432,7 @@ impl Acct {
                                 ui.horizontal(|ui| {
                                     ui.add(egui::TextEdit::singleline(&mut self.comment).hint_text("Comment (required to reject or request changes)").desired_width(300.0));
                                     if role == "checker" { for (o, l) in [("comment", "Comment"), ("recommend_approval", "Recommend approval"), ("request_changes", "Request changes"), ("reject", "Reject")] { if ui.button(l).clicked() { acts.push(Act::Check(rid.clone(), o)); } } }
-                                    if role == "approver" { if ui.add(egui::Button::new(RichText::new("Approve").color(Color32::WHITE)).fill(TX)).clicked() { self.confirm = Some((format!("Approve and permanently lock {}?", s(&r, "name")), Act::Approve(rid.clone(), true))); } if ui.button("Reject").clicked() { acts.push(Act::Approve(rid.clone(), false)); } }
+                                    if role == "approver" { if ui.add(egui::Button::new(RichText::new("Approve").color(on_ink())).fill(tx())).clicked() { self.confirm = Some((format!("Approve and permanently lock {}?", s(&r, "name")), Act::Approve(rid.clone(), true))); } if ui.button("Reject").clicked() { acts.push(Act::Approve(rid.clone(), false)); } }
                                 });
                             }
                         });
@@ -374,19 +442,19 @@ impl Acct {
                 if !self.audit.is_empty() || matches!(self.role().as_str(), "owner" | "administrator" | "auditor") {
                     ui.add_space(6.0);
                     card(ui, |ui| { egui::Frame::new().inner_margin(egui::Margin::same(12)).show(ui, |ui| {
-                        ui.horizontal(|ui| { ui.label(RichText::new("Audit trail").strong()); if ui.button("Verify integrity").clicked() { acts.push(Act::Verify); } if !self.chain.is_empty() { ui.label(RichText::new(&self.chain).strong().color(if self.chain.starts_with("Chain intact") { GREEN } else { RED })); } });
-                        egui::Grid::new("acaud").num_columns(4).spacing([12.0, 3.0]).show(ui, |ui| { for a in &self.audit { ui.label(RichText::new(s(a, "created_at")).size(11.0).color(MUTE)); ui.label(self.who(&s(a, "actor"))); ui.label(RichText::new(s(a, "action")).strong()); ui.label(RichText::new(a["detail"].to_string()).font(FontId::monospace(10.5)).color(MUTE)); ui.end_row(); } });
+                        ui.horizontal(|ui| { ui.label(RichText::new("Audit trail").strong()); if ui.button("Verify integrity").clicked() { acts.push(Act::Verify); } if !self.chain.is_empty() { ui.label(RichText::new(&self.chain).strong().color(if self.chain.starts_with("Chain intact") { green() } else { red() })); } });
+                        egui::Grid::new("acaud").num_columns(4).spacing([12.0, 3.0]).show(ui, |ui| { for a in &self.audit { ui.label(RichText::new(s(a, "created_at")).size(11.0).color(mute())); ui.label(self.who(&s(a, "actor"))); ui.label(RichText::new(s(a, "action")).strong()); ui.label(RichText::new(a["detail"].to_string()).font(FontId::monospace(10.5)).color(mute())); ui.end_row(); } });
                     }); });
                 }
                 ui.add_space(8.0);
                 card(ui, |ui| { egui::Frame::new().inner_margin(egui::Margin::same(12)).show(ui, |ui| {
                     ui.label(RichText::new("Close my account").strong());
-                    ui.label(RichText::new("Removes you from all organisations and disables sign-in. Engineering records you created are kept for audit. You must not be the only owner of an organisation.").size(11.5).color(MUTE));
+                    ui.label(RichText::new("Removes you from all organisations and disables sign-in. Engineering records you created are kept for audit. You must not be the only owner of an organisation.").size(11.5).color(mute()));
                     ui.checkbox(&mut self.close_ok, "I understand this cannot be undone");
                     if ui.add_enabled(self.close_ok, egui::Button::new("Close account")).clicked() { acts.push(Act::CloseAccount); }
                 }); });
                 ui.add_space(8.0);
-                ui.label(RichText::new("Preview backend. Single sign-on (SAML) is not enabled. Data is held in a development database on a free plan.").size(11.5).color(AMBER));
+                ui.label(RichText::new("Preview backend. Single sign-on (SAML) is not enabled. Data is held in a development database on a free plan.").size(11.5).color(amber()));
             });
         });
         if !acts.is_empty() && !busy {
@@ -529,7 +597,7 @@ impl Acct {
                     self.load_orgs(cl);
                 }
                 Act::Remove(u) => {
-                    let me = u == cl.user_id;
+                    let me = u == cl.user_id();
                     let r = cl.rpc("remove_member", &json!({"p_org": org, "p_user": u}));
                     if self.ok(r, "Member removed.").is_some() {
                         if me {
