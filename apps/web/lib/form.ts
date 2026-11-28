@@ -66,13 +66,14 @@ export function toPayload(def: ModDef, values: FormValues): Record<string, unkno
 /** Discipline used to group modules in navigation, derived from the module id. */
 export function disciplineOf(id: string): string {
   if (id === "combos") return "Actions";
-  if (["steelbeam", "steelcol", "bolted", "weld"].includes(id)) return "Structural steel";
-  if (["timber", "timbercol"].includes(id)) return "Timber";
+  if (["steelbeam", "steelcol", "beamcol", "steeltension", "bolted", "weld"].includes(id)) return "Structural steel";
+  if (["timber", "timbercol", "timbertension"].includes(id)) return "Timber";
+  if (id === "masonry") return "Masonry";
   if (["pad", "strip", "raft", "retaining"].includes(id)) return "Foundations & geotechnics";
   return "Reinforced concrete";
 }
 
-export const DISCIPLINES = ["Actions", "Reinforced concrete", "Structural steel", "Timber", "Foundations & geotechnics"];
+export const DISCIPLINES = ["Actions", "Reinforced concrete", "Structural steel", "Timber", "Masonry", "Foundations & geotechnics"];
 
 /** Primary standard named in a module subtitle (text before the first "·"). */
 export const standardOf = (def: ModDef) => def.subtitle.split("·")[0].trim();

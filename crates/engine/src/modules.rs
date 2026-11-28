@@ -8,7 +8,7 @@ pub fn beam_def() -> ModDef {
         id: "beam",
         name: "RC beam",
         title: "Reinforced concrete beam",
-        subtitle: "EN 1992-1-1:2004 · Rectangular section, sagging moment and shear",
+        subtitle: "EN 1992-1-1:2004 · Rectangular section, sagging moment and shear, crack control and deflection",
         available: true,
         has_check_mode: true,
         fields: vec![
@@ -23,6 +23,20 @@ pub fn beam_def() -> ModDef {
             fld("v_ed", "Shear V Ed", "kN", "Actions - ULS", 120.0),
             fld_chk("n_bars", "Tension bars n (drawing)", "bars", "Provided reinforcement", 4.0),
             fld_chk("link_spacing", "Link spacing s (drawing)", "mm", "Provided reinforcement", 200.0),
+            fld("span", "Effective span l (deflection)", "mm", "Serviceability", 6000.0),
+            fld_opt(
+                "k_sys",
+                "Structural system K (Table 7.4N)",
+                "Serviceability",
+                1.0,
+                vec![
+                    (1.0, "Simply supported (K = 1.0)"),
+                    (1.3, "End span of continuous beam (K = 1.3)"),
+                    (1.5, "Interior span (K = 1.5)"),
+                    (0.4, "Cantilever (K = 0.4)"),
+                ],
+            ),
+            fld("m_qp", "Quasi-permanent moment M qp (SLS)", "kNm", "Serviceability", 120.0),
         ],
     }
 }
@@ -32,7 +46,10 @@ pub struct Upcoming {
     pub note: &'static str,
 }
 pub fn upcoming() -> Vec<Upcoming> {
-    vec![Upcoming { name: "Two-way slab", note: "Needs a verified method source" }]
+    vec![
+        Upcoming { name: "Two-way slab", note: "Needs a verified method source" },
+        Upcoming { name: "Prestressed concrete", note: "Out of scope for this release" },
+    ]
 }
 
 pub fn defs() -> Vec<ModDef> {
@@ -41,8 +58,12 @@ pub fn defs() -> Vec<ModDef> {
         beam_def(),
         crate::steel_beam::def(),
         crate::steel_column::def(),
+        crate::steel_beamcol::def(),
+        crate::steel_tension::def(),
         crate::timber_beam::def(),
         crate::timber_col::def(),
+        crate::timber_tension::def(),
+        crate::masonry::def(),
         crate::retaining::def(),
         crate::raft::def(),
         crate::bolted::def(),
@@ -50,6 +71,7 @@ pub fn defs() -> Vec<ModDef> {
         crate::column::def(),
         crate::wall::def(),
         crate::slab::def(),
+        crate::punching::def(),
         crate::stairs::def(),
         crate::pad::def(),
         crate::strip::def(),
@@ -148,6 +170,11 @@ fn dispatch(id: &str, v: &Value) -> ModResult {
         "pad" => crate::pad::run(v),
         "column" => crate::column::run(v),
         "wall" => crate::wall::run(v),
+        "beamcol" => crate::steel_beamcol::run(v),
+        "steeltension" => crate::steel_tension::run(v),
+        "timbertension" => crate::timber_tension::run(v),
+        "masonry" => crate::masonry::run(v),
+        "punching" => crate::punching::run(v),
         _ => fail(vec![format!("Module '{}' is not available yet", id)]),
     }
 }

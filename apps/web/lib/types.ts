@@ -58,7 +58,10 @@ export type Drawing =
   | { kind: "Rect"; b: number; h: number }
   | { kind: "Wall"; h: number; cover: number; bar_dia: number; spacing: number }
   | { kind: "Strip"; width: number; t: number; h: number }
-  | { kind: "Column"; b: number; h: number; cover: number; link_dia: number; bar_dia: number; n_face: number };
+  | { kind: "Column"; b: number; h: number; cover: number; link_dia: number; bar_dia: number; n_face: number }
+  | { kind: "Plate"; b: number; t: number; n_holes: number; d0: number }
+  | { kind: "Punching"; c1: number; c2: number; h: number; d: number; pos: number }
+  | { kind: "Masonry"; t: number; h: number; e: number };
 
 export interface ModResult {
   outputs: Output[];

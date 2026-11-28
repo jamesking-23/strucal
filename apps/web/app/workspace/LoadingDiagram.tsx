@@ -75,7 +75,7 @@ function VerticalMember({ v, id }: { v: V; id: string }) {
   const x = 280, y1 = 60, y2 = 240;
   const N = n(v, "n_ed");
   const perM = id === "wall" ? " kN/m" : " kN";
-  const len = id === "column" || id === "wall" ? n(v, "len") : id === "steelcol" ? n(v, "len") : n(v, "lef_y");
+  const len = id === "column" || id === "wall" || id === "steelcol" || id === "beamcol" ? n(v, "len") : n(v, "lef_y");
   return (
     <Svg label="Braced compression member">
       <Arrow x={x} y={y1 - 4} len={40} />
@@ -89,8 +89,12 @@ function VerticalMember({ v, id }: { v: V; id: string }) {
         <Moment x={x} y={y2 - 18} label={`M01 = ${f(n(v, "m01"))}`} lx={x + 26} ly={y2 - 14} />
       </>)}
       {id === "timbercol" && <Note x={x + 26} y={(y1 + y2) / 2}>My,d {f(n(v, "my_ed"))} · Mz,d {f(n(v, "mz_ed"))} kNm</Note>}
+      {id === "beamcol" && (<>
+        <Moment x={x} y={y1 + 18} cw label={`My,Ed = ${f(n(v, "my_ed"))} kNm`} lx={x + 26} ly={y1 + 22} />
+        <Moment x={x} y={y2 - 18} cw={n(v, "psi") >= 0} label={`ψ·My,Ed (ψ = ${f(n(v, "psi"))})`} lx={x + 26} ly={y2 - 14} />
+      </>)}
       <VDim x={x - 70} y1={y1} y2={y2} label={`${id === "timbercol" ? "lef,y" : "l"} = ${f(len)} mm`} />
-      <Note x={40} y={H - 16}>{id === "steelcol" ? `Braced · effective-length factors ky = ${f(n(v, "ky"))}, kz = ${f(n(v, "kz"))}` : id === "timbercol" ? "Buckling about both axes" : `Braced · l0 = β·l with β = ${f(n(v, "beta"))}`}{id === "wall" ? " · per metre run" : ""}</Note>
+      <Note x={40} y={H - 16}>{id === "steelcol" || id === "beamcol" ? `Effective-length factors ky = ${f(n(v, "ky"))}, kz = ${f(n(v, "kz"))}${id === "beamcol" ? `, kLT = ${f(n(v, "klt"))} · linear moment` : ""}` : id === "timbercol" ? "Buckling about both axes" : `Braced · l0 = β·l with β = ${f(n(v, "beta"))}`}{id === "wall" ? " · per metre run" : ""}</Note>
     </Svg>
   );
 }
@@ -208,8 +212,66 @@ function SectionActions({ v }: { v: V }) {
       <Moment x={420} y={y} r={22} cw label="" lx={0} ly={0} />
       <Arrow x={140} y={y + 4} len={36} up />
       <text x={150} y={y + 46} className="ld-txt load">V Ed = {f(n(v, "v_ed"))} kN</text>
-      <Note x={40} y={H - 34}>The module verifies a section for design actions supplied from the frame analysis.</Note>
-      <Note x={40} y={H - 14}>No span or support model is assumed.</Note>
+      <Note x={40} y={H - 54}>The module verifies a section for design actions supplied from the frame analysis.</Note>
+      <Note x={40} y={H - 34}>Serviceability: effective span l = {f(n(v, "span"))} mm, K = {f(n(v, "k_sys"))} (Table 7.4N), M qp = {f(n(v, "m_qp"))} kNm.</Note>
+      <Note x={40} y={H - 14}>Moments and shear are not derived from the span: enter them from the analysis.</Note>
+    </Svg>
+  );
+}
+
+function Tension({ v, id }: { v: V; id: string }) {
+  const y = 140, x1 = 120, x2 = 440;
+  const timber = id === "timbertension";
+  return (
+    <Svg label="Member in axial tension">
+      <rect x={x1} y={y - (timber ? 14 : 8)} width={x2 - x1} height={timber ? 28 : 16} className={timber ? "ld-timber" : "ld-steel"} />
+      <HArrow x={x1 - 48} y={y} len={40} left />
+      <HArrow x={x2 + 48} y={y} len={40} />
+      <text x={x1 - 90} y={y - 18} className="ld-txt load">{timber ? "N t,d" : "N Ed"} = {f(n(v, "n_ed"))} kN</text>
+      <text x={x2 + 6} y={y - 18} className="ld-txt load">{timber ? "N t,d" : "N Ed"}</text>
+      {timber && n(v, "my_ed") > 0 && <Moment x={280} y={y} r={26} cw label={`My,d = ${f(n(v, "my_ed"))} kNm`} lx={300} ly={y - 34} />}
+      {!timber && Array.from({ length: Math.max(0, Math.min(12, Math.round(n(v, "n_holes")))) }, (_, i) => <circle key={i} cx={x2 - 30} cy={y - 6 + (12 * (i + 0.5)) / Math.max(1, Math.round(n(v, "n_holes")))} r={2} className="ld-bolt" />)}
+      {!timber && <Dim x1={x1} x2={x2} y={y + 46} label={`L = ${f(n(v, "len"))} mm`} />}
+      <Note x={40} y={H - 34}>{timber ? `Net section · holes or notches remove ${f(n(v, "a_hole"))} mm²` : `Critical section through ${Math.round(n(v, "n_holes"))} hole(s) of d0 = ${f(n(v, "d0"))} mm`}</Note>
+      <Note x={40} y={H - 14}>Concentric axial tension{timber ? " with optional major-axis bending" : " · connection checked separately"}</Note>
+    </Svg>
+  );
+}
+
+function MasonryWall({ v }: { v: V }) {
+  const x = 280, y1 = 70, y2 = 240, t = 30;
+  const e = n(v, "e_load"), tw = Math.max(1, n(v, "t"));
+  const ex = x + (e / tw) * t;
+  return (
+    <Svg label="Masonry wall with eccentric vertical load">
+      <rect x={x - 70} y={y1 - 12} width={140} height={12} className="ld-concrete" />
+      <rect x={x - 70} y={y2} width={140} height={12} className="ld-concrete" />
+      <rect x={x - t / 2} y={y1} width={t} height={y2 - y1} className="ld-masonry" />
+      <line x1={x} y1={y1 - 30} x2={x} y2={y2 + 30} className="ld-axis" />
+      <Arrow x={ex} y={y1 - 14} len={40} />
+      <text x={ex + 10} y={y1 - 40} className="ld-txt load">N Ed = {f(n(v, "n_ed"))} kN/m · e = {f(e)} mm</text>
+      <VDim x={x - 110} y1={y1} y2={y2} label={`h = ${f(n(v, "h"))} mm`} />
+      <Note x={x + 30} y={(y1 + y2) / 2}>hef = ρn·h, ρn = {f(n(v, "rho_n"))}</Note>
+      <Note x={40} y={H - 14}>Single-leaf wall · restrained top and bottom by floors · capacity reduction at top and mid-height</Note>
+    </Svg>
+  );
+}
+
+function Punch({ v }: { v: V }) {
+  const y = 130, x = 280, cw = 60, h = 26;
+  const d = Math.max(1, n(v, "h") - n(v, "cover") - n(v, "bar_y"));
+  const two = Math.min(120, (2 * d) / Math.max(1, n(v, "cx")) * cw);
+  const pos = Math.round(n(v, "position"));
+  return (
+    <Svg label="Flat slab on a column with punching control perimeter">
+      <rect x={pos === 1 ? 60 : x - cw / 2} y={y} width={pos === 1 ? 440 : 440 - (x - cw / 2 - 60)} height={h} className="ld-concrete" />
+      <rect x={x - cw / 2} y={y + h} width={cw} height={80} className="ld-concrete" />
+      <Arrow x={x} y={y + h + 82} len={30} up />
+      <text x={x + 12} y={y + h + 104} className="ld-txt load">V Ed = {f(n(v, "v_ed"))} kN · β = {pos === 1 ? "1.15" : pos === 2 ? "1.4" : "1.5"}</text>
+      <line x1={x + cw / 2 + two} y1={y - 8} x2={x + cw / 2 + two} y2={y + h + 8} className="ld-perim" />
+      {pos === 1 && <line x1={x - cw / 2 - two} y1={y - 8} x2={x - cw / 2 - two} y2={y + h + 8} className="ld-perim" />}
+      <text x={x + cw / 2 + two + 6} y={y - 10} className="ld-txt">u1 at 2d</text>
+      <Note x={40} y={H - 14}>{pos === 1 ? "Internal" : pos === 2 ? "Edge" : "Corner"} column · flat slab of uniform depth · β from Figure 6.21N</Note>
     </Svg>
   );
 }
@@ -217,7 +279,10 @@ function SectionActions({ v }: { v: V }) {
 export default function LoadingDiagram({ id, values }: { id: string; values: V }) {
   switch (id) {
     case "steelbeam": case "timber": case "slab": case "stairs": return <SimpleSpan v={values} id={id} />;
-    case "column": case "steelcol": case "timbercol": case "wall": return <VerticalMember v={values} id={id} />;
+    case "column": case "steelcol": case "timbercol": case "wall": case "beamcol": return <VerticalMember v={values} id={id} />;
+    case "steeltension": case "timbertension": return <Tension v={values} id={id} />;
+    case "masonry": return <MasonryWall v={values} />;
+    case "punching": return <Punch v={values} />;
     case "pad": case "strip": return <Footing v={values} id={id} />;
     case "raft": return <Raft v={values} />;
     case "retaining": return <Retaining v={values} />;

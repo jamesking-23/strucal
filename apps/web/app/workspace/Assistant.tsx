@@ -8,7 +8,7 @@ import { askAssistant, parseProposal, type AssistantTask } from "../../lib/assis
 import { visibleFields } from "../../lib/form";
 import type { FormValues, ModDef, ModResult } from "../../lib/types";
 import { Button, Notice, Spinner } from "../ui/primitives";
-import { IconClose } from "../ui/icons";
+import { IconClose, IconSpark } from "../ui/icons";
 
 type Props = { open: boolean; onClose: () => void; def: ModDef; values: FormValues; res: ModResult | null; onApply: (patch: Record<string, number>) => void };
 type Proposal = { proposals: Record<string, number>; missing: string[]; notes: string };
@@ -60,7 +60,7 @@ export default function Assistant({ open, onClose, def, values, res, onApply }: 
   return (<>
     <div className="backdrop" onClick={onClose} aria-hidden />
     <aside className="drawer" role="dialog" aria-modal="true" aria-labelledby="as-title">
-      <div className="drawer-h"><h2 id="as-title" ref={head} tabIndex={-1}>Engineering assistant</h2><span className="grow" /><Button size="sm" icon variant="ghost" onClick={onClose} aria-label="Close assistant"><IconClose width={14} height={14} /></Button></div>
+      <div className="drawer-h"><span className="ai-ico" data-active="true" data-busy={busy || undefined} aria-hidden><IconSpark width={13} height={13} /></span><h2 id="as-title" ref={head} tabIndex={-1}>StruCal Assistant</h2><span className="grow" /><Button size="sm" icon variant="ghost" onClick={onClose} aria-label="Close assistant"><IconClose width={14} height={14} /></Button></div>
       <div className="drawer-b">
         <p className="small muted">Explains the calculation on screen. It never calculates or changes a result and cannot approve a design; every number comes from the deterministic engine.</p>
         {auth.status === "loading" && <div className="row"><Spinner /><span className="muted small">Checking your session…</span></div>}

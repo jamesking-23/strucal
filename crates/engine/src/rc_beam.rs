@@ -1,5 +1,6 @@
-//! RC rectangular beam: flexure, shear, min/max reinforcement, bar spacing (EN 1992-1-1:2004).
-//! Not implemented in this release: torsion, crack control, deflection, anchorage, lap lengths.
+//! RC rectangular beam: flexure, shear, min/max reinforcement, bar spacing, and - when a span is given - deflection by
+//! span/effective depth (7.4.2) and crack control without direct calculation (7.3.3) (EN 1992-1-1:2004).
+//! Not implemented in this release: torsion, anchorage, lap lengths.
 use crate::module::chk;
 use crate::params;
 use crate::trace::Trace;
@@ -24,6 +25,12 @@ pub struct BeamInput {
     pub n_bars: Option<f64>, // check mode: number of tension bars (single layer)
     #[serde(default)]
     pub link_spacing: Option<f64>, // check mode: link spacing, mm
+    #[serde(default)]
+    pub span: Option<f64>, // effective span for the deflection check, mm (absent: serviceability not checked)
+    #[serde(default)]
+    pub k_sys: Option<f64>, // structural system factor K, EN 1992-1-1 Table 7.4N
+    #[serde(default)]
+    pub m_qp: Option<f64>, // quasi-permanent moment for crack control, kNm
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -108,6 +115,19 @@ pub fn run(i: &BeamInput) -> BeamResult {
         match i.link_spacing {
             Some(s) if s.is_finite() && s > 0.0 => {}
             _ => errs.push("Link spacing must be a positive number".into()),
+        }
+    }
+    if let Some(sp) = i.span {
+        if !(sp.is_finite() && (500.0..=30_000.0).contains(&sp)) {
+            errs.push("Span must be between 500 and 30000 mm".into());
+        }
+        match i.k_sys {
+            Some(k) if [0.4, 1.0, 1.3, 1.5].iter().any(|x| (x - k).abs() < 1e-9) => {}
+            _ => errs.push("Structural system factor K must be 0.4, 1.0, 1.3 or 1.5 (Table 7.4N)".into()),
+        }
+        match i.m_qp {
+            Some(m) if m.is_finite() && m >= 0.0 => {}
+            _ => errs.push("Quasi-permanent moment M qp must be >= 0".into()),
         }
     }
     let ps = match params::get(&i.param_set) {
@@ -626,10 +646,109 @@ pub fn run(i: &BeamInput) -> BeamResult {
         link_s > 0.0 && link_s <= s_max + 1e-9,
     ));
 
+    // ---------------- 5. Serviceability (when a span is given) ----------------
+    let sls = i.span.zip(i.k_sys).zip(i.m_qp).map(|((sp, k), mqp)| (sp, k, mqp));
+    if let Some((span, k_sys, m_qp)) = sls {
+        let s5 = "5. Serviceability";
+        if m_qp > i.m_ed + 1e-9 {
+            warnings.push("M qp exceeds M Ed: check the load combinations (quasi-permanent should not exceed ULS).".into());
+        }
+        // crack control without direct calculation, cl. 7.3.3
+        let sigma_s = if i.m_ed > 0.0 { i.fyk / ps.gamma_s * (as_req.max(0.0) / as_prov) * (m_qp / i.m_ed) } else { 0.0 };
+        t.step(
+            s5,
+            "Steel stress under quasi-permanent loading",
+            "EN 1992-1-1 cl. 7.3.3(2), 7.3.1(5)",
+            "σ_{s} ≈ (f_{yk}/γ_s)·(A_{s,req}/A_{s,prov})·(M_{qp}/M_{Ed})",
+            &format!("= ({} / {:.2}) × ({:.0} / {:.0}) × ({} / {})", i.fyk, ps.gamma_s, as_req.max(0.0), as_prov, m_qp, i.m_ed),
+            &format!("σ_{{s}} = {:.0} MPa", sigma_s),
+            "Approximation of the cracked-section stress commonly used with Tables 7.2N and 7.3N.",
+        );
+        let interp = |tab: &[(f64, f64)], x: f64| -> Option<f64> {
+            if x <= tab[0].0 {
+                return Some(tab[0].1);
+            }
+            for w in tab.windows(2) {
+                if x <= w[1].0 {
+                    return Some(w[0].1 + (w[1].1 - w[0].1) * (x - w[0].0) / (w[1].0 - w[0].0));
+                }
+            }
+            None
+        };
+        let t72 = [(160.0, 32.0), (200.0, 25.0), (240.0, 16.0), (280.0, 12.0), (320.0, 10.0), (360.0, 8.0), (400.0, 6.0), (450.0, 5.0)];
+        let t73 = [(160.0, 300.0), (200.0, 250.0), (240.0, 200.0), (280.0, 150.0), (320.0, 100.0), (360.0, 50.0)];
+        let phi_star = interp(&t72, sigma_s);
+        let fct_eff = fctm;
+        let hcr = i.h / 2.0;
+        let phi_max = phi_star.map(|p| p * (fct_eff / 2.9) * 0.4 * hcr / (2.0 * (i.h - d)));
+        let s_max_c = interp(&t73, sigma_s);
+        let s_cc = gap + i.bar_dia;
+        t.step(
+            s5,
+            "Crack control: maximum bar diameter or spacing (w k = 0.3 mm)",
+            "EN 1992-1-1 cl. 7.3.3(2), Table 7.2N, Table 7.3N, Eq 7.6N",
+            "φ_{s} = φ_{s}^{*}·(f_{ct,eff}/2.9)·k_{c}·h_{cr}/[2(h − d)],  k_c = 0.4 (bending),  h_cr = h/2;   s ≤ s_{max} (Table 7.3N)",
+            &format!(
+                "φ_s* = {};  f_ct,eff = f_ctm = {:.2} MPa;  φ_max = {};  bar spacing s = {:.0} mm c/c;  s_max = {}",
+                phi_star.map(|p| format!("{:.1} mm", p)).unwrap_or_else(|| "n/a (σs > 450 MPa)".into()),
+                fct_eff,
+                phi_max.map(|p| format!("{:.1} mm", p)).unwrap_or_else(|| "n/a".into()),
+                s_cc,
+                s_max_c.map(|p| format!("{:.0} mm", p)).unwrap_or_else(|| "n/a (σs > 360 MPa)".into())
+            ),
+            &format!("φ = {} mm;  s = {:.0} mm", i.bar_dia, s_cc),
+            "Either the bar diameter or the bar spacing limit needs to be met (cl. 7.3.3(2)). Exposure class assumed to require w_max = 0.3 mm (Table 7.1N).",
+        );
+        let u_phi = phi_max.map(|p| i.bar_dia / p).unwrap_or(9.99);
+        let u_s = s_max_c.map(|p| s_cc / p).unwrap_or(9.99);
+        let u_crack = u_phi.min(u_s);
+        checks.push(chk(
+            "Crack control (bar φ or spacing)",
+            "EN 1992-1-1 7.3.3 Tables 7.2N/7.3N",
+            if u_phi <= u_s { format!("φ{} mm", i.bar_dia) } else { format!("{:.0} mm c/c", s_cc) },
+            if u_phi <= u_s {
+                phi_max.map(|p| format!("φ{:.1} mm max", p)).unwrap_or_else(|| "n/a".into())
+            } else {
+                s_max_c.map(|p| format!("{:.0} mm max", p)).unwrap_or_else(|| "n/a".into())
+            },
+            u_crack,
+            u_crack <= 1.0,
+        ));
+        // deflection by span/effective depth, cl. 7.4.2
+        let rho0 = i.fck.sqrt() / 1000.0;
+        let rho = (as_req.max(1e-9)) / (i.b * d);
+        let basic = if rho <= rho0 {
+            k_sys * (11.0 + 1.5 * i.fck.sqrt() * rho0 / rho + 3.2 * i.fck.sqrt() * (rho0 / rho - 1.0).powf(1.5))
+        } else {
+            k_sys * (11.0 + 1.5 * i.fck.sqrt() * rho0 / rho)
+        };
+        let modf = ((500.0 / i.fyk) * (as_prov / as_req.max(1e-9))).min(1.5);
+        let long = if span > 7000.0 && k_sys > 0.5 { 7000.0 / span } else { 1.0 };
+        let allow = basic * modf * long;
+        let actual = span / d;
+        t.step(
+            s5,
+            "Deflection: limiting span/effective depth ratio",
+            "EN 1992-1-1 cl. 7.4.2, Eq 7.16a/b, Table 7.4N, Eq 7.17",
+            "ρ_0 = √f_{ck}·10^{−3};  ρ = A_{s,req}/(b·d);  ρ ≤ ρ_0: l/d = K[11 + 1.5√f_{ck}·ρ_0/ρ + 3.2√f_{ck}(ρ_0/ρ − 1)^{3/2}];  ρ > ρ_0: l/d = K[11 + 1.5√f_{ck}·ρ_0/ρ];  × (500/f_{yk})(A_{s,prov}/A_{s,req}) ≤ 1.5;  × 7/l_{eff} for l_eff > 7 m",
+            &format!("K = {};  ρ_0 = {:.5};  ρ = {:.5};  basic l/d = {:.1};  steel factor = {:.2};  span factor = {:.2}", k_sys, rho0, rho, basic, modf, long),
+            &format!("(l/d)_{{allow}} = {:.1};  (l/d)_{{actual}} = {:.0}/{:.1} = {:.1}", allow, span, d, actual),
+            "Compression steel ignored (ρ' = 0). The 1.5 cap on the steel factor and the 7/l_eff factor (beams supporting brittle partitions) follow the recommended values; confirm the National Annex.",
+        );
+        checks.push(chk(
+            "Deflection (span/depth)",
+            "EN 1992-1-1 7.4.2",
+            format!("{:.1}", actual),
+            format!("{:.1} allowed", allow),
+            actual / allow,
+            actual <= allow,
+        ));
+    }
+
     let overall = checks.iter().all(|c| c.pass);
     let max_util = checks.iter().map(|c| c.utilisation).fold(0.0, f64::max);
     t.step(
-        "5. Conclusion",
+        if sls.is_some() { "6. Conclusion" } else { "5. Conclusion" },
         "Overall result of implemented checks",
         "",
         "",
@@ -667,8 +786,8 @@ pub fn run(i: &BeamInput) -> BeamResult {
         asw_s_req, link_spacing: link_s, links, checks, max_util, overall_pass: overall, observations,
         trace: t, trace_hash: hash, engine_version: crate::ENGINE_VERSION.into(),
         scope_notes: vec![
-            "Implemented: flexure (rectangular stress block), min/max reinforcement, single-layer bar spacing, shear (variable strut inclination), link spacing limit.".into(),
-            "NOT implemented in this release: torsion, crack control, deflection, anchorage, lap lengths, flanged sections, moment redistribution, hogging moments.".into(),
+            "Implemented: flexure (rectangular stress block), min/max reinforcement, single-layer bar spacing, shear (variable strut inclination), link spacing limit, crack control by Tables 7.2N/7.3N and deflection by span/depth (when a span is given).".into(),
+            "NOT implemented in this release: torsion, direct crack-width calculation, deflection by calculation, anchorage, lap lengths, flanged sections, moment redistribution, hogging moments.".into(),
             "A PASS applies only to the checks listed and within the stated assumptions. It is not an approval by a registered engineer.".into(),
         ],
     }
@@ -698,6 +817,9 @@ mod tests {
             m_ed: 200.0,
             v_ed: 120.0,
             n_bars: None,
+            span: None,
+            k_sys: None,
+            m_qp: None,
             link_spacing: None,
         }
     }

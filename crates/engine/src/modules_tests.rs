@@ -686,4 +686,102 @@ mod timber_tests {
         let j = defs_json();
         assert!(j.contains("\"options\"") && j.contains("C22"));
     }
+
+    fn defaults(id: &str) -> serde_json::Value {
+        let d = def(id).expect("module registered");
+        let mut m = serde_json::Map::new();
+        m.insert("mode".into(), json!("design"));
+        m.insert("param_set".into(), json!("EN1992-1-1:2004/RECOMMENDED"));
+        for f in &d.fields {
+            m.insert(f.key.into(), json!(f.default));
+        }
+        serde_json::Value::Object(m)
+    }
+    fn util(r: &crate::module::ModResult, name: &str) -> f64 {
+        r.checks.iter().find(|c| c.name == name).unwrap_or_else(|| panic!("check {name} missing: {:?}", r.checks)).utilisation
+    }
+    #[test]
+    fn steel_tension_hand_calc() {
+        // A = 160×12 = 1920; A_net = (160 − 2×22)×12 = 1392; Npl = 1920×275/1.0 = 528.0 kN; Nu = 0.9×1392×430/1.25 = 431.0 kN
+        let r = run("steeltension", &defaults("steeltension"));
+        assert!(r.ok, "{:?}", r.errors);
+        assert!((util(&r, "Gross-section yielding") - 380.0 / 528.0).abs() < 1e-3);
+        assert!((util(&r, "Net-section fracture") - 380.0 / 430.99).abs() < 1e-3);
+        let mut v = defaults("steeltension");
+        v["n_holes"] = json!(0);
+        let r0 = run("steeltension", &v);
+        assert!(r0.ok && (util(&r0, "Net-section fracture") - 380.0 / (0.9 * 1920.0 * 430.0 / 1.25 / 1e3)).abs() < 1e-3);
+    }
+    #[test]
+    fn masonry_hand_calc() {
+        // fk = 0.55·10^0.7·6^0.3 = 4.719; fd = fk/2.5; e_i = 15 + 2100/450 = 19.67 mm; Φi = 1 − 2·19.67/215 = 0.817
+        let r = run("masonry", &defaults("masonry"));
+        assert!(r.ok, "{:?}", r.errors);
+        let fd = 0.55 * 10f64.powf(0.7) * 6f64.powf(0.3) / 2.5;
+        let phi_i = 1.0 - 2.0 * (15.0 + 2100.0 / 450.0) / 215.0;
+        assert!((util(&r, "Vertical load at top (Φ i)") - 180.0 / (phi_i * 215.0 * fd)).abs() < 1e-3);
+        assert!(r.overall_pass, "{:?}", r.checks);
+        let mut v = defaults("masonry");
+        v["h"] = json!(9000);
+        v["rho_n"] = json!(1.0);
+        assert!(!run("masonry", &v).overall_pass, "h_ef/t_ef = 41.9 must fail the slenderness limit");
+    }
+    #[test]
+    fn punching_hand_calc() {
+        // d = (212 + 196)/2 = 204; u1 = 1600 + 4π·204; vEd = 1.15·650e3/(u1·d)
+        let mut v = defaults("punching");
+        v["asw"] = json!(0);
+        let r = run("punching", &v);
+        assert!(r.ok, "{:?}", r.errors);
+        let d = 204.0;
+        let u1 = 1600.0 + 4.0 * std::f64::consts::PI * d;
+        let ved = 1.15 * 650e3 / (u1 * d);
+        let rho = ((std::f64::consts::PI * 64.0 / 150.0 / 212.0) * (std::f64::consts::PI * 64.0 / 150.0 / 196.0)).sqrt();
+        let k = 1.0 + (200.0f64 / d).sqrt();
+        let vrdc = 0.18 / 1.5 * k * (100.0 * rho * 30.0f64).powf(1.0 / 3.0);
+        assert!((util(&r, "Punching: no links (u1)") - ved / vrdc).abs() < 1e-3);
+        assert!(!r.overall_pass);
+        let with_links = run("punching", &defaults("punching"));
+        assert!(with_links.ok && with_links.overall_pass, "{:?}", with_links.checks);
+    }
+    #[test]
+    fn beamcol_interaction_bounds() {
+        let r = run("beamcol", &defaults("beamcol"));
+        assert!(r.ok, "{:?}", r.errors);
+        assert!(r.overall_pass, "{:?}", r.checks);
+        // interaction can never be less onerous than pure buckling about the same axis
+        assert!(util(&r, "Interaction, Eq 6.61") >= util(&r, "Flexural buckling y-y"));
+        assert!(util(&r, "Interaction, Eq 6.62") >= util(&r, "Flexural buckling z-z"));
+        // uniform moment (ψ = 1) is more onerous than ψ = −1
+        let mut a = defaults("beamcol");
+        a["psi"] = json!(1.0);
+        let mut b = defaults("beamcol");
+        b["psi"] = json!(-1.0);
+        assert!(util(&run("beamcol", &a), "Interaction, Eq 6.62") > util(&run("beamcol", &b), "Interaction, Eq 6.62"));
+        let mut over = defaults("beamcol");
+        over["n_ed"] = json!(4000);
+        assert!(!run("beamcol", &over).overall_pass);
+    }
+    #[test]
+    fn timber_tension_hand_calc() {
+        // C24 (class 2): ft0k = 14 (printed table); kh = 1.0 for h = 150; kmod = 0.8; γM = 1.3
+        let r = run("timbertension", &defaults("timbertension"));
+        assert!(r.ok, "{:?}", r.errors);
+        let ft0d = 0.8 * crate::timber_data::class_of(2.0).unwrap().ft0k / 1.3;
+        assert!((util(&r, "Tension parallel to grain") - 40e3 / (75.0 * 150.0 - 1050.0) / ft0d).abs() < 1e-3);
+    }
+    #[test]
+    fn beam_serviceability_checks() {
+        let r = run("beam", &defaults("beam"));
+        assert!(r.ok, "{:?}", r.errors);
+        let names: Vec<&str> = r.checks.iter().map(|c| c.name.as_str()).collect();
+        assert!(names.contains(&"Deflection (span/depth)") && names.contains(&"Crack control (bar φ or spacing)"), "{names:?}");
+        let mut long = defaults("beam");
+        long["span"] = json!(12000);
+        assert!(!run("beam", &long).overall_pass, "12 m span on a 500 mm beam must fail span/depth");
+        // without a span (older saved projects) the serviceability checks are not run
+        let mut v = defaults("beam");
+        v.as_object_mut().unwrap().remove("span");
+        assert!(run("beam", &v).checks.iter().all(|c| c.name != "Deflection (span/depth)"));
+    }
 }
