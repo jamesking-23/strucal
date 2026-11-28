@@ -76,3 +76,16 @@ export const DISCIPLINES = ["Actions", "Reinforced concrete", "Structural steel"
 
 /** Primary standard named in a module subtitle (text before the first "·"). */
 export const standardOf = (def: ModDef) => def.subtitle.split("·")[0].trim();
+
+/** Assigns engine validation messages to the field they name (by label or key); the rest stay general. */
+export function splitEngineErrors(def: ModDef, errors: string[]): { byField: Record<string, string>; general: string[] } {
+  const byField: Record<string, string> = {};
+  const general: string[] = [];
+  const fields = [...def.fields].sort((a, b) => b.label.length - a.label.length);
+  for (const e of errors) {
+    const f = fields.find((x) => e.startsWith(`${x.label} `) || e.startsWith(`${x.key} `));
+    if (f && !byField[f.key]) byField[f.key] = e.startsWith(f.label) ? e.slice(f.label.length).trim() : e.slice(f.key.length).trim();
+    else general.push(e);
+  }
+  return { byField, general };
+}
