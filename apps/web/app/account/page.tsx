@@ -4,8 +4,7 @@ import Link from "next/link";
 import TopBar from "../components/TopBar";
 import { supabase, ROLES, ROLE_LABEL, STATUS_LABEL } from "../../lib/supabase";
 import { downloadText } from "../../lib/download";
-import "../workspace/workspace.css";
-import "../project/project.css";
+import "./account.css";
 
 type Org = { id: string; name: string; role: string; mfa: boolean };
 type Member = { user_id: string; role: string; display_name: string; email: string };
@@ -129,63 +128,125 @@ export default function Account() {
     run(key, async () => { const r = await supabase.rpc(name, args); if (!r.error) after(); return r; }, ok);
   const required = (v: string, what: string) => { if (!v.trim()) { fail(`Enter ${what}.`); return false; } return true; };
 
-  if (!ready) return <div className="pj"><div className="pj-empty" role="status">Loading…</div></div>;
+  if (!ready) return <div className="app"><TopBar section="account" /><div className="loading" role="status"><span className="spinner" />Loading…</div></div>;
+
+  const banner = (<>{err && <div className="alert error" role="alert"><span className="grow">{err}</span><button className="btn btn-sm" onClick={() => setErr("")}>Dismiss</button></div>}{note && <div className="alert ok" role="status"><span className="grow">{note}</span></div>}</>);
+
+  if (!session) return (
+    <div className="app">
+      <TopBar section="account" context="Sign in to use cloud projects, approvals and the assistant" />
+      <main className="auth">
+        <form className="card" onSubmit={(e) => { e.preventDefault(); signIn(); }} noValidate aria-labelledby="auth-h">
+          <div className="card-b" style={{ gap: "var(--s4)" }}>
+            <div className="stack"><span className="eyebrow">StruCal account</span><h1 id="auth-h">{mode === "in" ? "Sign in" : "Create account"}</h1></div>
+            {banner}
+            {mode === "up" && <div className="field"><label htmlFor="ac-dn">Display name</label><input id="ac-dn" className="input" autoComplete="name" value={dn} onChange={(e) => setDn(e.target.value)} /></div>}
+            <div className="field"><label htmlFor="ac-em">Email</label><input id="ac-em" className="input" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} /></div>
+            <div className="field"><label htmlFor="ac-pw">Password · at least 8 characters</label><input id="ac-pw" className="input" type="password" autoComplete={mode === "in" ? "current-password" : "new-password"} value={pw} onChange={(e) => setPw(e.target.value)} /></div>
+            <button type="submit" className="btn btn-primary" disabled={!!busy} style={{ height: 40 }}>{busy === "auth" ? "Please wait…" : mode === "in" ? "Sign in" : "Create account"}</button>
+          </div>
+          <div className="card-f"><span className="muted small">{mode === "in" ? "New to StruCal?" : "Already registered?"}</span><button type="button" className="btn btn-ghost btn-sm" onClick={() => { setMode(mode === "in" ? "up" : "in"); setErr(""); setNote(""); }}>{mode === "in" ? "Create an account" : "Sign in instead"}</button></div>
+        </form>
+        <p className="faint small" style={{ marginTop: "var(--s4)", maxWidth: 400 }}>Preview backend. Single sign-on (SAML) is not enabled. Data is held in a development database on a free plan with no uptime guarantee.</p>
+      </main>
+    </div>
+  );
+
+  const orgName = orgs.find((o) => o.id === org)?.name ?? "";
+  const STEPS = ["draft", "submitted", "checked", "approved"];
+  const flow = (st: string) => {
+    const at = st === "changes_requested" ? 0 : st === "rejected" ? -1 : STEPS.indexOf(st);
+    return <div className="flow" aria-label={`Status: ${STATUS_LABEL[st] ?? st}`}>{STEPS.map((s, i) => <span key={s} className={st === "rejected" && i === 0 ? "bad" : i < at ? "done" : i === at ? (st === "changes_requested" ? "bad" : "now") : ""}>{st === "rejected" && i === 0 ? "Rejected" : st === "changes_requested" && i === 0 ? "Changes requested" : s}</span>)}</div>;
+  };
+
   return (
-    <div className="pj">
-      <TopBar section="account" context={"Account and teams"} />
-      <div style={{ padding: 8, display: "grid", gap: 8, maxWidth: 1100, width: "100%", margin: "0 auto" }}>
-        {err && <div className="pj-err" role="alert">{err}</div>}{note && <div className="pj-warn" role="status">{note}</div>}
-        {!session && (
-          <form className="pj-card" style={{ maxWidth: 420 }} onSubmit={(e) => { e.preventDefault(); signIn(); }} noValidate>
-            <div className="pj-ch"><b>{mode === "in" ? "Sign in" : "Create account"}</b><span style={{ flex: 1 }} /><button type="button" className="pj-btn" onClick={() => { setMode(mode === "in" ? "up" : "in"); setErr(""); setNote(""); }}>{mode === "in" ? "Need an account?" : "Have an account?"}</button></div>
-            <div className="pj-grid" style={{ gridTemplateColumns: "1fr" }}>
-              {mode === "up" && <div className="pj-f"><label htmlFor="ac-dn">Display name</label><input id="ac-dn" className="fac" autoComplete="name" style={{ width: "100%", textAlign: "left", height: 28 }} value={dn} onChange={(e) => setDn(e.target.value)} /></div>}
-              <div className="pj-f"><label htmlFor="ac-em">Email</label><input id="ac-em" className="fac" type="email" autoComplete="email" style={{ width: "100%", textAlign: "left", height: 28 }} value={email} onChange={(e) => setEmail(e.target.value)} /></div>
-              <div className="pj-f"><label htmlFor="ac-pw">Password (at least 8 characters)</label><input id="ac-pw" className="fac" type="password" autoComplete={mode === "in" ? "current-password" : "new-password"} style={{ width: "100%", textAlign: "left", height: 28 }} value={pw} onChange={(e) => setPw(e.target.value)} /></div>
-              <button type="submit" className="pj-btn pri" disabled={!!busy} style={{ height: 30 }}>{busy === "auth" ? "Please wait…" : mode === "in" ? "Sign in" : "Create account"}</button>
-            </div>
-          </form>
-        )}
-        {session && (<>
-          <div className="pj-card"><div className="pj-ch"><b>{session.user.user_metadata?.display_name || session.user.email}</b><span className="pj-tag">{session.user.email}</span><span style={{ flex: 1 }} /><button className="pj-btn" onClick={() => supabase.auth.signOut()}>Sign out</button></div>
-            <div className="pj-grid" style={{ gridTemplateColumns: "1fr" }}>
-              <div><b>Two-factor authentication (authenticator app)</b>
-                {factors.some((f) => f.status === "verified") ? <div style={{ marginTop: 4 }}>Enabled. <button className="pj-btn" disabled={!!busy} onClick={() => { if (confirm("Remove two-factor authentication? You will not be able to check or approve revisions in organisations that require it.")) run("unenroll", async () => { for (const f of factors) { const r = await supabase.auth.mfa.unenroll({ factorId: f.id }); if (r.error) return r; } await loadFactors(); await loadAal(); return {}; }, "Two-factor authentication removed."); }}>Remove</button></div>
-                  : enroll ? (<div style={{ marginTop: 6 }}><div dangerouslySetInnerHTML={{ __html: enroll.qr }} style={{ width: 160 }} aria-label="QR code for your authenticator app" /><div style={{ fontSize: 11, color: "#52606d" }}>Or enter this secret: <code>{enroll.secret}</code></div>
-                    <input className="fac" inputMode="numeric" autoComplete="one-time-code" maxLength={6} style={{ width: 120, textAlign: "left", height: 28 }} placeholder="6-digit code" aria-label="6-digit code" value={code} onChange={(e) => setCode(e.target.value)} onKeyDown={(e) => e.key === "Enter" && enable2fa()} /> <button className="pj-btn pri" disabled={!!busy} onClick={enable2fa}>Verify and enable</button> <button className="pj-btn" onClick={() => { setEnroll(null); setCode(""); }}>Cancel</button></div>)
-                  : <div style={{ marginTop: 4 }}><button className="pj-btn" disabled={!!busy} onClick={() => run("startenroll", async () => { const r = await supabase.auth.mfa.enroll({ factorType: "totp" }); if (!r.error) setEnroll({ id: r.data.id, qr: r.data.totp.qr_code, secret: r.data.totp.secret }); return r; })}>Set up authenticator app</button></div>}
-              </div></div></div>
+    <div className="app">
+      <TopBar section="account" context={orgName ? `${orgName} · ${ROLE_LABEL[myRole ?? ""] ?? ""}` : session.user.email} />
+      <main className="page narrow">
+        <header className="page-head">
+          <span className="eyebrow">Account and teams</span>
+          <h1>{session.user.user_metadata?.display_name || session.user.email}</h1>
+          <div className="row-actions"><span className="muted">{session.user.email}</span><span className="spacer" /><button className="btn btn-sm" onClick={() => supabase.auth.signOut()}>Sign out</button></div>
+        </header>
+        {banner}
 
-          {needStepUp && (<div className="pj-card"><div className="pj-ch"><b>Verify two-factor authentication</b></div><div className="pj-out"><span>Enter the code from your authenticator app to check or approve revisions in this session.</span><input className="fac" inputMode="numeric" autoComplete="one-time-code" maxLength={6} style={{ width: 120, textAlign: "left", height: 26 }} placeholder="6-digit code" aria-label="6-digit code" value={stepCode} onChange={(e) => setStepCode(e.target.value)} onKeyDown={(e) => e.key === "Enter" && stepUp()} /><button className="pj-btn pri" disabled={!!busy} onClick={stepUp}>Verify</button></div></div>)}
-          <div className="pj-card"><div className="pj-ch"><b>Organisations</b>{orgs.length > 0 && <select value={org} aria-label="Organisation" onChange={(e) => setOrg(e.target.value)}>{orgs.map((o) => <option key={o.id} value={o.id}>{o.name} ({ROLE_LABEL[o.role]})</option>)}</select>}<span style={{ flex: 1 }} />
-            <input className="fac" style={{ width: 200, textAlign: "left", height: 26 }} placeholder="New organisation name" aria-label="New organisation name" value={newOrg} onChange={(e) => setNewOrg(e.target.value)} />
-            <button className="pj-btn pri" disabled={!!busy} onClick={() => required(newOrg, "an organisation name") && rpc("org", "create_organisation", { p_name: newOrg.trim() }, "Organisation created.", () => { setNewOrg(""); loadOrgs(); })}>Create</button></div>
-            {!org && <div className="pj-empty">Create an organisation to start. You become its owner.</div>}</div>
-
-          {org && (<>
-            <div className="pj-card"><div className="pj-ch"><b>Members and roles</b><span className="pj-tag">Your role: {ROLE_LABEL[myRole ?? ""]}</span></div>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}><tbody>
-                {members.map((m) => (<tr key={m.user_id} style={{ borderTop: "1px solid #e4e7eb" }}><td style={{ padding: "6px 10px" }}>{m.display_name || "—"}</td><td>{m.email}</td>
-                  <td><select disabled={!isAdmin || !!busy} value={m.role} aria-label={`Role of ${m.display_name || m.email}`} onChange={(e) => rpc("role", "set_member_role", { p_org: org, p_user: m.user_id, p_role: e.target.value }, "Role updated.", loadOrg)}>{ROLES.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}</select></td>
-                  <td style={{ textAlign: "right", paddingRight: 10 }}>{(isAdmin || m.user_id === uid) && <button className="pj-btn" disabled={!!busy} onClick={() => { const self = m.user_id === uid; if (confirm(self ? "Leave this organisation? You lose access to its projects." : `Remove ${m.display_name || m.email} from this organisation?`)) rpc("rm", "remove_member", { p_org: org, p_user: m.user_id }, self ? "You left the organisation." : "Member removed.", () => { loadOrg(); if (self) loadOrgs(); }); }}>{m.user_id === uid ? "Leave" : "Remove"}</button>}</td></tr>))}
-              </tbody></table>
-              {isAdmin && <div className="pj-out"><input className="fac" type="email" style={{ width: 240, textAlign: "left", height: 26 }} placeholder="Email of a registered user" aria-label="Member email" value={addEmail} onChange={(e) => setAddEmail(e.target.value)} /><select value={addRole} aria-label="Role for new member" onChange={(e) => setAddRole(e.target.value)}>{ROLES.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}</select><button className="pj-btn pri" disabled={!!busy} onClick={() => { if (!EMAIL.test(addEmail.trim())) return fail("Enter the email address of a registered user."); rpc("add", "add_member", { p_org: org, p_email: addEmail.trim(), p_role: addRole }, "Member added.", () => { setAddEmail(""); loadOrg(); }); }}>Add member</button></div>}
-            </div>
-
-            <div className="pj-card"><div className="pj-ch"><b>Security and data</b></div><div className="pj-out" style={{ flexDirection: "column", alignItems: "flex-start", gap: 8 }}>
-              <label><input type="checkbox" disabled={!isAdmin || !!busy} checked={!!orgs.find((o) => o.id === org)?.mfa} onChange={(e) => rpc("sec", "set_org_security", { p_org: org, p_require_mfa: e.target.checked }, "Security setting updated.", loadOrgs)} /> Require two-factor authentication to check or approve revisions</label>
-              {canAudit && <button className="pj-btn" disabled={!!busy} onClick={() => run("export", async () => { const r = await supabase.rpc("export_organisation", { p_org: org }); if (!r.error) downloadText(`strucal-${orgs.find((o) => o.id === org)?.name ?? "organisation"}-export.json`, JSON.stringify(r.data, null, 2), "application/json"); return r; }, "Organisation data exported.")}>{busy === "export" ? "Exporting…" : "Export all organisation data (.json)"}</button>}
+        {needStepUp && (
+          <section className="card" aria-labelledby="su-h">
+            <div className="card-h"><h2 id="su-h">Verify two-factor authentication</h2><span className="badge warn">Required to check or approve</span></div>
+            <div className="card-b"><div className="ac-row">
+              <div className="field" style={{ maxWidth: 200 }}><label htmlFor="su-code">6-digit code</label><input id="su-code" className="input num" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={stepCode} onChange={(e) => setStepCode(e.target.value)} onKeyDown={(e) => e.key === "Enter" && stepUp()} /></div>
+              <button className="btn btn-primary" disabled={!!busy} onClick={stepUp}>Verify</button>
             </div></div>
-            <div className="pj-card"><div className="pj-ch"><b>Projects</b>{projects.length > 0 && <select value={proj} aria-label="Project" onChange={(e) => setProj(e.target.value)}>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>}
-              {proj && <Link className="pj-btn" href={`/project?p=${proj}`} style={{ textDecoration: "none", lineHeight: "24px" }}>Open in Project page</Link>}<span style={{ flex: 1 }} />
-              <input className="fac" style={{ width: 200, textAlign: "left", height: 26 }} placeholder="New project name" aria-label="New project name" value={newProj} onChange={(e) => setNewProj(e.target.value)} />
-              <button className="pj-btn pri" disabled={!!busy} onClick={() => required(newProj, "a project name") && rpc("proj", "create_project", { p_org: org, p_name: newProj.trim(), p_description: "" }, "Project created.", () => { setNewProj(""); loadOrg(); })}>Create</button></div>
-              {projects.length === 0 && <div className="pj-empty">No projects yet.</div>}
-              {proj && (<div style={{ padding: 8 }}>
-                <b>Revisions and approval</b>
-                <div style={{ color: "#52606d", fontSize: 12, margin: "2px 0 6px" }}>Designer submits, a different person with the Checker role reviews, and a third person with the Approver role signs off. Approved revisions are permanently locked.</div>
-                {revs.length === 0 && <div style={{ color: "#52606d" }}>No revisions. Save one from the Project page.</div>}
-                {revs.map((r) => {
+          </section>
+        )}
+
+        <section className="card" aria-labelledby="mfa-h">
+          <div className="card-h"><h2 id="mfa-h">Two-factor authentication</h2><span className="spacer" />{factors.some((f) => f.status === "verified") ? <span className="badge ok">Enabled</span> : <span className="badge">Off</span>}</div>
+          <div className="card-b">
+            {factors.some((f) => f.status === "verified") ? (
+              <div className="row-actions"><span className="muted">An authenticator app protects checks and approvals.</span><span className="spacer" /><button className="btn btn-sm btn-danger" disabled={!!busy} onClick={() => { if (confirm("Remove two-factor authentication? You will not be able to check or approve revisions in organisations that require it.")) run("unenroll", async () => { for (const f of factors) { const r = await supabase.auth.mfa.unenroll({ factorId: f.id }); if (r.error) return r; } await loadFactors(); await loadAal(); return {}; }, "Two-factor authentication removed."); }}>Remove</button></div>
+            ) : enroll ? (
+              <div className="stack">
+                <div className="qr" dangerouslySetInnerHTML={{ __html: enroll.qr }} role="img" aria-label="QR code for your authenticator app" />
+                <span className="muted small">Scan the code, or enter this secret in your authenticator app:</span>
+                <code className="secret">{enroll.secret}</code>
+                <div className="ac-row">
+                  <div className="field" style={{ maxWidth: 200 }}><label htmlFor="en-code">6-digit code</label><input id="en-code" className="input num" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} onChange={(e) => setCode(e.target.value)} onKeyDown={(e) => e.key === "Enter" && enable2fa()} /></div>
+                  <button className="btn btn-primary" disabled={!!busy} onClick={enable2fa}>Verify and enable</button>
+                  <button className="btn btn-ghost" onClick={() => { setEnroll(null); setCode(""); }}>Cancel</button>
+                </div>
+              </div>
+            ) : (
+              <div className="row-actions"><span className="muted">Organisations can require it before anyone checks or approves a revision.</span><span className="spacer" /><button className="btn" disabled={!!busy} onClick={() => run("startenroll", async () => { const r = await supabase.auth.mfa.enroll({ factorType: "totp" }); if (!r.error) setEnroll({ id: r.data.id, qr: r.data.totp.qr_code, secret: r.data.totp.secret }); return r; })}>Set up authenticator app</button></div>
+            )}
+          </div>
+        </section>
+
+        <section className="card" aria-labelledby="org-h">
+          <div className="card-h"><h2 id="org-h">Organisation</h2>{orgs.length > 0 && <><span className="spacer" /><select className="select" style={{ width: "auto" }} value={org} aria-label="Organisation" onChange={(e) => setOrg(e.target.value)}>{orgs.map((o) => <option key={o.id} value={o.id}>{o.name} · {ROLE_LABEL[o.role]}</option>)}</select></>}</div>
+          <div className="card-b">
+            {orgs.length === 0 && <p className="muted">Create an organisation to start. You become its owner.</p>}
+            <div className="ac-row">
+              <div className="field"><label htmlFor="new-org">New organisation</label><input id="new-org" className="input" value={newOrg} onChange={(e) => setNewOrg(e.target.value)} /></div>
+              <button className="btn" disabled={!!busy} onClick={() => required(newOrg, "an organisation name") && rpc("org", "create_organisation", { p_name: newOrg.trim() }, "Organisation created.", () => { setNewOrg(""); loadOrgs(); })}>Create</button>
+            </div>
+          </div>
+        </section>
+
+        {org && (<>
+          <section className="card" aria-labelledby="mem-h">
+            <div className="card-h"><h2 id="mem-h">Members and roles</h2><span className="spacer" /><span className="badge">Your role: {ROLE_LABEL[myRole ?? ""]}</span></div>
+            <div className="tbl-wrap">
+              <table className="tbl"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th className="r"><span className="sr-only">Actions</span></th></tr></thead><tbody>
+                {members.map((m) => (<tr key={m.user_id}>
+                  <td>{m.display_name || "—"}{m.user_id === uid && <span className="faint"> (you)</span>}</td><td className="muted">{m.email}</td>
+                  <td><select className="select role" style={{ height: 28 }} disabled={!isAdmin || !!busy} value={m.role} aria-label={`Role of ${m.display_name || m.email}`} onChange={(e) => rpc("role", "set_member_role", { p_org: org, p_user: m.user_id, p_role: e.target.value }, "Role updated.", loadOrg)}>{ROLES.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}</select></td>
+                  <td className="r">{(isAdmin || m.user_id === uid) && <button className="btn btn-sm btn-danger" disabled={!!busy} onClick={() => { const self = m.user_id === uid; if (confirm(self ? "Leave this organisation? You lose access to its projects." : `Remove ${m.display_name || m.email} from this organisation?`)) rpc("rm", "remove_member", { p_org: org, p_user: m.user_id }, self ? "You left the organisation." : "Member removed.", () => { loadOrg(); if (self) loadOrgs(); }); }}>{m.user_id === uid ? "Leave" : "Remove"}</button>}</td>
+                </tr>))}
+              </tbody></table>
+            </div>
+            {isAdmin && (
+              <div className="card-f ac-row">
+                <div className="field"><label htmlFor="add-em">Add a registered user</label><input id="add-em" className="input" type="email" placeholder="name@company.com" value={addEmail} onChange={(e) => setAddEmail(e.target.value)} /></div>
+                <div className="field" style={{ flex: "0 1 180px" }}><label htmlFor="add-role">Role</label><select id="add-role" className="select" value={addRole} onChange={(e) => setAddRole(e.target.value)}>{ROLES.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}</select></div>
+                <button className="btn btn-primary" disabled={!!busy} onClick={() => { if (!EMAIL.test(addEmail.trim())) return fail("Enter the email address of a registered user."); rpc("add", "add_member", { p_org: org, p_email: addEmail.trim(), p_role: addRole }, "Member added.", () => { setAddEmail(""); loadOrg(); }); }}>Add member</button>
+              </div>
+            )}
+          </section>
+
+          <section className="card" aria-labelledby="prj-h">
+            <div className="card-h"><h2 id="prj-h">Projects and approval</h2>{projects.length > 0 && <><span className="spacer" /><select className="select" style={{ width: "auto" }} value={proj} aria-label="Project" onChange={(e) => setProj(e.target.value)}>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>{proj && <Link className="btn btn-primary btn-sm" href={`/project?p=${proj}`}>Open project</Link>}</>}</div>
+            <div className="card-b">
+              {projects.length === 0 && <p className="muted">No projects yet.</p>}
+              <div className="ac-row">
+                <div className="field"><label htmlFor="new-proj">New project</label><input id="new-proj" className="input" value={newProj} onChange={(e) => setNewProj(e.target.value)} /></div>
+                <button className="btn" disabled={!!busy} onClick={() => required(newProj, "a project name") && rpc("proj", "create_project", { p_org: org, p_name: newProj.trim(), p_description: "" }, "Project created.", () => { setNewProj(""); loadOrg(); })}>Create</button>
+              </div>
+              {proj && (<div className="stack">
+                <div className="section-title">Revisions <span className="num">{revs.length}</span></div>
+                <p className="muted small">The designer submits, a different person with the Checker role reviews, and a third with the Approver role signs off. Approved revisions are permanently locked.</p>
+                {revs.length === 0 && <p className="muted">No revisions. Save one from the Project page.</p>}
+                <div>{revs.map((r) => {
                   const rvs = reviews.filter((x) => x.revision_id === r.id);
                   const mine = r.created_by === uid;
                   const canSubmit = (r.status === "draft" || r.status === "changes_requested") && DESIGN_ROLES.includes(myRole ?? "");
@@ -196,28 +257,65 @@ export default function Account() {
                     if (outcome === "reject" && !confirm(`Reject ${r.name}?`)) return;
                     rpc("rev", "check_revision", { p_rev: r.id, p_outcome: outcome, p_comment: comment.trim() }, "Review recorded.", () => { setComment(""); loadRevs(); });
                   };
-                  return (<div key={r.id} style={{ border: "1px solid #c9ced6", marginBottom: 6 }}>
-                    <div className="pj-ch"><b>{r.name}</b><span className={`pj-b ${r.status === "approved" ? "pass" : r.status === "rejected" ? "fail" : r.status === "checked" ? "res" : "blk"}`}>{STATUS_LABEL[r.status] ?? r.status}</span><span className="pj-tag" title={r.content_hash}>hash {r.content_hash.slice(0, 10)}</span><span style={{ color: "#52606d" }}>by {names[r.created_by] ?? "former member"} · {when(r.created_at)}</span><span style={{ flex: 1 }} />
-                      {canSubmit && <button className="pj-btn pri" disabled={!!busy} onClick={() => rpc("rev", "submit_revision", { p_rev: r.id }, "Submitted for checking.", loadRevs)}>Submit for checking</button>}</div>
-                    {rvs.length > 0 && <div style={{ padding: "4px 10px", fontSize: 12 }}>{rvs.map((x) => <div key={x.id}><b>{names[x.reviewer] ?? "former member"}</b> · {x.kind.replace(/_/g, " ")} · {when(x.created_at)}{x.comment ? ` — ${x.comment}` : ""}</div>)}</div>}
-                    {(canCheck || canApprove) && (
-                      <div className="pj-out"><input className="fac" style={{ width: 280, textAlign: "left", height: 26 }} placeholder="Comment (required to reject or request changes)" aria-label="Review comment" value={comment} onChange={(e) => setComment(e.target.value)} />
-                        {canCheck && ([["comment", "Comment"], ["recommend_approval", "Recommend approval"], ["request_changes", "Request changes"], ["reject", "Reject"]] as const).map(([o, l]) => <button key={o} className="pj-btn" disabled={!!busy} onClick={() => review(o, l)}>{l}</button>)}
-                        {canApprove && (<><button className="pj-btn pri" disabled={!!busy} onClick={() => { if (confirm(`Approve and permanently lock ${r.name}?`)) rpc("rev", "approve_revision", { p_rev: r.id, p_approve: true, p_comment: comment.trim() }, "Revision approved and locked.", () => { setComment(""); loadRevs(); }); }}>Approve</button><button className="pj-btn" disabled={!!busy} onClick={() => { if (!comment.trim()) return fail("A comment is required to reject."); if (confirm(`Reject ${r.name}?`)) rpc("rev", "approve_revision", { p_rev: r.id, p_approve: false, p_comment: comment.trim() }, "Revision rejected.", () => { setComment(""); loadRevs(); }); }}>Reject</button></>)}
-                      </div>)}
-                  </div>);
-                })}
+                  return (
+                    <article className="rev" key={r.id}>
+                      <div className="rev-h">
+                        <h4>{r.name}</h4>{flow(r.status)}<span className="spacer" />
+                        <span className="code-id faint" title={r.content_hash}>{r.content_hash.slice(0, 10)}</span>
+                        {canSubmit && <button className="btn btn-sm btn-primary" disabled={!!busy} onClick={() => rpc("rev", "submit_revision", { p_rev: r.id }, "Submitted for checking.", loadRevs)}>Submit for checking</button>}
+                      </div>
+                      <div className="rev-h rev-meta" style={{ paddingTop: 0 }}>By {names[r.created_by] ?? "former member"} · {when(r.created_at)} · engine v{r.engine_version}</div>
+                      {rvs.length > 0 && <div className="reviews">{rvs.map((x) => <div key={x.id}><b>{names[x.reviewer] ?? "former member"}</b> · {x.kind.replace(/_/g, " ")} · <span className="faint">{when(x.created_at)}</span>{x.comment ? ` — ${x.comment}` : ""}</div>)}</div>}
+                      {(canCheck || canApprove) && (
+                        <div className="rev-act">
+                          <div className="field"><label htmlFor={`cm-${r.id}`}>Comment · required to reject or request changes</label><input id={`cm-${r.id}`} className="input" value={comment} onChange={(e) => setComment(e.target.value)} /></div>
+                          <div className="row-actions">
+                            {canCheck && (<>
+                              <button className="btn btn-primary btn-sm" disabled={!!busy} onClick={() => review("recommend_approval", "Recommend approval")}>Recommend approval</button>
+                              <button className="btn btn-sm" disabled={!!busy} onClick={() => review("comment", "Comment")}>Comment</button>
+                              <button className="btn btn-sm" disabled={!!busy} onClick={() => review("request_changes", "Request changes")}>Request changes</button>
+                              <button className="btn btn-sm btn-danger" disabled={!!busy} onClick={() => review("reject", "Reject")}>Reject</button>
+                            </>)}
+                            {canApprove && (<>
+                              <button className="btn btn-primary btn-sm" disabled={!!busy} onClick={() => { if (confirm(`Approve and permanently lock ${r.name}?`)) rpc("rev", "approve_revision", { p_rev: r.id, p_approve: true, p_comment: comment.trim() }, "Revision approved and locked.", () => { setComment(""); loadRevs(); }); }}>Approve and lock</button>
+                              <button className="btn btn-sm btn-danger" disabled={!!busy} onClick={() => { if (!comment.trim()) return fail("A comment is required to reject."); if (confirm(`Reject ${r.name}?`)) rpc("rev", "approve_revision", { p_rev: r.id, p_approve: false, p_comment: comment.trim() }, "Revision rejected.", () => { setComment(""); loadRevs(); }); }}>Reject</button>
+                            </>)}
+                          </div>
+                        </div>
+                      )}
+                    </article>
+                  );
+                })}</div>
               </div>)}
             </div>
+          </section>
 
-            {canAudit && (<div className="pj-card"><div className="pj-ch"><b>Audit trail</b><span className="pj-tag">latest {audit.length}</span><span style={{ flex: 1 }} />{chain && <span className={`pj-b ${chain.startsWith("Chain intact") ? "pass" : "fail"}`}>{chain}</span>}
-              <button className="pj-btn" disabled={!!busy} onClick={() => run("chain", async () => { const r = await supabase.rpc("verify_audit_chain", { p_org: org }); const row = Array.isArray(r.data) ? r.data[0] : r.data; if (!r.error) setChain(row?.ok ? `Chain intact (${row.checked} events)` : `TAMPERING DETECTED at event ${row?.broken_at}`); return r; })}>{busy === "chain" ? "Verifying…" : "Verify integrity"}</button></div>
-              {audit.length === 0 ? <div className="pj-empty">No events recorded yet.</div> : <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}><tbody>{audit.map((a) => <tr key={a.id} style={{ borderTop: "1px solid #e4e7eb" }}><td style={{ padding: "4px 10px", whiteSpace: "nowrap" }}>{when(a.created_at)}</td><td>{names[a.actor] ?? "former member"}</td><td><b>{a.action}</b></td><td style={{ color: "#52606d" }}>{JSON.stringify(a.detail)}</td></tr>)}</tbody></table>}</div>)}
-          </>)}
+          <section className="card" aria-labelledby="sec-h">
+            <div className="card-h"><h2 id="sec-h">Security and data</h2></div>
+            <div className="card-b">
+              <label className="check"><input type="checkbox" disabled={!isAdmin || !!busy} checked={!!orgs.find((o) => o.id === org)?.mfa} onChange={(e) => rpc("sec", "set_org_security", { p_org: org, p_require_mfa: e.target.checked }, "Security setting updated.", loadOrgs)} />Require two-factor authentication to check or approve revisions</label>
+              {canAudit && <div><button className="btn" disabled={!!busy} onClick={() => run("export", async () => { const r = await supabase.rpc("export_organisation", { p_org: org }); if (!r.error) downloadText(`strucal-${orgName || "organisation"}-export.json`, JSON.stringify(r.data, null, 2), "application/json"); return r; }, "Organisation data exported.")}>{busy === "export" ? "Exporting…" : "Export all organisation data (.json)"}</button></div>}
+            </div>
+          </section>
+
+          {canAudit && (
+            <section className="card" aria-labelledby="aud-h">
+              <div className="card-h"><h2 id="aud-h">Audit trail</h2><span className="faint small">latest {audit.length}</span><span className="spacer" />{chain && <span className={`badge ${chain.startsWith("Chain intact") ? "ok" : "fail"}`}>{chain}</span>}
+                <button className="btn btn-sm" disabled={!!busy} onClick={() => run("chain", async () => { const r = await supabase.rpc("verify_audit_chain", { p_org: org }); const row = Array.isArray(r.data) ? r.data[0] : r.data; if (!r.error) setChain(row?.ok ? `Chain intact (${row.checked} events)` : `Tampering detected at event ${row?.broken_at}`); return r; })}>{busy === "chain" ? "Verifying…" : "Verify integrity"}</button></div>
+              {audit.length === 0 ? <div className="empty"><p>No events recorded yet.</p></div> : (
+                <div className="tbl-wrap"><table className="tbl audit"><thead><tr><th>When</th><th>Who</th><th>Action</th><th>Detail</th></tr></thead><tbody>
+                  {audit.map((a) => <tr key={a.id}><td style={{ whiteSpace: "nowrap" }}>{when(a.created_at)}</td><td>{names[a.actor] ?? "former member"}</td><td><b>{a.action}</b></td><td className="detail">{JSON.stringify(a.detail)}</td></tr>)}
+                </tbody></table></div>)}
+            </section>
+          )}
         </>)}
-        {session && <div className="pj-card"><div className="pj-ch"><b>Close my account</b></div><div className="pj-out"><span>Removes you from all organisations and disables sign-in. Engineering records you created are kept for audit, shown as a closed account. You must not be the only owner of an organisation.</span><button className="pj-btn" disabled={!!busy} onClick={async () => { if (!confirm("Close your account? This cannot be undone.")) return; const ok = await run("close", async () => await supabase.rpc("close_account")); if (ok) await supabase.auth.signOut(); }}>Close account</button></div></div>}
-        <div className="pj-warn">Preview backend. Single sign-on (SAML) is not enabled. Data is held in a development database on a free plan with no uptime guarantee.</div>
-      </div>
+
+        <section className="card danger-zone" aria-labelledby="close-h">
+          <div className="card-h"><h2 id="close-h">Close my account</h2></div>
+          <div className="card-b"><div className="row-actions"><p className="muted small" style={{ flex: "1 1 320px" }}>Removes you from all organisations and disables sign-in. Engineering records you created are kept for audit, shown as a closed account. You must not be the only owner of an organisation.</p><button className="btn btn-danger" disabled={!!busy} onClick={async () => { if (!confirm("Close your account? This cannot be undone.")) return; const ok = await run("close", async () => await supabase.rpc("close_account")); if (ok) await supabase.auth.signOut(); }}>Close account</button></div></div>
+        </section>
+        <p className="faint small">Preview backend. Single sign-on (SAML) is not enabled. Data is held in a development database on a free plan with no uptime guarantee.</p>
+      </main>
     </div>
   );
 }

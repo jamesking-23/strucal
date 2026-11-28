@@ -9,7 +9,6 @@ import { parseNumber, visibleFields } from "../../lib/form";
 import { readJson, writeJson } from "../../lib/storage";
 import { downloadText } from "../../lib/download";
 import type { Link as DepLink, ModDef, NodeResult, ProjectNode, Revision } from "../../lib/types";
-import "../workspace/workspace.css";
 import "./project.css";
 
 const KEY = "strucal.project.v1";
@@ -34,11 +33,11 @@ function normalizeNode(raw: unknown, defs: ModDef[], paramSets: string[]): Proje
 }
 
 /** Numeric input that keeps the typed text and only commits finite numbers. */
-function NumField({ value, onCommit, readOnly, className, title, step }: { value: number | ""; onCommit?: (v: number) => void; readOnly?: boolean; className?: string; title?: string; step?: string }) {
+function NumField({ value, onCommit, readOnly, className, label }: { value: number | ""; onCommit?: (v: number) => void; readOnly?: boolean; className?: string; label: string }) {
   const [draft, setDraft] = useState(String(value));
   useEffect(() => { if (parseNumber(draft) !== value) setDraft(String(value)); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [value]);
   const bad = !readOnly && parseNumber(draft) === null;
-  return <input type="text" inputMode="decimal" step={step} title={title} readOnly={readOnly} aria-invalid={bad} className={`${className ?? ""}${bad ? " bad" : ""}`} value={readOnly ? String(value) : draft}
+  return <input type="text" inputMode="decimal" aria-label={label} readOnly={readOnly} aria-invalid={bad} className={`input num ${className ?? ""}`} value={readOnly ? String(value) : draft}
     onChange={(e) => { setDraft(e.target.value); const v = parseNumber(e.target.value); if (v !== null) onCommit?.(v); }} />;
 }
 
@@ -174,90 +173,139 @@ export default function ProjectPage() {
   const rOf = (id: string) => res?.nodes.find((n) => n.id === id);
   const imp = res?.impact;
 
-  if (!eng) return <div className="pj"><TopBar section="project" /><div className="pj-empty" role="status">{loadErr ? <>{loadErr} <button className="pj-btn" onClick={retry}>Try again</button></> : "Loading calculation engine…"}</div></div>;
+  const statusBadge = (r: NodeResult | undefined) => !r ? null
+    : r.status === "blocked" ? <span className="badge warn">Blocked</span>
+    : r.status === "error" ? <span className="badge fail">Input error</span>
+    : !r.has_verdict ? <span className="badge info">Results</span>
+    : r.overall_pass ? <span className="badge ok">Pass {(r.max_util * 100).toFixed(0)}%</span>
+    : <span className="badge fail">Fail {(r.max_util * 100).toFixed(0)}%</span>;
+
+  if (!eng) return (
+    <div className="app"><TopBar section="project" />
+      <div className="loading" role="status">{loadErr ? <div className="empty"><h2>The calculation engine did not load</h2><p>{loadErr}</p><button className="btn btn-primary" onClick={retry}>Try again</button></div> : <><span className="spinner" />Loading calculation engine…</>}</div>
+    </div>
+  );
   return (
-    <div className="pj">
-      <TopBar section="project" context={`Project dependencies${cloud ? ` — ${cloudName || "cloud project"}` : ""} — ${nodes.length} calculation(s)${cloud && sync ? ` — ${sync}` : ""}`} />
-      <div className="wk-ribbon" style={{ height: 62, alignItems: "center", gap: 10, padding: "0 10px", flexWrap: "wrap" }}>
-        <select className="pj-btn" value={add} onChange={(e) => setAdd(e.target.value)} style={{ height: 26 }} aria-label="Module to add">{defs.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select>
-        <button className="pj-btn pri" onClick={addNode}>+ Add calculation</button>
-        <button className="pj-btn" onClick={saveRev} disabled={!res?.ok || busy}>{busy ? "Saving…" : cloud ? "Save revision to cloud" : "Save revision"}</button>
-        <button className="pj-btn" onClick={exportJson} disabled={nodes.length === 0}>Export (.json)</button>
-        <button className="pj-btn" onClick={() => fileRef.current?.click()}>Import (.json)</button>
+    <div className="app">
+      <TopBar section="project" context={cloud ? <>{cloudName || "Cloud project"} · {sync}</> : "Local project in this browser"} />
+      <div className="toolbar pj-bar" role="toolbar" aria-label="Project">
+        <select className="select" value={add} onChange={(e) => setAdd(e.target.value)} aria-label="Module to add">{defs.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select>
+        <button className="btn btn-primary" onClick={addNode}>Add calculation</button>
+        <span className="sep" />
+        <button className="btn" onClick={saveRev} disabled={!res?.ok || busy}>{busy ? "Saving…" : cloud ? "Save revision to cloud" : "Save revision"}</button>
+        <select className="select" value={base} onChange={(e) => setBase(e.target.value)} aria-label="Baseline revision"><option value="">No baseline</option>{revs.map((r) => <option key={r.id} value={r.id}>Compare with {r.name}</option>)}</select>
+        <button className="btn btn-ghost" onClick={restore} disabled={!baseline}>Restore baseline</button>
+        <span className="spacer" />
+        {cloud && <span className="pj-sync" role="status">{sync}</span>}
+        <button className="btn btn-ghost" onClick={() => fileRef.current?.click()}>Import</button>
+        <button className="btn btn-ghost" onClick={exportJson} disabled={nodes.length === 0}>Export</button>
         <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) importJson(f); e.target.value = ""; }} />
-        <span style={{ color: "#52606d" }}>Compare against:</span>
-        <select className="pj-btn" value={base} onChange={(e) => setBase(e.target.value)} style={{ height: 26 }} aria-label="Baseline revision"><option value="">(no baseline)</option>{revs.map((r) => <option key={r.id} value={r.id}>{r.name} · {r.savedAt}</option>)}</select>
-        <button className="pj-btn" onClick={restore} disabled={!baseline}>Restore baseline inputs</button>
       </div>
-      <div className="pj-body">
-        <div className="pj-main">
-          {notice && <div className="pj-warn" role="status">{notice} <button className="pj-btn" onClick={() => setNotice("")}>Dismiss</button></div>}
-          {nodes.length === 0 && <div className="pj-card pj-empty">No calculations yet. Add calculations and link one result to the next input, for example a wall&apos;s ULS load to a strip footing&apos;s load.</div>}
-          {res && !res.ok && <div className="pj-err" role="alert">{res.errors.map((e, i) => <div key={i}>{e}</div>)}</div>}
+
+      <div className="pj-layout">
+        <main className="pj-main">
+          <header className="page-head"><span className="eyebrow">{cloud ? "Cloud project" : "Local project"}</span><h1>{cloud ? cloudName || "Project" : "Project dependencies"}</h1><p>Link one calculation&apos;s design value to the next calculation&apos;s input. Edits propagate in dependency order and are compared against a saved revision.</p></header>
+          {notice && <div className="alert info" role="status"><span className="grow">{notice}</span><button className="btn btn-sm" onClick={() => setNotice("")}>Dismiss</button></div>}
+          {cloud && sync.startsWith("Conflict") && <div className="alert error" role="alert"><span className="grow">{sync}</span><button className="btn btn-sm" onClick={() => window.location.reload()}>Reload</button></div>}
+          {res && !res.ok && <div className="alert error" role="alert"><div className="grow"><b>The project cannot be analysed.</b><ul>{res.errors.map((e, i) => <li key={i}>{e}</li>)}</ul></div></div>}
+          {nodes.length === 0 && (
+            <div className="card"><div className="empty">
+              <h2>No calculations yet</h2>
+              <ol className="steps">
+                <li>Choose a module in the toolbar and add it, for example an RC wall.</li>
+                <li>Add the member it bears on, for example a strip footing.</li>
+                <li>On the footing&apos;s load input, pick the wall&apos;s ULS load as its source.</li>
+                <li>Save a revision. Later edits show what changed downstream.</li>
+              </ol>
+              <button className="btn btn-primary" onClick={addNode}>Add {defOf(add)?.name ?? "calculation"}</button>
+            </div></div>
+          )}
           {nodes.map((n) => {
             const d = defOf(n.module); const r = rOf(n.id);
-            if (!d) return (<div className="pj-card" key={n.id}><div className="pj-ch"><b>{n.name}</b><span className="pj-b fail">UNKNOWN MODULE</span><span style={{ flex: 1 }} /><button className="pj-btn" onClick={() => del(n.id)}>Remove</button></div><div className="pj-err">Module &quot;{n.module}&quot; is not available in engine v{eng.version}. Remove this calculation or open the project in a matching version.</div></div>);
+            if (!d) return (
+              <section className="card" key={n.id}>
+                <div className="card-h"><h2>{n.name}</h2><span className="badge fail">Unknown module</span><span className="spacer" /><button className="btn btn-sm btn-danger" onClick={() => del(n.id)}>Remove</button></div>
+                <div className="card-b"><div className="alert error"><span className="grow">Module &quot;{n.module}&quot; is not available in engine v{eng.version}. Remove this calculation or open the project in a matching version.</span></div></div>
+              </section>
+            );
             const linked = (k: string) => n.links.find((l) => l.field === k);
             const options = nodes.filter((o) => o.id !== n.id).flatMap((o) => (rOf(o.id)?.outputs ?? []).map((out) => ({ v: `${o.id}|${out.key}`, label: `${o.name} → ${out.label} (${out.unit})` })));
-            const badge = !r ? null : r.status === "blocked" ? <span className="pj-b blk">BLOCKED</span> : r.status === "error" ? <span className="pj-b fail">INPUT ERROR</span> : !r.has_verdict ? <span className="pj-b res">RESULTS</span> : r.overall_pass ? <span className="pj-b pass">PASS {(r.max_util * 100).toFixed(0)}%</span> : <span className="pj-b fail">FAIL {(r.max_util * 100).toFixed(0)}%</span>;
-            const stale = imp && (imp.edited.includes(n.id) || imp.affected.includes(n.id));
+            const changed = imp && (imp.edited.includes(n.id) ? "Edited" : imp.affected.includes(n.id) ? "Affected" : "");
             return (
-              <div className="pj-card" key={n.id}>
-                <div className="pj-ch">
+              <section className="card" key={n.id} aria-label={n.name}>
+                <div className="card-h node-h">
                   <input className="nm" value={n.name} aria-label="Calculation name" onChange={(e) => upd(n.id, (x) => ({ ...x, name: e.target.value }))} />
-                  <span className="pj-tag">{d.name}</span>{badge}
-                  {stale && <span className="pj-b blk" title="Changed since the baseline revision">{imp.edited.includes(n.id) ? "EDITED" : "AFFECTED"}</span>}
-                  <span style={{ flex: 1 }} />
-                  {d.has_check_mode && <select value={n.mode} aria-label="Mode" onChange={(e) => upd(n.id, (x) => ({ ...x, mode: e.target.value === "check" ? "check" : "design" }))}><option value="design">Design</option><option value="check">Check</option></select>}
-                  <select value={n.param_set} aria-label="Parameter set" onChange={(e) => upd(n.id, (x) => ({ ...x, param_set: e.target.value }))} style={{ maxWidth: 220 }}>{eng.paramSets.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</select>
-                  <button className="pj-btn" onClick={() => del(n.id)}>Remove</button>
+                  <span className="badge">{d.name}</span>{statusBadge(r)}
+                  {changed && <span className="badge warn" title="Changed since the baseline revision">{changed}</span>}
+                  <span className="spacer" />
+                  {d.has_check_mode && <select className="select" value={n.mode} aria-label="Mode" onChange={(e) => upd(n.id, (x) => ({ ...x, mode: e.target.value === "check" ? "check" : "design" }))}><option value="design">Design</option><option value="check">Check</option></select>}
+                  <select className="select ps" value={n.param_set} aria-label="Parameter set" onChange={(e) => upd(n.id, (x) => ({ ...x, param_set: e.target.value }))}>{eng.paramSets.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</select>
+                  <button className="btn btn-sm btn-danger" onClick={() => del(n.id)}>Remove</button>
                 </div>
-                <div className="pj-grid">
-                  {visibleFields(d, n.mode).map((f) => {
-                    const l = linked(f.key); const rv = r?.resolved.find((x) => x.field === f.key);
-                    const setVal = (v: number) => upd(n.id, (x) => ({ ...x, values: { ...x.values, [f.key]: v } }));
-                    return (<div className="pj-f" key={f.key}><label>{f.label}{f.unit ? ` (${f.unit})` : ""}</label>
-                      <div className="row">
-                        {f.options && !l ? (<select value={n.values[f.key]} onChange={(e) => setVal(Number(e.target.value))} style={{ flex: 1, maxWidth: "none" }}>{f.options.map(([v, lab]) => <option key={v} value={v}>{lab}</option>)}</select>)
-                          : l ? <NumField readOnly className="lk" value={rv ? Number(rv.value.toFixed(4)) : ""} /> : <NumField value={n.values[f.key]} onCommit={setVal} />}
-                        <select value={l ? `${l.from}|${l.output}` : ""} title="Link this input to a result of another calculation" aria-label={`Source for ${f.label}`} onChange={(e) => upd(n.id, (x) => ({ ...x, links: [...x.links.filter((k) => k.field !== f.key), ...(e.target.value ? [{ field: f.key, from: e.target.value.split("|")[0], output: e.target.value.split("|")[1], factor: l?.factor ?? 1 }] : [])] }))}>
-                          <option value="">Manual</option>{options.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
-                          {l && !options.some((o) => o.v === `${l.from}|${l.output}`) && <option value={`${l.from}|${l.output}`}>{nameOf(l.from)} → {l.output} (unavailable)</option>}
-                        </select>
-                        {l && <NumField className="fac" step="0.1" title="Multiplier applied to the linked value" value={l.factor} onCommit={(v) => upd(n.id, (x) => ({ ...x, links: x.links.map((k) => (k.field === f.key ? { ...k, factor: v } : k)) }))} />}
-                      </div></div>);
-                  })}
+                <div className="card-b">
+                  <div className="node-grid">
+                    {visibleFields(d, n.mode).map((f) => {
+                      const l = linked(f.key); const rv = r?.resolved.find((x) => x.field === f.key);
+                      const setVal = (v: number) => upd(n.id, (x) => ({ ...x, values: { ...x.values, [f.key]: v } }));
+                      const label = `${f.label}${f.unit ? ` (${f.unit})` : ""}`;
+                      return (
+                        <div className="node-field" key={f.key}>
+                          <span className="label" title={label}>{label}</span>
+                          <div className={`row${l ? " linked" : ""}`}>
+                            {f.options && !l ? (<select className="select" aria-label={f.label} value={n.values[f.key]} onChange={(e) => setVal(Number(e.target.value))}>{f.options.map(([v, lab]) => <option key={v} value={v}>{lab}</option>)}</select>)
+                              : l ? <NumField readOnly label={`${f.label} (linked)`} value={rv ? Number(rv.value.toFixed(4)) : ""} /> : <NumField label={f.label} value={n.values[f.key]} onCommit={setVal} />}
+                            <select className={`select src${l ? " on" : ""}`} value={l ? `${l.from}|${l.output}` : ""} title="Source of this input" aria-label={`Source for ${f.label}`} onChange={(e) => upd(n.id, (x) => ({ ...x, links: [...x.links.filter((k) => k.field !== f.key), ...(e.target.value ? [{ field: f.key, from: e.target.value.split("|")[0], output: e.target.value.split("|")[1], factor: l?.factor ?? 1 }] : [])] }))}>
+                              <option value="">Manual</option>{options.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
+                              {l && !options.some((o) => o.v === `${l.from}|${l.output}`) && <option value={`${l.from}|${l.output}`}>{nameOf(l.from)} → {l.output} (unavailable)</option>}
+                            </select>
+                            {l && <NumField className="fac" label={`Multiplier for ${f.label}`} value={l.factor} onCommit={(v) => upd(n.id, (x) => ({ ...x, links: x.links.map((k) => (k.field === f.key ? { ...k, factor: v } : k)) }))} />}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {r && r.errors.length > 0 && <div className="alert error"><ul className="grow">{r.errors.map((e, i) => <li key={i}>{e}</li>)}</ul></div>}
                 </div>
-                {r && r.errors.length > 0 && <div className="pj-err">{r.errors.map((e, i) => <div key={i}>{e}</div>)}</div>}
-                {r && r.outputs.length > 0 && <div className="pj-out">{r.outputs.map((o) => <span key={o.key}>{o.label}: <b>{o.value.toFixed(2)}</b> {o.unit}</span>)}</div>}
-              </div>
+                {r && r.outputs.length > 0 && <div className="card-f node-out">{r.outputs.map((o) => <span key={o.key}>{o.label} <b>{o.value.toFixed(2)}</b> {o.unit}</span>)}</div>}
+              </section>
             );
           })}
-        </div>
-        <aside className="pj-side pj-imp">
-          <h3>Project status</h3>
-          {res?.ok ? <div><span className={`pj-b ${res.overall_pass ? "pass" : "fail"}`}>{res.overall_pass ? "ALL CHECKS PASS" : "ATTENTION REQUIRED"}</span><div style={{ marginTop: 6, color: "#52606d" }}>Calculation order: {res.order.map((i) => nameOf(i)).join(" → ")}</div></div> : <div style={{ color: "#52606d" }}>{nodes.length ? "Resolve the project errors to see its status." : "Add calculations to begin."}</div>}
-          <h3>Change impact</h3>
-          {!baseline && <div style={{ color: "#52606d" }}>Save a revision, then edit inputs to see what changes. Historical results are never overwritten.</div>}
-          {baseline && imp && (<>
-            <div className="row"><span>Compared with</span><b>{baseline.name}</b></div>
-            <div className="row"><span>Edited</span><b>{imp.edited.length}</b></div>
-            <div className="row"><span>Affected downstream</span><b>{imp.affected.length}</b></div>
-            <div className="row"><span>Newly failing</span><b style={{ color: imp.newly_failing.length ? "#b42318" : undefined }}>{imp.newly_failing.length}</b></div>
-            <div className="row"><span>Newly passing</span><b>{imp.newly_passing.length}</b></div>
-            {imp.review_required && <div className="pj-warn">Results have changed since {baseline.name}. They must be reviewed before the next issue.</div>}
-            {imp.newly_failing.length > 0 && <div className="pj-err">Now failing: {imp.newly_failing.map((i) => nameOf(i)).join(", ")}</div>}
-            {imp.diffs.length > 0 && (<><h3>Output changes</h3>{imp.diffs.map((d, i) => <div className="row" key={i}><span>{nameOf(d.node)} · {d.output}</span><b>{d.old.toFixed(1)} → {d.new.toFixed(1)}</b></div>)}</>)}
-            <div style={{ margin: "8px 0" }}><button className="pj-btn" disabled={exBusy} onClick={explainChanges}>{exBusy ? "Thinking…" : "Explain these changes (AI)"}</button></div>
-            {explain && <div className="pj-warn" style={{ whiteSpace: "pre-wrap" }}>{explain}<div style={{ fontSize: 11, color: "#7b8794", marginTop: 4 }}>AI-generated summary of the change impact above. It does not change any result.</div></div>}
-            {imp.added.length > 0 && <div style={{ marginTop: 6 }}>Added: {imp.added.map((i) => nameOf(i)).join(", ")}</div>}
-            {imp.removed.length > 0 && <div style={{ marginTop: 6 }}>Removed: {imp.removed.join(", ")}</div>}
-          </>)}
-          <h3>Revisions</h3>
-          {revs.length === 0 ? <div style={{ color: "#52606d" }}>None saved.</div> : <ul className="pj-list">{revs.map((r) => <li key={r.id}>{r.name} · {r.savedAt}</li>)}</ul>}
-          {!cloud && <div className="pj-warn" style={{ marginTop: 12 }}>Working locally in this browser. Sign in on the Account page and open a project from there to save it to the cloud with approvals.</div>}
-          {cloud && sync.startsWith("Conflict") && <div className="pj-err">{sync} <button className="pj-btn" onClick={() => window.location.reload()}>Reload</button></div>}
-          <div className="pj-warn" style={{ marginTop: 12 }}>Links pass design values only. Combine load effects with the Load combinations module first, and confirm each linked value is the correct design action for the next member.</div>
+        </main>
+
+        <aside className="pj-side" aria-label="Project status">
+          <section className="card">
+            <div className="card-h"><h2>Status</h2><span className="spacer" />{res?.ok && <span className={`badge ${res.overall_pass ? "ok" : "fail"}`}>{res.overall_pass ? "All pass" : "Attention"}</span>}</div>
+            <div className="card-b">
+              {res?.ok ? (<><span className="label">Calculation order</span><div className="order">{res.order.map((i) => <span key={i}>{nameOf(i)}</span>)}</div></>)
+                : <p className="muted">{nodes.length ? "Resolve the project errors to see its status." : "Add calculations to begin."}</p>}
+            </div>
+          </section>
+          <section className="card">
+            <div className="card-h"><h2>Change impact</h2></div>
+            <div className="card-b">
+              {!baseline && <p className="muted">Save a revision, then edit inputs to see what changes. Saved results are never overwritten.</p>}
+              {baseline && imp && (<>
+                <div>
+                  <div className="stat-row"><span>Compared with</span><b>{baseline.name}</b></div>
+                  <div className="stat-row"><span>Edited</span><b>{imp.edited.length}</b></div>
+                  <div className="stat-row"><span>Affected downstream</span><b>{imp.affected.length}</b></div>
+                  <div className="stat-row"><span>Newly failing</span><b className={imp.newly_failing.length ? "fail" : ""}>{imp.newly_failing.length}</b></div>
+                  <div className="stat-row"><span>Newly passing</span><b>{imp.newly_passing.length}</b></div>
+                </div>
+                {imp.review_required && <div className="alert warn"><span className="grow">Results changed since {baseline.name}. Review before the next issue.</span></div>}
+                {imp.newly_failing.length > 0 && <div className="alert error"><span className="grow">Now failing: {imp.newly_failing.map((i) => nameOf(i)).join(", ")}</span></div>}
+                {imp.diffs.length > 0 && (<div><span className="label">Output changes</span>{imp.diffs.map((d, i) => <div className="stat-row" key={i}><span>{nameOf(d.node)} · {d.output}</span><b>{d.old.toFixed(1)} → {d.new.toFixed(1)}</b></div>)}</div>)}
+                {(imp.added.length > 0 || imp.removed.length > 0) && <p className="muted" style={{ fontSize: "var(--fs-xs)" }}>{imp.added.length > 0 && <>Added: {imp.added.map((i) => nameOf(i)).join(", ")}. </>}{imp.removed.length > 0 && <>Removed: {imp.removed.join(", ")}.</>}</p>}
+                <button className="btn" disabled={exBusy} onClick={explainChanges}>{exBusy ? "Thinking…" : "Explain these changes (AI)"}</button>
+                {explain && <div className="alert info"><div className="grow" style={{ whiteSpace: "pre-wrap" }}>{explain}<div className="faint" style={{ fontSize: "var(--fs-2xs)", marginTop: 4 }}>AI-generated summary of the change impact. It does not change any result.</div></div></div>}
+              </>)}
+            </div>
+          </section>
+          <section className="card">
+            <div className="card-h"><h2>Revisions</h2><span className="spacer" /><span className="num faint">{revs.length}</span></div>
+            <div className="card-b">{revs.length === 0 ? <p className="muted">None saved.</p> : <ul className="rev-list">{revs.map((r) => <li key={r.id}><span>{r.name}</span><span className="faint">{r.savedAt}</span></li>)}</ul>}</div>
+          </section>
+          <div className="alert info"><span className="grow">{cloud ? "Changes save to the cloud automatically." : "Working locally in this browser. Open a project from the Account page to save it to the cloud with approvals."} Links pass design values only: combine load effects with the Load combinations module first.</span></div>
         </aside>
       </div>
     </div>

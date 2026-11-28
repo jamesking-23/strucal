@@ -1,88 +1,134 @@
 import Link from "next/link";
+import "./home.css";
 
-const REL = "https://github.com/jamesking-23/strucal/releases/latest";
+const RELEASES = "https://github.com/jamesking-23/strucal/releases/latest";
+
+const PLATFORM: [string, string][] = [
+  ["Deterministic engine", "Unit-aware computation in Rust. A force can never be added to a moment. Identical inputs, code edition and parameters always return identical results."],
+  ["Full traceability", "Every step shows its clause, formula, substituted values and result. Reports are generated from the trace, never reconstructed."],
+  ["Independent Check Mode", "Verify the member on the drawing rather than redesigning it: required against provided capacity, utilisation and the governing check."],
+  ["National parameter sets", "Nationally determined parameters are controlled data. Missing or unverified sets are flagged, never silently substituted."],
+  ["Linked projects", "Pass one calculation's design value to the next input, see what a change affects downstream, and compare against saved revisions."],
+  ["Honest scope", "Every module states what it checks and what it does not. A PASS applies to the listed checks only and is never an engineer's approval."],
+];
+
+const COVERAGE: { title: string; items: [string, string][] }[] = [
+  { title: "Reinforced concrete", items: [["Beams", "Available"], ["One-way slabs", "Available"], ["Columns", "Available"], ["Walls", "Available"], ["Staircases", "Available"], ["Two-way slabs", "Planned"]] },
+  { title: "Steel & timber", items: [["Steel beams", "Available"], ["Steel columns", "Available"], ["Bolted connections", "Available"], ["Fillet welds", "Available"], ["Timber beams", "Available"], ["Timber columns", "Available"]] },
+  { title: "Foundations & actions", items: [["Pad footings", "Available"], ["Strip footings", "Available"], ["Raft foundations", "Available"], ["Retaining walls", "Available"], ["Load combinations", "Available"], ["Base plates", "Planned"]] },
+];
+
+const ROADMAP: [string, string, string][] = [
+  ["Stage 0–2", "Unit-safe engine, formula registry, parameter framework, calculation trace, RC beam with Check Mode", "Preview"],
+  ["Stage 3", "Slabs, columns, walls, stairs, pad and strip footings", "Preview"],
+  ["Stage 4", "Load combinations, steel members and connections, timber, retaining walls, rafts, project dependencies", "Preview"],
+  ["Stage 5", "Accounts, organisations, roles, cloud projects, check and approval workflow, tamper-evident audit trail", "Preview"],
+  ["Stage 6", "Engineering assistant: explains traces and proposes inputs for confirmation. Never calculates or approves", "Needs API key"],
+  ["Stage 7–8", "BIM and analysis integrations, continuous improvement", "Planned"],
+];
+
+function Section({ n, id, title, children }: { n: string; id: string; title: string; children: React.ReactNode }) {
+  return (
+    <section className="sec" id={id} aria-labelledby={`${id}-h`}>
+      <div className="wrap g12">
+        <div className="sec-label"><span className="n">{n}</span><h2 id={`${id}-h`}>{title}</h2></div>
+        <div className="sec-body">{children}</div>
+      </div>
+    </section>
+  );
+}
 
 export default function Home() {
   return (
-    <>
-      <header className="nav"><div className="wrap">
-        <div className="brand" aria-label="StruCal"><span className="mark">S</span></div>
-        <nav><a href="#platform">Platform</a><a href="#trust">Verification</a><a href="#scope">Coverage</a><a href="#roadmap">Roadmap</a><a href="#desktop">Desktop</a></nav>
-        <Link href="/account" className="btn ghost" style={{marginRight:10}}>Sign in</Link><Link href="/workspace" className="btn gold">Open workspace</Link>
-      </div></header>
-
-      <section className="hero"><div className="wrap">
-        <div>
-          <div className="eyebrow">Structural calculation &amp; verification platform</div>
-          <h1>Calculations you can defend in front of a checking engineer.</h1>
-          <p className="lead">StruCal produces deterministic, fully traceable Eurocode calculations with clause references, substituted values and independent Check Mode. No black boxes. No invented numbers.</p>
-          <div className="cta"><Link href="/workspace" className="btn gold">Open the workspace</Link><a href="#desktop" className="btn ghost">Get the desktop edition</a></div>
+    <div className="home">
+      <header className="h-nav">
+        <div className="wrap">
+          <Link href="/" className="h-word" aria-label="StruCal home"><span className="brand" aria-hidden>S</span>StruCal</Link>
+          <nav className="h-links" aria-label="Page sections">
+            <a href="#platform">Platform</a><a href="#trust">Verification</a><a href="#coverage">Coverage</a><a href="#roadmap">Roadmap</a><a href="#desktop">Desktop</a>
+          </nav>
+          <div className="h-actions">
+            <Link href="/account" className="btn btn-ghost">Sign in</Link>
+            <Link href="/workspace" className="btn btn-primary">Open workspace</Link>
+          </div>
         </div>
-        <div className="sheet" aria-label="Sample calculation sheet">
-          <div className="h"><span>RC BEAM - FLEXURE</span><span>EN 1992-1-1</span></div>
-          <div className="r th"><div>Reference</div><div>Calculation</div><div>Output</div></div>
-          <div className="r"><div>cl. 3.1.6(1)P</div><div>f<sub>cd</sub> = 1.0 x 30 / 1.5</div><div>20.00 MPa</div></div>
-          <div className="r"><div>cl. 6.1</div><div>mu = M<sub>Ed</sub> / (b d<sup>2</sup> f<sub>cd</sub>)</div><div>0.1632</div></div>
-          <div className="r"><div>cl. 6.1</div><div>As = M<sub>Ed</sub> / (f<sub>yd</sub> z)</div><div>1118 mm<sup>2</sup></div></div>
-          <div className="r"><div>cl. 9.2.1.1</div><div>As,min check</div><div className="pass">PASS</div></div>
+      </header>
+
+      <main>
+        <section className="hero">
+          <div className="wrap g12">
+            <div className="hero-copy">
+              <span className="eyebrow">Structural calculation &amp; verification</span>
+              <h1>Calculations you can defend to a checking engineer.</h1>
+              <p className="lead">Deterministic, fully traceable Eurocode calculations with clause references, substituted values and an independent Check Mode. No black boxes. No invented numbers.</p>
+              <div className="cta">
+                <Link href="/workspace" className="btn btn-primary">Open the workspace</Link>
+                <a href="#desktop" className="btn">Desktop edition</a>
+              </div>
+            </div>
+            <div className="sheet" aria-label="Excerpt of a calculation sheet">
+              <div className="sheet-h"><span>RC beam · flexure</span><span>EN 1992-1-1</span></div>
+              <div className="sheet-r"><span>cl. 3.1.6(1)P</span><span>f<sub>cd</sub> = 1.0 × 30 / 1.5</span><span>20.00 MPa</span></div>
+              <div className="sheet-r"><span>cl. 6.1</span><span>μ = M<sub>Ed</sub> / (b·d²·f<sub>cd</sub>)</span><span>0.1632</span></div>
+              <div className="sheet-r"><span>cl. 6.1</span><span>A<sub>s</sub> = M<sub>Ed</sub> / (f<sub>yd</sub>·z)</span><span>1118 mm²</span></div>
+              <div className="sheet-r"><span>cl. 9.2.1.1</span><span>A<sub>s,min</sub> check</span><span className="pass">PASS</span></div>
+              <div className="sheet-foot">SHA-256 c42598cc… · engine v0.16</div>
+            </div>
+          </div>
+        </section>
+
+        <div className="facts">
+          <div className="wrap g12">
+            <div><b>1 engine</b><span>Rust, shared by the web and desktop editions</span></div>
+            <div><b>3 columns</b><span>Reference, calculation, output on every sheet</span></div>
+            <div><b>SHA-256</b><span>Trace hash on every execution</span></div>
+            <div><b>0</b><span>Design numbers produced by AI</span></div>
+          </div>
         </div>
-      </div></section>
 
-      <div className="strip"><div className="wrap">
-        <div><b>100%</b><span>of numbers from a deterministic engine</span></div>
-        <div><b>3-column</b><span>Reference / Calculation / Output sheets</span></div>
-        <div><b>SHA-256</b><span>trace hash on every execution</span></div>
-        <div><b>Web + Desktop</b><span>one engine, two native experiences</span></div>
-      </div></div>
+        <Section n="01" id="platform" title="Platform">
+          <p className="intro">One platform that carries a member from inputs to an issued, auditable calculation.</p>
+          <div className="items">{PLATFORM.map(([h, p]) => <div className="item" key={h}><h3>{h}</h3><p>{p}</p></div>)}</div>
+        </Section>
 
-      <section className="s" id="platform"><div className="wrap">
-        <div className="sh"><h2>Built for design offices, checkers and approvers</h2><p>One platform that carries a member from inputs to an issued, auditable calculation report.</p></div>
-        <div className="grid3">
-          <div className="card"><h3>Deterministic engine</h3><p>Unit-aware computation. A force can never be added to a moment. Identical inputs, code edition and parameters always return identical results.</p></div>
-          <div className="card"><h3>Full traceability</h3><p>Every step shows its clause, formula, substituted values and result. Reports are generated from the trace, never reconstructed.</p></div>
-          <div className="card"><h3>Independent Check Mode</h3><p>Verify the member on the drawing rather than redesigning it. Required vs provided capacity, utilisation and the governing check.</p></div>
-          <div className="card"><h3>National parameter packs</h3><p>Nationally determined parameters are controlled data. Missing or unverified parameters are flagged, never silently substituted.</p></div>
-          <div className="card"><h3>Code-edition aware</h3><p>Designed for coexisting first and second generation Eurocodes, with controlled migration rather than one hard-coded edition.</p></div>
-          <div className="card"><h3>Honest scope</h3><p>Every module states what it checks and what it does not. A PASS applies to the listed checks only, and is never an engineer's approval.</p></div>
-        </div>
-      </div></section>
+        <Section n="02" id="trust" title="Verification">
+          <p className="intro">AI assists. It never calculates.</p>
+          <div className="items two">
+            <div className="item"><h3>Release gates</h3><p>Approved specification, verified sources, reviewed formulas, independently derived reference tests, report-trace validation and documented limitations.</p></div>
+            <div className="item"><h3>Professional accountability</h3><p>Signatures and approvals belong to authorised human signatories. The software never certifies a design on its own.</p></div>
+          </div>
+          <div><Link href="/standards" className="btn">Browse the formula registry</Link></div>
+        </Section>
 
-      <section className="s alt" id="trust"><div className="wrap">
-        <div className="sh"><h2>AI assists. It never calculates.</h2><p>Language models help prepare inputs and explain results. All design numbers come from the deterministic engine, and AI-written code must clear verification gates before release.</p></div>
-        <div className="grid2">
-          <div className="card"><h3>Release gates</h3><p>Approved specification, verified sources, reviewed formulas, independently derived reference tests, report-trace validation and documented limitations.</p></div>
-          <div className="card"><h3>Professional accountability</h3><p>Signatures and approvals belong to authorised human signatories. The software never certifies a design on its own.</p></div>
-        </div>
-      </div></section>
+        <Section n="03" id="coverage" title="Coverage">
+          <div className="cover">
+            {COVERAGE.map((c) => (
+              <div className="cover-col" key={c.title}>
+                <h3>{c.title}</h3>
+                <ul>{c.items.map(([name, st]) => <li key={name}><span>{name}</span><span className={`badge ${st === "Available" ? "ok" : ""}`}>{st}</span></li>)}</ul>
+              </div>
+            ))}
+          </div>
+        </Section>
 
-      <section className="s" id="scope"><div className="wrap">
-        <div className="sh"><h2>Coverage</h2><p>Reinforced concrete, steel, timber and foundations, delivered module by module as each clears verification.</p></div>
-        <div className="grid3">
-          <div className="card"><h3>Reinforced concrete</h3><p>Available: beams, one-way slabs, columns, walls and staircases. Planned: two-way slabs, pile caps.</p></div>
-          <div className="card"><h3>Structural steel &amp; timber</h3><p>Available: steel beams and columns, bolted and fillet-welded connections, solid timber beams and columns. Planned: beam-columns, base plates.</p></div>
-          <div className="card"><h3>Foundations &amp; actions</h3><p>Available: pad, strip and raft foundations, cantilever retaining walls, EN 1990 load combinations, linked project calculations.</p></div>
-        </div>
-      </div></section>
+        <Section n="04" id="roadmap" title="Roadmap">
+          <div className="road tbl-wrap">
+            <table className="tbl">
+              <thead><tr><th>Stage</th><th>Scope</th><th className="r">Status</th></tr></thead>
+              <tbody>{ROADMAP.map(([s, d, st]) => <tr key={s}><td>{s}</td><td>{d}</td><td className="r"><span className={`badge ${st === "Preview" ? "ok" : st === "Planned" ? "" : "warn"}`}>{st}</span></td></tr>)}</tbody>
+            </table>
+          </div>
+        </Section>
 
-      <section className="s alt" id="roadmap"><div className="wrap">
-        <div className="sh"><h2>Where we are</h2><p>Transparent status. Nothing is shown as available until it exists.</p></div>
-        <div className="road">
-          <div><b>Stage 0-1</b><span>Repository, unit-safe engine, formula registry, parameter framework, calculation trace</span><span className="pill live">In preview</span></div>
-          <div><b>Stage 2</b><span>RC beam: flexure, shear, min/max steel, Check Mode, calculation sheet</span><span className="pill live">In preview</span></div>
-          <div><b>Stage 3</b><span>Slabs, columns, walls, stairs, pad and strip footings</span><span className="pill live">In preview</span></div>
-          <div><b>Stage 4</b><span>Load combinations, steel members and connections, timber, retaining walls, rafts, project dependency engine</span><span className="pill live">In preview</span></div>
-          <div><b>Stage 5</b><span>Accounts, organisations, roles, cloud projects, check and approval workflow, tamper-evident audit trail (web and desktop)</span><span className="pill next">In preview</span></div>
-          <div><b>Stage 6</b><span>Engineering assistant: explains traces, proposes inputs for confirmation, summarises revision changes. Never calculates or approves</span><span className="pill next">Built, needs API key</span></div>
-          <div><b>Stage 7-8</b><span>BIM and analysis integrations, continuous improvement</span><span className="pill plan">Planned</span></div>
-        </div>
-      </div></section>
+        <Section n="05" id="desktop" title="Desktop">
+          <p className="intro">A native Windows application on the same engine. No browser inside, and it updates itself from Settings.</p>
+          <div className="dl"><a className="btn btn-primary" href={RELEASES}>Download for Windows</a><Link className="btn" href="/workspace">Use the web version</Link></div>
+        </Section>
+      </main>
 
-      <section className="s" id="desktop"><div className="wrap">
-        <div className="sh"><h2>Desktop edition for Windows</h2><p>A native application built on the same engine, with the same capabilities. It does not run in a browser, and it updates itself from Settings with a single Check updates action.</p></div>
-        <div className="cta"><a className="btn dark" href={REL}>Download for Windows</a><Link className="btn line" href="/workspace">Use the web version</Link></div>
-      </div></section>
-
-      <footer><div className="wrap"><div><b style={{color:"#fff",letterSpacing:".14em"}}>STRUCAL</b><br/>Engineering results require review by a registered engineer.</div><div>Preview build. Not for issue on live projects.</div></div></footer>
-    </>
+      <footer className="h-foot">
+        <div className="wrap"><span><b>StruCal</b> · Engineering results require review by a registered engineer.</span><span>Preview build. Not for issue on live projects.</span></div>
+      </footer>
+    </div>
   );
 }

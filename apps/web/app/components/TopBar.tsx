@@ -9,15 +9,15 @@ const NAV: { id: Section; href: string; label: string }[] = [
   { id: "account", href: "/account", label: "Account" },
 ];
 
-/** Application header shared by every app page: brand, section navigation and an optional context line. */
+/** Application header shared by every app page: brand, section navigation, a context line and optional actions. */
 export default function TopBar({ section, context, children }: { section: Section; context?: React.ReactNode; children?: React.ReactNode }) {
   return (
-    <header className="wk-title">
-      <Link href="/" className="wk-logo" aria-label="StruCal home">S</Link>
-      <nav className="wk-nav" aria-label="Sections">
+    <header className="topbar">
+      <Link href="/" className="brand" aria-label="StruCal home">S</Link>
+      <nav className="nav" aria-label="Sections">
         {NAV.map((n) => <Link key={n.id} href={n.href} className={n.id === section ? "on" : undefined} aria-current={n.id === section ? "page" : undefined}>{n.label}</Link>)}
       </nav>
-      <div className="wk-wt">{context}</div>
+      <div className="topbar-context">{context}</div>
       {children}
     </header>
   );

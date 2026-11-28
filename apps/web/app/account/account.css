@@ -1,0 +1,25 @@
+/* Account: sign-in and team administration. */
+.auth { display: grid; place-items: start center; padding: var(--s8) var(--s4); }
+.auth .card { width: 100%; max-width: 400px; }
+.auth h1 { font-size: var(--fs-xl); }
+.ac-row { display: flex; flex-wrap: wrap; gap: var(--s2); align-items: end; }
+.ac-row .field { flex: 1 1 200px; }
+.ac-row .select.role { width: auto; min-width: 150px; }
+.qr { width: 168px; padding: var(--s2); background: #fff; border: 1px solid var(--line); }
+.secret { font: var(--fs-xs) var(--font-mono); overflow-wrap: anywhere; background: var(--surface-2); padding: var(--s1) var(--s2); }
+.rev { border: 1px solid var(--line); }
+.rev + .rev { margin-top: var(--s3); }
+.rev-h { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) var(--s3); padding: var(--s3) var(--s4); }
+.rev-h h4 { font-size: var(--fs-base); }
+.rev-meta { font-size: var(--fs-xs); color: var(--muted); }
+.flow { display: flex; flex-wrap: wrap; gap: 0; font: var(--fs-2xs) var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; }
+.flow span { padding: 3px var(--s2); border: 1px solid var(--line); color: var(--faint); margin-right: -1px; }
+.flow span.done { color: var(--ink); border-color: var(--ink-2); }
+.flow span.now { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.flow span.bad { background: var(--fail); color: #fff; border-color: var(--fail); }
+.reviews { padding: var(--s2) var(--s4); border-top: 1px solid var(--line); display: grid; gap: var(--s1); font-size: var(--fs-xs); }
+.rev-act { padding: var(--s3) var(--s4); border-top: 1px solid var(--line); background: var(--surface-2); display: grid; gap: var(--s2); }
+.audit td { font-size: var(--fs-xs); }
+.audit .detail { font: var(--fs-2xs) var(--font-mono); color: var(--muted); overflow-wrap: anywhere; max-width: 420px; }
+.danger-zone { border-color: var(--fail); }
+.danger-zone .card-h h2 { color: var(--fail); }
