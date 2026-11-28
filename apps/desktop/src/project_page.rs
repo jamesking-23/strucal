@@ -279,7 +279,7 @@ impl Pj {
         egui::TopBottomPanel::top("pjtools").exact_height(44.0).frame(egui::Frame::new().fill(RIBBON).stroke(Stroke::new(1.0_f32, LINE)).inner_margin(egui::Margin::symmetric(8, 8))).show(ctx, |ui| {
             ui.horizontal(|ui| {
                 egui::ComboBox::from_id_salt("pjadd").selected_text(defs[self.add].name).show_ui(ui, |ui| { for (i, d) in defs.iter().enumerate() { ui.selectable_value(&mut self.add, i, d.name); } });
-                if ui.add(egui::Button::new(RichText::new("+ Add calculation").color(Color32::WHITE)).fill(BLUE)).clicked() {
+                if ui.add(egui::Button::new(RichText::new("+ Add calculation").color(Color32::WHITE)).fill(TX)).clicked() {
                     let d = &defs[self.add]; let mut n = 1; while self.nodes.iter().any(|x| x["id"] == format!("{}{}", d.id, n)) { n += 1; }
                     let mut vals = serde_json::Map::new(); for f in &d.fields { vals.insert(f.key.into(), f.default.into()); }
                     self.nodes.push(json!({"id": format!("{}{}", d.id, n), "name": format!("{} {}", d.name, n), "module": d.id, "mode": "design", "param_set": "EN1992-1-1:2004/RECOMMENDED", "values": vals, "links": []}));

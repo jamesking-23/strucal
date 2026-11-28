@@ -113,8 +113,7 @@ impl App {
             }
         }
         egui::Area::new("asstbtn".into()).anchor(egui::Align2::RIGHT_BOTTOM, [-14.0, -34.0]).show(ctx, |ui| {
-            if !self.asst.open && ui.add(egui::Button::new(RichText::new("Assistant").strong().color(Color32::WHITE)).fill(BLUE)).clicked()
-            {
+            if !self.asst.open && ui.add(egui::Button::new(RichText::new("Assistant").strong().color(Color32::WHITE)).fill(TX)).clicked() {
                 self.asst.open = true;
             }
         });
@@ -153,7 +152,7 @@ impl App {
                     egui::Grid::new("asstprop").num_columns(3).show(ui, |ui| { for (k, v) in props { if let Some((i, f)) = d.fields.iter().enumerate().find(|(_, f)| f.key == k) { ui.label(f.label); ui.label(RichText::new(self.st[self.mi].vals[i].to_string()).color(MUTE)); ui.label(RichText::new(format!("→ {} {}", v, f.unit)).strong()); ui.end_row(); } } });
                     if !missing.is_empty() { ui.colored_label(AMBER, format!("Still needed from you: {}", missing.join("; "))); }
                     if !notes.is_empty() { ui.label(RichText::new(notes).size(11.0).color(MUTE)); }
-                    if !props.is_empty() { ui.horizontal(|ui| { if ui.add(egui::Button::new(RichText::new("Apply to the form").color(Color32::WHITE)).fill(BLUE)).clicked() { apply = true; } if ui.button("Discard").clicked() { discard = true; } }); }
+                    if !props.is_empty() { ui.horizontal(|ui| { if ui.add(egui::Button::new(RichText::new("Apply to the form").color(Color32::WHITE)).fill(TX)).clicked() { apply = true; } if ui.button("Discard").clicked() { discard = true; } }); }
                     ui.label(RichText::new("Review each value. The calculation only runs on values you confirm.").size(10.5).color(MUTE));
                 }
             });

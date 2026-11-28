@@ -272,7 +272,7 @@ impl Acct {
                         if self.signup { ui.label("Display name"); ui.text_edit_singleline(&mut self.name); }
                         ui.label("Email"); ui.text_edit_singleline(&mut self.email);
                         ui.label("Password (at least 8 characters)"); let pw = ui.add(egui::TextEdit::singleline(&mut self.pw).password(true));
-                        let go = ui.add(egui::Button::new(RichText::new(if self.signup { "Create account" } else { "Sign in" }).color(Color32::WHITE)).fill(BLUE)).clicked() || (pw.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)));
+                        let go = ui.add(egui::Button::new(RichText::new(if self.signup { "Create account" } else { "Sign in" }).color(Color32::WHITE)).fill(TX)).clicked() || (pw.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)));
                         if go { acts.push(if self.signup { Act::SignUp } else { Act::SignIn }); }
                         if ui.button(if self.signup { "I already have an account" } else { "Create an account" }).clicked() { self.signup = !self.signup; self.err.clear(); }
                     }); });
@@ -338,7 +338,7 @@ impl Acct {
                         ui.label(RichText::new("Projects").strong());
                         let cur = self.projects.get(self.proj).map(|p| s(p, "name")).unwrap_or("none".into());
                         egui::ComboBox::from_id_salt("acproj").selected_text(cur).show_ui(ui, |ui| { for i in 0..self.projects.len() { let n = s(&self.projects[i], "name"); if ui.selectable_value(&mut self.proj, i, n).changed() { acts.push(Act::LoadRevs); } } });
-                        if let Some(p) = self.projects.get(self.proj) { if ui.add(egui::Button::new(RichText::new("Open in Project page").color(Color32::WHITE)).fill(BLUE)).clicked() { open = Some((s(p, "id"), s(p, "name"))); } }
+                        if let Some(p) = self.projects.get(self.proj) { if ui.add(egui::Button::new(RichText::new("Open in Project page").color(Color32::WHITE)).fill(TX)).clicked() { open = Some((s(p, "id"), s(p, "name"))); } }
                         ui.add(egui::TextEdit::singleline(&mut self.new_proj).hint_text("New project name").desired_width(200.0));
                         if ui.button("Create").clicked() { acts.push(Act::CreateProj); }
                     });
@@ -364,7 +364,7 @@ impl Acct {
                                 ui.horizontal(|ui| {
                                     ui.add(egui::TextEdit::singleline(&mut self.comment).hint_text("Comment (required to reject or request changes)").desired_width(300.0));
                                     if role == "checker" { for (o, l) in [("comment", "Comment"), ("recommend_approval", "Recommend approval"), ("request_changes", "Request changes"), ("reject", "Reject")] { if ui.button(l).clicked() { acts.push(Act::Check(rid.clone(), o)); } } }
-                                    if role == "approver" { if ui.add(egui::Button::new(RichText::new("Approve").color(Color32::WHITE)).fill(BLUE)).clicked() { self.confirm = Some((format!("Approve and permanently lock {}?", s(&r, "name")), Act::Approve(rid.clone(), true))); } if ui.button("Reject").clicked() { acts.push(Act::Approve(rid.clone(), false)); } }
+                                    if role == "approver" { if ui.add(egui::Button::new(RichText::new("Approve").color(Color32::WHITE)).fill(TX)).clicked() { self.confirm = Some((format!("Approve and permanently lock {}?", s(&r, "name")), Act::Approve(rid.clone(), true))); } if ui.button("Reject").clicked() { acts.push(Act::Approve(rid.clone(), false)); } }
                                 });
                             }
                         });

@@ -11,19 +11,20 @@ use strucal_engine::{
     modules, params, registry, report,
 };
 
-const BG: Color32 = Color32::from_rgb(240, 240, 240);
-const LINE: Color32 = Color32::from_rgb(207, 212, 218);
-const HEAD: Color32 = Color32::from_rgb(236, 238, 241);
-const RIBBON: Color32 = Color32::from_rgb(247, 248, 250);
-const SEL: Color32 = Color32::from_rgb(197, 220, 242);
-const TX: Color32 = Color32::from_rgb(15, 23, 42);
-const MUTE: Color32 = Color32::from_rgb(100, 116, 139);
-const BLUE: Color32 = Color32::from_rgb(11, 92, 173);
-const GREEN: Color32 = Color32::from_rgb(15, 123, 90);
-const GREEN_BG: Color32 = Color32::from_rgb(230, 246, 239);
-const AMBER: Color32 = Color32::from_rgb(217, 138, 0);
-const RED: Color32 = Color32::from_rgb(180, 35, 24);
-const RED_BG: Color32 = Color32::from_rgb(253, 236, 235);
+// Palette shared with the web design system (apps/web/app/globals.css): ink, warm neutrals, one accent, semantic result colours.
+const BG: Color32 = Color32::from_rgb(247, 247, 245);
+const LINE: Color32 = Color32::from_rgb(225, 225, 220);
+const HEAD: Color32 = Color32::from_rgb(240, 240, 237);
+const RIBBON: Color32 = Color32::WHITE;
+const SEL: Color32 = Color32::from_rgb(232, 237, 252);
+const TX: Color32 = Color32::from_rgb(17, 17, 17);
+const MUTE: Color32 = Color32::from_rgb(95, 95, 92);
+const BLUE: Color32 = Color32::from_rgb(31, 69, 214);
+const GREEN: Color32 = Color32::from_rgb(11, 115, 65);
+const AMBER: Color32 = Color32::from_rgb(143, 88, 0);
+const AMBER_BG: Color32 = Color32::from_rgb(253, 243, 223);
+const RED: Color32 = Color32::from_rgb(184, 35, 27);
+const RED_BG: Color32 = Color32::from_rgb(251, 236, 235);
 
 #[derive(PartialEq, Clone, Copy)]
 enum Page {
@@ -68,33 +69,53 @@ fn card<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
     egui::Frame::new()
         .fill(Color32::WHITE)
         .stroke(Stroke::new(1.0_f32, LINE))
-        .corner_radius(CornerRadius::ZERO)
+        .corner_radius(CornerRadius::same(2))
         .inner_margin(egui::Margin::same(0))
         .show(ui, add)
         .inner
 }
-fn panel_header(ui: &mut egui::Ui, t: &str) {
-    egui::Frame::new().fill(HEAD).stroke(Stroke::new(1.0_f32, LINE)).inner_margin(egui::Margin::symmetric(7, 2)).show(ui, |ui| {
+/// Card header row: title and an optional muted note.
+fn card_head(ui: &mut egui::Ui, title: &str, note: &str) {
+    egui::Frame::new().inner_margin(egui::Margin::symmetric(16, 10)).show(ui, |ui| {
         ui.set_width(ui.available_width());
-        ui.label(RichText::new(t).size(11.5).color(Color32::from_rgb(51, 51, 51)));
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(title).strong().size(13.5).color(TX));
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| ui.label(RichText::new(note).size(11.5).color(MUTE)));
+        });
     });
+    rule(ui);
+}
+/// Full-width hairline.
+fn rule(ui: &mut egui::Ui) {
+    let (r, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 1.0), egui::Sense::hover());
+    ui.painter().rect_filled(r, 0.0, LINE);
+}
+/// Pane title: small uppercase label over a hairline.
+fn panel_header(ui: &mut egui::Ui, t: &str) {
     ui.add_space(4.0);
+    ui.label(RichText::new(t.to_uppercase()).size(10.5).strong().color(MUTE));
+    ui.add_space(6.0);
+    rule(ui);
+    ui.add_space(6.0);
 }
-fn group(ui: &mut egui::Ui, label: &str, add: impl FnOnce(&mut egui::Ui)) {
-    ui.vertical(|ui| {
-        ui.horizontal(add);
-        ui.add_space(2.0);
-        ui.label(RichText::new(label).size(10.5).color(MUTE));
-    });
-    ui.add(egui::Separator::default().vertical());
+/// Toolbar button; `on` renders the selected (ink) state of a segmented control.
+fn tbtn(ui: &mut egui::Ui, t: &str, on: bool) -> egui::Response {
+    let text = RichText::new(t).size(12.5).color(if on { Color32::WHITE } else { TX });
+    ui.add(
+        egui::Button::new(text)
+            .fill(if on { TX } else { Color32::WHITE })
+            .stroke(Stroke::new(1.0_f32, if on { TX } else { Color32::from_rgb(207, 207, 201) }))
+            .corner_radius(CornerRadius::same(2))
+            .min_size(egui::vec2(0.0, 30.0)),
+    )
 }
-fn rbtn(ui: &mut egui::Ui, t: &str, on: bool) -> egui::Response {
-    ui.add_sized(
-        [74.0, 50.0],
-        egui::Button::new(RichText::new(t).size(12.0))
-            .selected(on)
-            .fill(if on { SEL } else { Color32::TRANSPARENT })
-            .corner_radius(CornerRadius::ZERO),
+/// Primary (ink) action button.
+fn primary(ui: &mut egui::Ui, t: &str) -> egui::Response {
+    ui.add(
+        egui::Button::new(RichText::new(t).size(12.5).strong().color(Color32::WHITE))
+            .fill(TX)
+            .corner_radius(CornerRadius::same(2))
+            .min_size(egui::vec2(0.0, 30.0)),
     )
 }
 /// A folder under the user's home (Windows: %USERPROFILE%), created if missing.
@@ -106,9 +127,13 @@ pub(crate) fn user_dir(parts: &[&str]) -> std::path::PathBuf {
     let _ = std::fs::create_dir_all(&p);
     p
 }
+/// Section title inside a pane: small uppercase muted label with a hairline below.
 fn heading(ui: &mut egui::Ui, t: &str) {
+    ui.add_space(14.0);
+    ui.label(RichText::new(t.to_uppercase()).size(10.5).strong().color(MUTE));
+    ui.add_space(4.0);
+    rule(ui);
     ui.add_space(6.0);
-    ui.label(RichText::new(t).size(11.0).strong().color(BLUE));
 }
 
 impl App {
@@ -116,25 +141,38 @@ impl App {
         let mut v = egui::Visuals::light();
         v.panel_fill = BG;
         v.window_fill = Color32::WHITE;
-        v.widgets.inactive.bg_stroke = Stroke::new(1.0_f32, Color32::from_rgb(207, 216, 227));
+        v.extreme_bg_color = Color32::WHITE;
+        v.faint_bg_color = Color32::from_rgb(250, 250, 248);
+        v.window_stroke = Stroke::new(1.0_f32, LINE);
         v.selection.bg_fill = BLUE;
-        v.window_corner_radius = CornerRadius::ZERO;
-        v.menu_corner_radius = CornerRadius::ZERO;
+        v.selection.stroke = Stroke::new(1.0_f32, Color32::WHITE);
+        v.hyperlink_color = BLUE;
+        v.window_corner_radius = CornerRadius::same(2);
+        v.menu_corner_radius = CornerRadius::same(2);
         for w in
             [&mut v.widgets.noninteractive, &mut v.widgets.inactive, &mut v.widgets.hovered, &mut v.widgets.active, &mut v.widgets.open]
         {
-            w.corner_radius = CornerRadius::ZERO;
+            w.corner_radius = CornerRadius::same(2);
         }
-        v.widgets.hovered.weak_bg_fill = Color32::from_rgb(219, 232, 246);
-        v.widgets.hovered.bg_fill = Color32::from_rgb(219, 232, 246);
+        v.widgets.noninteractive.bg_stroke = Stroke::new(1.0_f32, LINE);
+        v.widgets.noninteractive.fg_stroke = Stroke::new(1.0_f32, TX);
+        v.widgets.inactive.bg_fill = Color32::WHITE;
+        v.widgets.inactive.weak_bg_fill = Color32::WHITE;
+        v.widgets.inactive.bg_stroke = Stroke::new(1.0_f32, Color32::from_rgb(207, 207, 201));
+        v.widgets.inactive.fg_stroke = Stroke::new(1.0_f32, TX);
+        v.widgets.hovered.weak_bg_fill = HEAD;
+        v.widgets.hovered.bg_fill = HEAD;
+        v.widgets.hovered.bg_stroke = Stroke::new(1.0_f32, TX);
+        v.widgets.active.bg_stroke = Stroke::new(1.0_f32, BLUE);
         cc.egui_ctx.set_visuals(v);
         let mut st = (*cc.egui_ctx.style()).clone();
-        st.spacing.item_spacing = egui::vec2(6.0, 4.0);
-        st.spacing.button_padding = egui::vec2(8.0, 3.0);
+        st.spacing.item_spacing = egui::vec2(8.0, 6.0);
+        st.spacing.button_padding = egui::vec2(10.0, 4.0);
+        st.spacing.interact_size.y = 26.0;
         for (t, sz) in [
-            (egui::TextStyle::Body, 12.5),
+            (egui::TextStyle::Body, 13.0),
             (egui::TextStyle::Button, 12.5),
-            (egui::TextStyle::Small, 10.5),
+            (egui::TextStyle::Small, 11.0),
             (egui::TextStyle::Monospace, 12.0),
         ] {
             if let Some(f) = st.text_styles.get_mut(&t) {
@@ -186,11 +224,15 @@ impl App {
         self.result = Some(modules::run(id, &self.json()));
     }
 
+    /// Labelled numeric input with the unit set apart in a fixed-width column.
     fn field(ui: &mut egui::Ui, label: &str, unit: &str, v: &mut f64, ch: &mut bool) {
-        ui.label(RichText::new(label).size(11.5).color(Color32::from_rgb(51, 51, 51)));
-        *ch |= ui
-            .add_sized([ui.available_width(), 22.0], egui::DragValue::new(v).speed(1.0).max_decimals(3).suffix(format!(" {unit}")))
-            .changed();
+        ui.add_space(2.0);
+        ui.label(RichText::new(label).size(11.5).color(MUTE));
+        ui.horizontal(|ui| {
+            let w = (ui.available_width() - 52.0).max(60.0);
+            *ch |= ui.add_sized([w, 26.0], egui::DragValue::new(v).speed(1.0).max_decimals(3)).changed();
+            ui.label(RichText::new(unit).font(FontId::monospace(11.0)).color(MUTE));
+        });
     }
 
     fn export(&mut self) {
@@ -464,39 +506,35 @@ impl eframe::App for App {
         let mut mode_changed = false;
         let mut do_export = false;
         egui::TopBottomPanel::top("tabs")
-            .exact_height(26.0)
-            .frame(egui::Frame::new().fill(Color32::WHITE).inner_margin(egui::Margin::ZERO))
+            .exact_height(44.0)
+            .frame(egui::Frame::new().fill(Color32::WHITE).stroke(Stroke::new(1.0_f32, LINE)).inner_margin(egui::Margin::symmetric(14, 0)))
             .show(ctx, |ui| {
                 ui.spacing_mut().item_spacing.x = 0.0;
                 ui.horizontal_centered(|ui| {
-                    let (m, _) = ui.allocate_exact_size(egui::vec2(30.0, 26.0), egui::Sense::hover());
-                    ui.painter().text(m.center(), egui::Align2::CENTER_CENTER, "S", FontId::proportional(21.0), BLUE);
-                    let (r, _) = ui.allocate_exact_size(egui::vec2(64.0, 26.0), egui::Sense::hover());
-                    ui.painter().rect_filled(r, 0.0, BLUE);
-                    ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, "FILE", FontId::proportional(12.0), Color32::WHITE);
+                    let (m, _) = ui.allocate_exact_size(egui::vec2(26.0, 26.0), egui::Sense::hover());
+                    ui.painter().rect_filled(m, 0.0, TX);
+                    ui.painter().text(m.center(), egui::Align2::CENTER_CENTER, "S", FontId::proportional(16.0), Color32::WHITE);
+                    ui.add_space(14.0);
                     for (p, n) in [
-                        (Page::Workspace, "WORKSPACE"),
-                        (Page::Project, "PROJECT"),
-                        (Page::Account, "ACCOUNT"),
-                        (Page::Standards, "STANDARDS"),
-                        (Page::Settings, "SETTINGS"),
+                        (Page::Workspace, "Workspace"),
+                        (Page::Project, "Project"),
+                        (Page::Standards, "Standards"),
+                        (Page::Account, "Account"),
+                        (Page::Settings, "Settings"),
                     ] {
                         let on = self.page == p;
-                        let (r, resp) = ui.allocate_exact_size(egui::vec2(96.0, 26.0), egui::Sense::click());
-                        if resp.hovered() {
-                            ui.painter().rect_filled(r, 0.0, Color32::from_rgb(219, 232, 246));
-                        }
-                        ui.painter().text(
-                            r.center(),
-                            egui::Align2::CENTER_CENTER,
-                            n,
-                            FontId::proportional(12.0),
-                            if on { BLUE } else { Color32::from_rgb(51, 51, 51) },
-                        );
+                        let w = 22.0 + n.len() as f32 * 7.2;
+                        let (r, resp) = ui.allocate_exact_size(egui::vec2(w, 44.0), egui::Sense::click());
+                        let col = if on || resp.hovered() { TX } else { MUTE };
+                        ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, n, FontId::proportional(13.0), col);
                         if on {
-                            ui.painter().line_segment(
-                                [egui::pos2(r.left(), r.bottom() - 1.0), egui::pos2(r.right(), r.bottom() - 1.0)],
-                                Stroke::new(2.0_f32, BLUE),
+                            ui.painter().rect_filled(
+                                egui::Rect::from_min_max(
+                                    egui::pos2(r.left() + 6.0, r.bottom() - 2.0),
+                                    egui::pos2(r.right() - 6.0, r.bottom()),
+                                ),
+                                0.0,
+                                TX,
                             );
                         }
                         if resp.clicked() {
@@ -504,108 +542,104 @@ impl eframe::App for App {
                         }
                     }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.add_space(10.0);
-                        ui.label(RichText::new(format!("StruCal v{}", update::CURRENT)).color(MUTE).size(11.0));
+                        ui.label(RichText::new(format!("v{}", update::CURRENT)).font(FontId::monospace(11.0)).color(MUTE));
                     });
                 });
             });
         if self.page == Page::Workspace {
             egui::TopBottomPanel::top("ribbon")
-                .exact_height(86.0)
-                .frame(egui::Frame::new().fill(RIBBON).stroke(Stroke::new(1.0_f32, LINE)).inner_margin(egui::Margin::symmetric(6, 4)))
+                .exact_height(48.0)
+                .frame(egui::Frame::new().fill(RIBBON).stroke(Stroke::new(1.0_f32, LINE)).inner_margin(egui::Margin::symmetric(14, 0)))
                 .show(ctx, |ui| {
-                    ui.horizontal(|ui| {
-                        group(ui, "Document", |ui| {
-                            if rbtn(ui, "Reset", false).on_hover_text("Reset this module's inputs to their defaults").clicked() {
+                    ui.horizontal_centered(|ui| {
+                        ui.label(RichText::new("MODULE").size(10.5).strong().color(MUTE));
+                        egui::ComboBox::from_id_salt("mod")
+                            .width(220.0)
+                            .selected_text(RichText::new(self.defs[self.mi].name).strong())
+                            .show_ui(ui, |ui| {
+                                for i in 0..self.defs.len() {
+                                    if ui.selectable_value(&mut self.mi, i, self.defs[i].name).changed() {
+                                        mode_changed = true;
+                                    }
+                                }
+                                for u in modules::upcoming() {
+                                    ui.add_enabled(false, egui::Label::new(format!("{} - {}", u.name, u.note)));
+                                }
+                            });
+                        ui.add_space(6.0);
+                        ui.spacing_mut().item_spacing.x = 0.0;
+                        for (m, n) in [("design", "Design"), ("check", "Check")] {
+                            let enabled = m == "design" || self.defs[self.mi].has_check_mode;
+                            let on = self.st[self.mi].mode == m;
+                            if ui
+                                .add_enabled_ui(enabled, |ui| tbtn(ui, n, on))
+                                .inner
+                                .on_disabled_hover_text("This module has no Check Mode")
+                                .clicked()
+                            {
+                                self.st[self.mi].mode = m.into();
+                                mode_changed = true;
+                            }
+                        }
+                        ui.spacing_mut().item_spacing.x = 8.0;
+                        ui.add_space(10.0);
+                        ui.label(RichText::new("PARAMETERS").size(10.5).strong().color(MUTE));
+                        let stt = &mut self.st[self.mi];
+                        egui::ComboBox::from_id_salt("ps")
+                            .width(300.0)
+                            .selected_text(params::get(&stt.param).map(|p| p.label).unwrap_or_default())
+                            .show_ui(ui, |ui| {
+                                for p in params::available() {
+                                    if ui.selectable_value(&mut stt.param, p.id.clone(), p.label).changed() {
+                                        mode_changed = true;
+                                    }
+                                }
+                            });
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            let can_export = self.result.as_ref().is_some_and(|r| r.ok);
+                            if ui
+                                .add_enabled_ui(can_export, |ui| primary(ui, "Export"))
+                                .inner
+                                .on_hover_text("Save the calculation sheet (.html and .doc) to Downloads")
+                                .clicked()
+                            {
+                                do_export = true;
+                            }
+                            if tbtn(ui, "Reset", false).on_hover_text("Reset this module's inputs to their defaults").clicked() {
                                 let d = &self.defs[self.mi];
                                 self.st[self.mi].vals = d.fields.iter().map(|f| f.default).collect();
                                 self.saved.clear();
                                 mode_changed = true;
                             }
-                            ui.add_enabled_ui(self.result.as_ref().is_some_and(|r| r.ok), |ui| {
-                                if rbtn(ui, "Export", false).clicked() {
-                                    do_export = true;
-                                }
-                            });
-                        });
-                        group(ui, "Mode", |ui| {
-                            for (m, n) in [("design", "Design"), ("check", "Check Mode")] {
-                                if m == "check" && !self.defs[self.mi].has_check_mode {
-                                    continue;
-                                }
-                                let on = self.st[self.mi].mode == m;
-                                if rbtn(ui, n, on).clicked() {
-                                    self.st[self.mi].mode = m.into();
-                                    mode_changed = true;
-                                }
-                            }
-                        });
-                        group(ui, "Design basis", |ui| {
-                            ui.vertical(|ui| {
-                                ui.horizontal(|ui| {
-                                    ui.label("Module");
-                                    ui.add_space(14.0);
-                                    egui::ComboBox::from_id_salt("mod").width(230.0).selected_text(self.defs[self.mi].name).show_ui(
-                                        ui,
-                                        |ui| {
-                                            for i in 0..self.defs.len() {
-                                                if ui.selectable_value(&mut self.mi, i, self.defs[i].name).changed() {
-                                                    mode_changed = true;
-                                                }
-                                            }
-                                            for u in modules::upcoming() {
-                                                ui.add_enabled(false, egui::Label::new(format!("{} - {}", u.name, u.note)));
-                                            }
-                                        },
-                                    );
-                                });
-                                let stt = &mut self.st[self.mi];
-                                ui.horizontal(|ui| {
-                                    ui.label("Parameters");
-                                    egui::ComboBox::from_id_salt("ps")
-                                        .width(230.0)
-                                        .selected_text(params::get(&stt.param).map(|p| p.label).unwrap_or_default())
-                                        .show_ui(ui, |ui| {
-                                            for p in params::available() {
-                                                if ui.selectable_value(&mut stt.param, p.id.clone(), p.label).changed() {
-                                                    mode_changed = true;
-                                                }
-                                            }
-                                        });
-                                });
-                            });
                         });
                     });
                 });
         }
         egui::TopBottomPanel::bottom("status")
-            .exact_height(22.0)
-            .frame(egui::Frame::new().fill(BLUE).inner_margin(egui::Margin::symmetric(10, 0)))
+            .exact_height(26.0)
+            .frame(egui::Frame::new().fill(Color32::WHITE).stroke(Stroke::new(1.0_f32, LINE)).inner_margin(egui::Margin::symmetric(14, 0)))
             .show(ctx, |ui| {
                 ui.horizontal_centered(|ui| {
-                    let t = |s: String| RichText::new(s).size(11.0).color(Color32::WHITE);
-                    match &self.result {
-                        Some(r) if r.ok => {
-                            ui.label(t(if r.checks.is_empty() {
-                                "● Calculated".into()
-                            } else if r.overall_pass {
-                                "● All checks satisfied".into()
-                            } else {
-                                "● Checks failing".into()
-                            }));
+                    let t = |s: String| RichText::new(s).font(FontId::monospace(11.0)).color(MUTE);
+                    let (state, dot) = match &self.result {
+                        Some(r) if r.ok && r.checks.is_empty() => ("Calculated", MUTE),
+                        Some(r) if r.ok && r.overall_pass => ("All checks satisfied", GREEN),
+                        Some(r) if r.ok => ("Checks failing", RED),
+                        _ => ("Not calculated", MUTE),
+                    };
+                    let (d, _) = ui.allocate_exact_size(egui::vec2(8.0, 8.0), egui::Sense::hover());
+                    ui.painter().circle_filled(d.center(), 3.5, dot);
+                    ui.label(t(state.into()));
+                    ui.add_space(14.0);
+                    ui.label(t(self.st[self.mi].param.clone()));
+                    if let Some(r) = self.result.as_ref().filter(|r| r.ok) {
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            ui.label(t("preview build".into()));
                             ui.add_space(14.0);
-                            ui.label(t(self.st[self.mi].param.clone()));
-                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                ui.label(t("Preview build".into()));
-                                ui.add_space(14.0);
-                                ui.label(t(format!("Engine v{}", r.engine_version)));
-                                ui.add_space(14.0);
-                                ui.label(t(format!("Trace {}", &r.trace_hash[..8])));
-                            });
-                        }
-                        _ => {
-                            ui.label(t("● Not calculated".into()));
-                        }
+                            ui.label(t(format!("engine v{}", r.engine_version)));
+                            ui.add_space(14.0);
+                            ui.label(t(format!("trace {}", &r.trace_hash[..8])));
+                        });
                     }
                 });
             });
@@ -621,11 +655,11 @@ impl eframe::App for App {
                 self.assistant_ui(ctx);
                 let mut ch = false;
                 egui::SidePanel::left("in")
-                    .exact_width(280.0)
-                    .frame(egui::Frame::new().fill(Color32::WHITE).stroke(Stroke::new(1.0_f32, LINE)).inner_margin(egui::Margin::same(8)))
+                    .exact_width(300.0)
+                    .frame(egui::Frame::new().fill(Color32::WHITE).stroke(Stroke::new(1.0_f32, LINE)).inner_margin(egui::Margin::same(16)))
                     .show(ctx, |ui| {
                         egui::ScrollArea::vertical().show(ui, |ui| {
-                            panel_header(ui, if self.st[self.mi].mode == "check" { "Input data - Check" } else { "Input data - Design" });
+                            panel_header(ui, if self.st[self.mi].mode == "check" { "Inputs · Check" } else { "Inputs · Design" });
                             let stt = &mut self.st[self.mi];
                             let mut last = "";
                             for (f, v) in self.defs[self.mi].fields.iter().zip(stt.vals.iter_mut()) {
@@ -637,7 +671,7 @@ impl eframe::App for App {
                                     last = f.group;
                                 }
                                 if let Some(opts) = &f.options {
-                                    ui.label(RichText::new(f.label).size(12.0).color(Color32::from_rgb(51, 65, 85)));
+                                    ui.label(RichText::new(f.label).size(11.5).color(MUTE));
                                     let cur = opts.iter().find(|o| (o.0 - *v).abs() < 1e-9).map(|o| o.1).unwrap_or("-");
                                     egui::ComboBox::from_id_salt(format!("opt_{}", f.key))
                                         .width(ui.available_width() - 8.0)
@@ -661,38 +695,38 @@ impl eframe::App for App {
                 }
 
                 egui::SidePanel::right("out")
-                    .exact_width(320.0)
-                    .frame(egui::Frame::new().fill(Color32::WHITE).stroke(Stroke::new(1.0_f32, LINE)).inner_margin(egui::Margin::same(8)))
+                    .exact_width(340.0)
+                    .frame(egui::Frame::new().fill(Color32::WHITE).stroke(Stroke::new(1.0_f32, LINE)).inner_margin(egui::Margin::same(16)))
                     .show(ctx, |ui| {
                         egui::ScrollArea::vertical().show(ui, |ui| {
                             panel_header(ui, "Verification");
                             if let Some(r) = &self.result {
                                 if r.ok {
-                                    let (t, c, bg) = if r.checks.is_empty() {
-                                        ("RESULTS", BLUE, Color32::from_rgb(232, 240, 253))
+                                    let (t, c, top) = if r.checks.is_empty() {
+                                        ("RESULTS", TX, MUTE)
                                     } else if r.overall_pass {
-                                        ("PASS", GREEN, GREEN_BG)
+                                        ("PASS", GREEN, GREEN)
                                     } else {
-                                        ("FAIL", RED, RED_BG)
+                                        ("FAIL", RED, RED)
                                     };
-                                    egui::Frame::new()
-                                        .fill(bg)
-                                        .stroke(Stroke::new(1.0_f32, c.gamma_multiply(0.45)))
+                                    let resp = egui::Frame::new()
+                                        .fill(Color32::WHITE)
+                                        .stroke(Stroke::new(1.0_f32, LINE))
                                         .corner_radius(CornerRadius::ZERO)
-                                        .inner_margin(egui::Margin::same(14))
+                                        .inner_margin(egui::Margin { left: 14, right: 14, top: 18, bottom: 14 })
                                         .show(ui, |ui| {
                                             ui.set_width(ui.available_width());
                                             ui.horizontal(|ui| {
-                                                ui.label(RichText::new(t).font(FontId::monospace(22.0)).strong().color(c));
+                                                ui.label(RichText::new(t).font(FontId::monospace(30.0)).strong().color(c));
                                                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                                     ui.label(
                                                         RichText::new(if r.checks.is_empty() {
                                                             String::new()
                                                         } else {
-                                                            format!("Max {:.0}%", r.max_util * 100.0)
+                                                            format!("max {:.0}%", r.max_util * 100.0)
                                                         })
-                                                        .strong()
-                                                        .color(c),
+                                                        .font(FontId::monospace(12.0))
+                                                        .color(MUTE),
                                                     )
                                                 });
                                             });
@@ -706,12 +740,18 @@ impl eframe::App for App {
                                                         r.checks.len()
                                                     )
                                                 })
-                                                .size(12.0)
-                                                .color(c),
+                                                .size(11.5)
+                                                .color(MUTE),
                                             );
                                         });
+                                    let rr = resp.response.rect;
+                                    ui.painter().rect_filled(
+                                        egui::Rect::from_min_max(rr.left_top(), egui::pos2(rr.right(), rr.top() + 4.0)),
+                                        0.0,
+                                        top,
+                                    );
                                     if !r.checks.is_empty() {
-                                        heading(ui, "Utilisation ratios");
+                                        heading(ui, "Utilisation  Ed / Rd");
                                     }
                                     for k in &r.checks {
                                         let col = if !k.pass {
@@ -719,7 +759,7 @@ impl eframe::App for App {
                                         } else if k.utilisation > 0.85 {
                                             AMBER
                                         } else {
-                                            Color32::from_rgb(15, 157, 106)
+                                            GREEN
                                         };
                                         ui.horizontal(|ui| {
                                             ui.label(&k.name);
@@ -741,28 +781,42 @@ impl eframe::App for App {
                                                 .font(FontId::monospace(10.5))
                                                 .color(MUTE),
                                         );
-                                        ui.add(egui::ProgressBar::new(k.utilisation.min(1.0) as f32).fill(col).desired_height(5.0));
+                                        let (bar, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 4.0), egui::Sense::hover());
+                                        ui.painter().rect_filled(bar, 0.0, HEAD);
+                                        ui.painter().rect_filled(
+                                            egui::Rect::from_min_size(
+                                                bar.min,
+                                                egui::vec2(bar.width() * k.utilisation.clamp(0.0, 1.0) as f32, 4.0),
+                                            ),
+                                            0.0,
+                                            col,
+                                        );
+                                        ui.label(RichText::new(&k.reference).font(FontId::monospace(10.0)).color(MUTE));
+                                        ui.add_space(6.0);
+                                        rule(ui);
                                         ui.add_space(4.0);
                                     }
-                                    heading(ui, &format!("Observations ({} open)", r.observations.len()));
+                                    heading(ui, &format!("Observations  {}", r.observations.len()));
                                     for o in &r.observations {
-                                        let c = match o.level.as_str() {
-                                            "RED" => RED,
-                                            "AMBER" => AMBER,
-                                            _ => BLUE,
+                                        let (c, bg) = match o.level.as_str() {
+                                            "RED" => (RED, RED_BG),
+                                            "AMBER" => (AMBER, AMBER_BG),
+                                            _ => (BLUE, SEL),
                                         };
-                                        egui::Frame::new()
-                                            .stroke(Stroke::new(1.0_f32, LINE))
-                                            .corner_radius(CornerRadius::ZERO)
-                                            .inner_margin(egui::Margin::same(10))
-                                            .show(ui, |ui| {
-                                                ui.set_width(ui.available_width());
-                                                ui.horizontal(|ui| {
-                                                    ui.label(RichText::new(&o.id).font(FontId::monospace(11.0)).strong());
-                                                    ui.label(RichText::new(&o.level).font(FontId::monospace(10.0)).strong().color(c));
-                                                });
-                                                ui.label(RichText::new(&o.text).size(12.0).color(Color32::from_rgb(51, 65, 85)));
-                                            });
+                                        ui.horizontal(|ui| {
+                                            ui.label(RichText::new(&o.id).font(FontId::monospace(10.5)).color(MUTE));
+                                            ui.label(
+                                                RichText::new(format!(" {} ", o.level))
+                                                    .font(FontId::monospace(10.0))
+                                                    .strong()
+                                                    .color(c)
+                                                    .background_color(bg),
+                                            );
+                                        });
+                                        ui.label(RichText::new(&o.text).size(12.0).color(TX));
+                                        ui.add_space(6.0);
+                                        rule(ui);
+                                        ui.add_space(4.0);
                                     }
                                     if !self.saved.is_empty() {
                                         ui.add_space(8.0);
@@ -773,28 +827,31 @@ impl eframe::App for App {
                         });
                     });
 
-                egui::CentralPanel::default().frame(egui::Frame::new().fill(BG).inner_margin(egui::Margin::symmetric(18, 14))).show(ctx, |ui| {
+                egui::CentralPanel::default().frame(egui::Frame::new().fill(BG).inner_margin(egui::Margin::symmetric(32, 24))).show(ctx, |ui| {
                     egui::ScrollArea::vertical().show(ui, |ui| {
-                        ui.label(RichText::new(format!("{} - {}", self.defs[self.mi].title, if self.st[self.mi].mode == "check" { "independent check" } else { "design" })).size(17.0).strong().color(TX));
-                        ui.label(RichText::new(self.defs[self.mi].subtitle).color(MUTE));
-                        ui.add_space(10.0);
+                        ui.label(RichText::new(if self.st[self.mi].mode == "check" { "INDEPENDENT CHECK" } else { "DESIGN" }).size(10.5).strong().color(MUTE));
+                        ui.label(RichText::new(self.defs[self.mi].title).size(24.0).strong().color(TX));
+                        ui.label(RichText::new(self.defs[self.mi].subtitle).font(FontId::monospace(11.5)).color(MUTE));
+                        ui.add_space(12.0);
+                        let (hr, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 1.0), egui::Sense::hover());
+                        ui.painter().rect_filled(hr, 0.0, TX);
+                        ui.add_space(16.0);
                         if let Some(r) = &self.result {
                             for e in &r.errors { ui.colored_label(RED, e); }
                             if r.ok {
                                 if r.param_status.contains("NOT") {
-                                    egui::Frame::new().fill(Color32::from_rgb(255, 247, 224)).stroke(Stroke::new(1.0_f32, Color32::from_rgb(241, 211, 138))).corner_radius(CornerRadius::ZERO).inner_margin(egui::Margin::same(11)).show(ui, |ui| { ui.set_width(ui.available_width()); ui.label(RichText::new(format!("Parameter set: {}. Confirm the governing National Annex before issue for construction.", r.param_status)).size(12.5).color(Color32::from_rgb(91, 65, 8))); });
+                                    egui::Frame::new().fill(AMBER_BG).corner_radius(CornerRadius::ZERO).inner_margin(egui::Margin::symmetric(14, 11)).show(ui, |ui| { ui.set_width(ui.available_width()); ui.label(RichText::new(format!("Parameter set: {}. Confirm the governing National Annex before issue for construction.", r.param_status)).size(12.5).color(TX)); });
                                     ui.add_space(10.0);
                                 }
                                 for w in &r.warnings { ui.colored_label(AMBER, w); }
                                 card(ui, |ui| {
-                                    ui.horizontal(|ui| { ui.add_space(16.0); ui.label(RichText::new("Section definition").strong()); ui.label(RichText::new(self.defs[self.mi].name).font(FontId::monospace(11.5)).color(MUTE)); });
-                                    ui.separator();
+                                    card_head(ui, "Section", self.defs[self.mi].name);
                                     ui.horizontal(|ui| {
-                                        if let Some(d) = &r.drawing { Self::draw_section(ui, d); }
+                                        ui.add_space(16.0); if let Some(d) = &r.drawing { Self::draw_section(ui, d); }
                                         ui.vertical(|ui| {
                                             ui.set_width(ui.available_width() - 12.0);
                                             for k in &r.summary {
-                                                ui.horizontal(|ui| { ui.label(RichText::new(&k.label).color(Color32::from_rgb(71, 85, 105))); ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| ui.label(RichText::new(&k.value).font(FontId::monospace(13.0)).strong())); });
+                                                ui.horizontal(|ui| { ui.label(RichText::new(&k.label).color(MUTE)); ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| ui.label(RichText::new(&k.value).font(FontId::monospace(13.0)).strong())); });
                                                 ui.separator();
                                             }
                                         });
@@ -802,20 +859,20 @@ impl eframe::App for App {
                                 });
                                 ui.add_space(14.0);
                                 card(ui, |ui| {
-                                    ui.horizontal(|ui| { ui.add_space(16.0); ui.label(RichText::new("Calculation trace").strong()); ui.label(RichText::new(format!("{} steps · deterministic", r.trace.steps.len())).size(12.0).color(MUTE)); });
-                                    ui.separator();
+                                    card_head(ui, "Calculation", &format!("{} steps · deterministic", r.trace.steps.len()));
                                     egui::Frame::new().inner_margin(egui::Margin::same(14)).show(ui, |ui| {
-                                        egui::Grid::new("calc").striped(true).num_columns(4).spacing([16.0, 12.0]).min_col_width(40.0).show(ui, |ui| {
+                                        let calc_w = (ui.available_width() - 40.0 - 150.0 - 170.0 - 3.0 * 16.0).max(220.0);
+                                        egui::Grid::new("calc").striped(false).num_columns(4).spacing([16.0, 12.0]).min_col_width(40.0).show(ui, |ui| {
                                             for h in ["#", "REFERENCE", "CALCULATION", "OUTPUT"] { ui.label(RichText::new(h).size(10.5).strong().color(MUTE)); }
                                             ui.end_row();
                                             let (mut cur, mut n) = (String::new(), 0);
                                             for s in &r.trace.steps {
-                                                if s.section != cur { cur = s.section.clone(); ui.label(""); ui.label(RichText::new(&s.section).strong().color(Color32::from_rgb(30, 58, 138))); ui.label(""); ui.label(""); ui.end_row(); }
+                                                if s.section != cur { cur = s.section.clone(); ui.label(""); ui.label(RichText::new(&s.section).strong().color(TX)); ui.label(""); ui.label(""); ui.end_row(); }
                                                 n += 1;
                                                 ui.label(RichText::new(format!("{:02}", n)).font(FontId::monospace(11.0)).color(MUTE));
-                                                ui.add_sized([150.0, 0.0], egui::Label::new(RichText::new(if s.reference.is_empty() { "-" } else { &s.reference }).font(FontId::monospace(11.0)).color(BLUE)).wrap());
-                                                ui.vertical(|ui| { ui.set_max_width(440.0); ui.label(RichText::new(&s.title).strong().size(12.5)); ui.add(egui::Label::new(RichText::new(&s.calculation).font(FontId::monospace(12.0))).wrap()); if !s.comment.is_empty() { ui.label(RichText::new(&s.comment).size(11.0).color(MUTE)); } });
-                                                ui.add(egui::Label::new(RichText::new(&s.output).font(FontId::monospace(12.0)).strong()).wrap());
+                                                ui.allocate_ui_with_layout(egui::vec2(150.0, 0.0), egui::Layout::top_down(egui::Align::Min), |ui| { ui.set_width(150.0); ui.add(egui::Label::new(RichText::new(if s.reference.is_empty() { "—" } else { &s.reference }).font(FontId::monospace(11.0)).color(BLUE)).wrap()); });
+                                                ui.vertical(|ui| { ui.set_width(calc_w); ui.label(RichText::new(&s.title).strong().size(12.5)); ui.add(egui::Label::new(RichText::new(&s.calculation).font(FontId::monospace(12.0))).wrap()); if !s.comment.is_empty() { ui.label(RichText::new(&s.comment).size(11.0).color(MUTE)); } });
+                                                ui.allocate_ui_with_layout(egui::vec2(170.0, 0.0), egui::Layout::top_down(egui::Align::Min), |ui| { ui.set_width(170.0); ui.add(egui::Label::new(RichText::new(&s.output).font(FontId::monospace(12.0)).strong().color(match s.output.as_str() { "PASS" => GREEN, "FAIL" => RED, _ => TX })).wrap()); });
                                                 ui.end_row();
                                             }
                                         });
@@ -874,7 +931,7 @@ impl eframe::App for App {
                             ui.label(format!("Installed version: {}", update::CURRENT));
                             let busy = matches!(self.upd, Upd::Checking | Upd::Installing);
                             if ui
-                                .add_enabled(!busy, egui::Button::new(RichText::new("Check updates").color(Color32::WHITE)).fill(BLUE))
+                                .add_enabled(!busy, egui::Button::new(RichText::new("Check updates").color(Color32::WHITE)).fill(TX))
                                 .clicked()
                             {
                                 let (tx, rx) = channel();
