@@ -29,7 +29,7 @@ struct ModState { mode: String, param: String, vals: Vec<f64> }
 struct App {
     page: Page, defs: Vec<ModDef>, mi: usize, st: Vec<ModState>, result: Option<ModResult>, saved: String,
     upd: Upd, rx: Option<Receiver<Result<Option<update::Available>, String>>>, irx: Option<Receiver<Result<(), String>>>,
-    pj: project_page::Pj, cl: cloud::Client, acct: account_page::Acct, asst: assistant_page::Asst,
+    pj: project_page::Pj, cl: cloud::Client, acct: account_page::Acct, acct_job: account_page::AcctJob, asst: assistant_page::Asst,
 }
 
 fn card<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
@@ -65,7 +65,7 @@ impl App {
         update::cleanup_old();
         let defs = modules::defs();
         let st = defs.iter().map(|d| ModState { mode: "design".into(), param: "EN1992-1-1:2004/RECOMMENDED".into(), vals: d.fields.iter().map(|f| f.default).collect() }).collect();
-        let mut a = App { page: Page::Workspace, defs, mi: 0, st, result: None, saved: String::new(), upd: Upd::Idle, rx: None, irx: None, pj: project_page::Pj::new(), cl: cloud::Client::default(), acct: account_page::Acct::new(), asst: assistant_page::Asst::default() };
+        let mut a = App { page: Page::Workspace, defs, mi: 0, st, result: None, saved: String::new(), upd: Upd::Idle, rx: None, irx: None, pj: project_page::Pj::new(), cl: cloud::Client::default(), acct: account_page::Acct::new(), acct_job: account_page::AcctJob::default(), asst: assistant_page::Asst::default() };
         a.run(); a
     }
     fn json(&self) -> serde_json::Value {
@@ -247,7 +247,10 @@ impl eframe::App for App {
         if self.page == Page::Workspace {
             egui::TopBottomPanel::top("ribbon").exact_height(86.0).frame(egui::Frame::new().fill(RIBBON).stroke(Stroke::new(1.0, LINE)).inner_margin(egui::Margin::symmetric(6, 4))).show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    group(ui, "Document", |ui| { ui.add_enabled_ui(self.result.as_ref().map_or(false, |r| r.ok), |ui| { if rbtn(ui, "Export", false).clicked() { do_export = true; } }); });
+                    group(ui, "Document", |ui| {
+                        if rbtn(ui, "Reset", false).on_hover_text("Reset this module's inputs to their defaults").clicked() { let d = &self.defs[self.mi]; self.st[self.mi].vals = d.fields.iter().map(|f| f.default).collect(); self.saved.clear(); mode_changed = true; }
+                        ui.add_enabled_ui(self.result.as_ref().is_some_and(|r| r.ok), |ui| { if rbtn(ui, "Export", false).clicked() { do_export = true; } });
+                    });
                     group(ui, "Mode", |ui| {
                         for (m, n) in [("design", "Design"), ("check", "Check Mode")] {
                         if m == "check" && !self.defs[self.mi].has_check_mode { continue; }
@@ -394,7 +397,7 @@ impl eframe::App for App {
                 });
             }
             Page::Project => { self.pj.ui(ctx, &self.defs, &mut self.cl); }
-            Page::Account => { if let Some((id, name)) = self.acct.ui(ctx, &mut self.cl) { self.pj.open_cloud(&mut self.cl, id, name); self.page = Page::Project; } }
+            Page::Account => { if let Some((id, name)) = self.acct.ui(ctx, &mut self.cl, &mut self.acct_job) { self.pj.open_cloud(&mut self.cl, id, name); self.page = Page::Project; } }
             Page::Standards => { egui::CentralPanel::default().frame(egui::Frame::new().fill(BG).inner_margin(egui::Margin::same(26))).show(ctx, |ui| {
                 ui.label(RichText::new("Formula registry").size(24.0).strong());
                 ui.label(RichText::new("Every implemented formula, its source clause and verification state.").color(MUTE)); ui.add_space(10.0);
