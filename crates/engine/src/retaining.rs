@@ -31,13 +31,12 @@ pub fn run(v: &Value) -> ModResult {
     if !(20.0..=45.0).contains(&phi) { errs.push("Backfill φ' must be between 20° and 45°".to_string()); }
     if delta > phi + 1e-9 { errs.push("Base friction angle δ must not exceed φ'".to_string()); }
     if hw > hs + tb { errs.push("Water height cannot exceed the wall height".to_string()); }
-    if fck > 50.0 || fck < 12.0 { errs.push("fck must be within 12-50 MPa for this release".to_string()); }
+    if !(12.0..=50.0).contains(&fck) { errs.push("fck must be within 12-50 MPa for this release".to_string()); }
     if !errs.is_empty() { return fail(errs); }
     let fcd = ps.alpha_cc * fck / ps.gamma_c; let fyd = fyk / ps.gamma_s;
     let mut t = Trace::new();
     let (s1, s2, s3, s4, s5, s6, s7) = ("1. Design data", "2. Characteristic forces", "3. Stability: sliding and overturning", "4. Base pressure", "5. Stem design", "6. Toe design", "7. Heel design");
-    let h = hs + tb; let hh = hs - 0.0;
-    let _ = hh;
+    let h = hs + tb;
     t.step(s1, "Geometry", "", "", &format!("H_s = {} m;  t_s = {} m;  t_b = {} m;  L_t = {} m;  B = {} m;  total height H = H_s + t_b = {:.2} m;  heel length = {:.2} m", hs, ts, tb, lt, bw, h, bw - lt - ts), "", "Constant stem thickness, horizontal ground in front and behind, level backfill.");
     t.step(s1, "Soil, water and actions", "", "", &format!("γ = {} kN/m³;  φ' = {}°;  δ = {}°;  q_allow = {} kPa;  surcharge q = {} kPa;  water height h_w = {} m", gam, phi, delta, q_allow, qs, hw), "", if hw <= 0.0 { "Backfill is assumed FULLY DRAINED (no water pressure). This depends on the drainage detail being built and maintained: confirm on site." } else { "Hydrostatic pressure from water behind the wall is included. Seepage and soil buoyancy are not modelled." });
     t.step(s1, "Partial factors", "EN 1997-1 Annex A (recommended values); EN 1990 Table A1.2; EN 1992-1-1 cl. 2.4.2.4", "", &format!("DA1 Combination 1 (A1+M1): γ_G = 1.35 unfavourable, 1.0 favourable;  γ_Q = 1.5;  γ_φ = 1.0.   Combination 2 (A2+M2): γ_G = 1.0;  γ_Q = 1.3;  γ_φ = 1.25.   EQU: γ_G,dst = 1.1;  γ_G,stb = 0.9;  γ_Q = 1.5;  γ_φ = 1.25.   Structural: γ_G = {:.2};  γ_Q = {:.2};  γ_c = {:.2};  γ_s = {:.2}", ps.gamma_g, ps.gamma_q, ps.gamma_c, ps.gamma_s), "", &format!("Parameter set: {} [{}]. The geotechnical factors are the EN recommended values; the National Annex may choose a different Design Approach.", ps.label, ps.status));

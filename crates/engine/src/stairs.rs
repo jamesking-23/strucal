@@ -21,7 +21,7 @@ pub fn run(v: &Value) -> ModResult {
     let ps = match v.get("param_set").and_then(|p| p.as_str()).and_then(params::get) { Some(p) => p, None => return fail(vec!["Unknown or unavailable parameter set - select one explicitly".into()]) };
     let x = match require(v, &d0, check) { Ok(x) => x, Err(e) => return fail(e) };
     let (span, h, rise, going, cover, phi, fck, fyk, gk, qk, s_in) = (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10]);
-    if fck > 50.0 || fck < 12.0 { return fail(vec!["fck must be within 12-50 MPa for this release".into()]); }
+    if !(12.0..=50.0).contains(&fck) { return fail(vec!["fck must be within 12-50 MPa for this release".into()]); }
     let b = 1000.0;
     let mut t = Trace::new();
     let (s1, s2, s3, s4, s5, s6) = ("1. Design data", "2. Actions", "3. Effective depth and strengths", "4. Flexural design", "5. Shear", "6. Serviceability: deflection");
@@ -83,7 +83,7 @@ pub fn run(v: &Value) -> ModResult {
     let s2d = ((1000.0 * PI * dia2 * dia2 / 4.0 / as_dist) / 25.0).floor() * 25.0;
     t.step(s4, "Secondary (distribution) reinforcement", "EN 1992-1-1 cl. 9.3.1.1(2)", "A_{s,sec} ≥ 0.20·A_{s,prov}", &format!("= 0.20 × {:.0} = {:.0} mm^{{2}}/m;  T{} @ s ≤ {:.0} mm", as_prov, as_dist, dia2, s2d), &format!("Use T{} @ {:.0} mm c/c (secondary)", dia2, s2d.min(3.5 * h).min(450.0)), "Not part of the PASS/FAIL set; detail on drawings.");
     let summary = vec![kv("Effective depth d", format!("{:.1} mm", d)), kv("Design load w Ed", format!("{:.2} kN/m", w)), kv("M Ed / V Ed", format!("{:.2} kNm / {:.2} kN", m_ed, v_ed)), kv("Required steel As,req", format!("{:.0} mm²/m", as_req)), kv("Main reinforcement", format!("T{} @ {:.0}  ({:.0} mm²/m)", phi, spacing, as_prov)), kv("Secondary", format!("T{} @ {:.0}", dia2, s2d.min(3.5 * h).min(450.0))), kv("Span/depth", format!("{:.1} (limit {:.1})", actual, allow))];
-    let mut res =     finish(t, checks, &ps.status, summary, vec![], { let tr = 2.0 * rise + going; if tr < 550.0 || tr > 700.0 { vec![("AMBER", format!("2R + G = {:.0} mm is outside the common 550-700 mm comfort range. Check against the applicable building code.", tr))] } else { vec![] } }, vec![
+    let mut res =     finish(t, checks, &ps.status, summary, vec![], { let tr = 2.0 * rise + going; if !(550.0..=700.0).contains(&tr) { vec![("AMBER", format!("2R + G = {:.0} mm is outside the common 550-700 mm comfort range. Check against the applicable building code.", tr))] } else { vec![] } }, vec![
         "Implemented: loads on plan, flexure, min/max steel, bar spacing, shear without links, span/depth deflection check, distribution steel.".into(),
         "NOT implemented: landings, flights spanning longitudinally with landings, dynamic (vibration) check, cracking, anchorage and curtailment, stair geometry rules of the national building code.".into(),
         "A PASS applies only to the checks listed and within the stated assumptions. It is not an approval by a registered engineer.".into()],

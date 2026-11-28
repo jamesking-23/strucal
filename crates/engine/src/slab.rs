@@ -20,7 +20,7 @@ pub fn run(v: &Value) -> ModResult {
     let ps = match v.get("param_set").and_then(|p| p.as_str()).and_then(params::get) { Some(p) => p, None => return fail(vec!["Unknown or unavailable parameter set - select one explicitly".into()]) };
     let x = match require(v, &d0, check) { Ok(x) => x, Err(e) => return fail(e) };
     let (span, h, cover, phi, fck, fyk, gk, qk, s_in) = (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8]);
-    if fck > 50.0 || fck < 12.0 { return fail(vec!["fck must be within 12-50 MPa for this release".into()]); }
+    if !(12.0..=50.0).contains(&fck) { return fail(vec!["fck must be within 12-50 MPa for this release".into()]); }
     let b = 1000.0;
     let mut t = Trace::new();
     let (s1, s2, s3, s4, s5, s6) = ("1. Design data", "2. Actions", "3. Effective depth and strengths", "4. Flexural design", "5. Shear", "6. Serviceability: deflection");

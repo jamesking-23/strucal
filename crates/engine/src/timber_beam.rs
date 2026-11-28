@@ -72,7 +72,7 @@ pub fn run(v: &Value) -> ModResult {
     // shear
     let notch = h_ef > 0.0;
     let area = b * h;
-    let (tau, kvv, sh_cap) = if !notch {
+    let (tau, _kvv, sh_cap) = if !notch {
         let tau = 1.5 * ved * 1e3 / area;
         t.step(s5, "Shear stress", "Supplied source: Eq 11.25, 11.26", "τ_d = 1.5·V_d / A;   τ_d ≤ f_{v,d}", &format!("= 1.5 × {:.3}×10^{{3}} / ({} × {}) = {:.3} N/mm^{{2}};  f_v,d = {:.2} N/mm^{{2}}", ved, b, h, tau, fvd), &format!("τ_{{d}} = {:.3} N/mm^{{2}}", tau), "");
         (tau, 1.0, fvd)
@@ -89,7 +89,6 @@ pub fn run(v: &Value) -> ModResult {
         (tau, kv, kv * fvd)
     };
     checks.push(chk(if notch { "Shear at the end notch" } else { "Shear" }, "Supplied Eq 11.25, 11.28", format!("{:.3} N/mm²", tau), format!("{:.3} N/mm²", sh_cap), tau / sh_cap, tau <= sh_cap));
-    let _ = kvv;
     // bearing
     let f90 = ved * 1e3;
     let sig90 = f90 / (b * lb);

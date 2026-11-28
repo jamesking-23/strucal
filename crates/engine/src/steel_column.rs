@@ -33,7 +33,7 @@ pub fn run(v: &Value) -> ModResult {
     if 2.0 * tf >= h { errs.push("2·tf must be less than h".to_string()); }
     if tw >= b { errs.push("tw must be less than b".to_string()); }
     if r > (b - tw) / 2.0 || r > (h - 2.0 * tf) / 2.0 { errs.push("Root radius is too large for the section".to_string()); }
-    if fy < 235.0 || fy > 460.0 { errs.push("fy must be between 235 and 460 MPa (S235-S460)".to_string()); }
+    if !(235.0..=460.0).contains(&fy) { errs.push("fy must be between 235 and 460 MPa (S235-S460)".to_string()); }
     if ky < 0.5 || kz < 0.5 || ky > 2.5 || kz > 2.5 { errs.push("Effective length factors must be between 0.5 and 2.5".to_string()); }
     if !errs.is_empty() { return fail(errs); }
     let mut t = Trace::new();

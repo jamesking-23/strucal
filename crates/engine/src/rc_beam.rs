@@ -1,5 +1,6 @@
 //! RC rectangular beam: flexure, shear, min/max reinforcement, bar spacing (EN 1992-1-1:2004).
 //! Not implemented in this release: torsion, crack control, deflection, anchorage, lap lengths.
+use crate::module::chk;
 use crate::params;
 use crate::trace::Trace;
 use crate::units::*;
@@ -39,10 +40,6 @@ pub struct BeamResult {
 
 fn fail(errors: Vec<String>) -> BeamResult { BeamResult { errors, engine_version: crate::ENGINE_VERSION.into(), ..Default::default() } }
 
-fn chk(name: &str, reference: &str, demand: String, capacity: String, util: f64, pass: bool) -> Check {
-    let u = if util.is_finite() { util.min(9.99) } else { 9.99 };
-    Check { name: name.into(), reference: reference.into(), demand, capacity, utilisation: u, pass }
-}
 
 pub fn run(i: &BeamInput) -> BeamResult {
     let mut errs = vec![];
@@ -55,7 +52,7 @@ pub fn run(i: &BeamInput) -> BeamResult {
     if i.fck < 12.0 { errs.push("fck < 12 MPa is outside EN 1992-1-1 Table 3.1".into()); }
     let check_mode = i.mode == "check";
     if check_mode {
-        match i.n_bars { Some(n) if n >= 2.0 && n <= 20.0 && n.fract() == 0.0 => {}, _ => errs.push("Number of tension bars must be a whole number from 2 to 20".into()) }
+        match i.n_bars { Some(n) if (2.0..=20.0).contains(&n) && n.fract() == 0.0 => {}, _ => errs.push("Number of tension bars must be a whole number from 2 to 20".into()) }
         match i.link_spacing { Some(s) if s.is_finite() && s > 0.0 => {}, _ => errs.push("Link spacing must be a positive number".into()) }
     }
     let ps = match params::get(&i.param_set) { Some(p) => p, None => { errs.push("Unknown or unavailable parameter set - select one explicitly".into()); return fail(errs); } };
@@ -90,11 +87,11 @@ pub fn run(i: &BeamInput) -> BeamResult {
     t.step(s3, "Normalised moment", "EN 1992-1-1 cl. 3.1.7, 6.1", "μ = M_{Ed} / (b·d^{2}·f_{cd})", &format!("= {:.1}×10^{{6}} / ({} × {:.1}^{{2}} × {:.2})", i.m_ed, i.b, d, fcd), &format!("μ = {:.4}", mu), "Rectangular stress block: λ = 0.8, η = 1.0.");
     let xi_lim = 0.45;
     let mu_lim = 0.8 * xi_lim * (1.0 - 0.4 * xi_lim);
-    t.step(s3, "Limiting moment coefficient", "EN 1992-1-1 cl. 5.5(4) (no redistribution, f_{ck} ≤ 50)", "μ_{lim} = 0.8·(x/d)_{lim}·[1 − 0.4·(x/d)_{lim}],  (x/d)_{lim} = 0.45", &format!("= 0.8 × 0.45 × (1 − 0.4 × 0.45)"), &format!("μ_{{lim}} = {:.4}", mu_lim), &if mu <= mu_lim { format!("μ = {:.4} ≤ μ_lim: compression reinforcement not required.", mu) } else { format!("μ = {:.4} > μ_lim: compression reinforcement required.", mu) });
+    t.step(s3, "Limiting moment coefficient", "EN 1992-1-1 cl. 5.5(4) (no redistribution, f_{ck} ≤ 50)", "μ_{lim} = 0.8·(x/d)_{lim}·[1 − 0.4·(x/d)_{lim}],  (x/d)_{lim} = 0.45", &"= 0.8 × 0.45 × (1 − 0.4 × 0.45)".to_string(), &format!("μ_{{lim}} = {:.4}", mu_lim), &if mu <= mu_lim { format!("μ = {:.4} ≤ μ_lim: compression reinforcement not required.", mu) } else { format!("μ = {:.4} > μ_lim: compression reinforcement required.", mu) });
 
     let m_nmm = i.m_ed * 1e6;
     let mut as_comp = 0.0;
-    let as_req; let mut z_used = 0.0;
+    let as_req; let mut z_used: f64;
     if mu <= mu_lim {
         let z = (d / 2.0 * (1.0 + (1.0 - 2.0 * mu).sqrt())).min(0.95 * d);
         z_used = z;

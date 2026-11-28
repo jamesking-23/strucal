@@ -2,7 +2,6 @@
 //! Section properties are computed from the entered dimensions (including root radius) - no section table is used.
 use crate::module::*;
 use crate::params;
-use crate::rc_beam::Obs;
 use crate::trace::Trace;
 use serde_json::Value;
 use std::f64::consts::PI;
@@ -46,7 +45,7 @@ pub fn run(v: &Value) -> ModResult {
     if tw >= b { errs.push("tw must be less than b".to_string()); }
     if r > (b - tw) / 2.0 || r > (h - 2.0 * tf) / 2.0 { errs.push("Root radius is too large for the section".to_string()); }
     if !(level == 1.0 || level == 2.0) { errs.push("Load level must be 1 (top flange) or 2 (shear centre / bottom)".to_string()); }
-    if fy < 235.0 || fy > 460.0 { errs.push("fy must be between 235 and 460 MPa (EN 1993-1-1 Table 3.1, S235-S460)".to_string()); }
+    if !(235.0..=460.0).contains(&fy) { errs.push("fy must be between 235 and 460 MPa (EN 1993-1-1 Table 3.1, S235-S460)".to_string()); }
     if lcr > span * 1.0001 { errs.push("Unrestrained length cannot exceed the span in this release".to_string()); }
     if !errs.is_empty() { return fail(errs); }
     let mut t = Trace::new();

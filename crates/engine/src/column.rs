@@ -38,7 +38,7 @@ pub(crate) fn mrd(s: &S, n: f64) -> Option<(f64, f64)> {
     let x = 0.5 * (lo + hi); Some((nm(s, x).1, x))
 }
 
-struct Ev { nface: u32, a_each: f64, a_tot: f64, omega: f64, n: f64, kr: f64, kphi: f64, inv_r: f64, e2: f64, m2: f64, m_tot: f64, m_rd: Option<(f64, f64)>, d: f64, beta_phi: f64 }
+struct Ev { nface: u32, a_each: f64, a_tot: f64, omega: f64, kr: f64, kphi: f64, inv_r: f64, e2: f64, m2: f64, m_tot: f64, m_rd: Option<(f64, f64)>, d: f64, beta_phi: f64 }
 
 pub fn run(v: &Value) -> ModResult {
     let d0 = def();
@@ -50,7 +50,7 @@ pub fn run(v: &Value) -> ModResult {
     let mut v2 = v.clone(); v2["m01"] = 1.0.into(); v2["phi_ef"] = 1.0.into();
     let x = match require(&v2, &d0, check) { Ok(x) => x, Err(e) => return fail(e) };
     let (b, h, len, beta, cover, ldia, phi, fck, fyk, n_ed, m02, nface_in, s_in) = (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[10], x[11], x[13], x[14]);
-    if fck > 50.0 || fck < 12.0 { return fail(vec!["fck must be within 12-50 MPa for this release".into()]); }
+    if !(12.0..=50.0).contains(&fck) { return fail(vec!["fck must be within 12-50 MPa for this release".into()]); }
     if check && (nface_in.fract() != 0.0 || !(2.0..=14.0).contains(&nface_in)) { return fail(vec!["Bars per face must be a whole number from 2 to 14".into()]); }
     if m01.abs() > m02 { return fail(vec!["|M01| must not exceed M02 (M02 is the larger end moment)".into()]); }
     let mut t = Trace::new();
@@ -96,7 +96,7 @@ pub fn run(v: &Value) -> ModResult {
             m2 = n_ed * e2 / 1e3;
         }
         let m_tot = if slender { m02.max(m0 + m2).max(m_imp) } else { m0 };
-        Ev { nface, a_each, a_tot, omega, n: n_rel, kr, kphi, inv_r, e2, m2, m_tot, m_rd: mrd(&s, n_ed * 1e3).map(|(m, x)| (m / 1e6, x)), d, beta_phi }
+        Ev { nface, a_each, a_tot, omega, kr, kphi, inv_r, e2, m2, m_tot, m_rd: mrd(&s, n_ed * 1e3).map(|(m, x)| (m / 1e6, x)), d, beta_phi }
     };
     let avail = b - 2.0 * (cover + ldia);
     let max_face = { let mut n = 2u32; while n < 14 && (avail - (n + 1) as f64 * phi) / (n as f64) >= phi.max(25.0) { n += 1; } n };

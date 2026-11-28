@@ -23,8 +23,8 @@ pub fn run(v: &Value) -> ModResult {
     let x = match require(&v2, &d0, false) { Ok(x) => x, Err(e) => return fail(e) };
     let (lw, a, tmin, fy, fu) = (x[0], x[1], x[2], x[5], x[6]);
     let mut errs = vec![];
-    if fy < 235.0 || fy > 460.0 { errs.push("fy must be between 235 and 460 MPa (S235-S460)".to_string()); }
-    if fu < 360.0 || fu > 570.0 { errs.push("fu must be between 360 and 570 MPa".to_string()); }
+    if !(235.0..=460.0).contains(&fy) { errs.push("fy must be between 235 and 460 MPa (S235-S460)".to_string()); }
+    if !(360.0..=570.0).contains(&fu) { errs.push("fu must be between 360 and 570 MPa".to_string()); }
     if !errs.is_empty() { return fail(errs); }
     let bw = beta_w(fy); let gm2 = 1.25;
     let mut t = Trace::new();

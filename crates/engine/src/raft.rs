@@ -23,7 +23,7 @@ pub fn run(v: &Value) -> ModResult {
     let (nf, s, edge, w, n_ed, n_k, q_allow, cx, cy, h, cover, phi, fck, fyk) = (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11], x[12], x[13]);
     let mut errs = vec![];
     if nf.fract() != 0.0 || !(2.0..=12.0).contains(&nf) { errs.push("Number of columns must be a whole number from 2 to 12".to_string()); }
-    if fck > 50.0 || fck < 12.0 { errs.push("fck must be within 12-50 MPa for this release".to_string()); }
+    if !(12.0..=50.0).contains(&fck) { errs.push("fck must be within 12-50 MPa for this release".to_string()); }
     if edge < cx / 2.0 { errs.push("Overhang must be at least half the column size".to_string()); }
     if !errs.is_empty() { return fail(errs); }
     let n = nf as usize;
@@ -49,7 +49,7 @@ pub fn run(v: &Value) -> ModResult {
     for i in 0..=steps { let xx = i as f64 * dx; let m = m_at(xx); if m > m_sag { m_sag = m; x_sag = xx; } if -m > m_hog { m_hog = -m; x_hog = xx; } }
     t.step(s3, "Strip statics", "Equilibrium of the strip (conventional rigid method)", "p = q_u·w (upward);   V(x) = p·x − Σ N_{Ed,i}  (columns left of x);   M(x) = p·x²/2 − Σ N_{Ed,i}·(x − x_i);   M > 0: tension at the bottom", &format!("p = {:.1} × {:.2} = {:.1} kN/m;  column positions x_i = {} m", q_u, wm, p, xs.iter().map(|x| format!("{:.2}", x)).collect::<Vec<_>>().join(", ")), &format!("M_{{sag}} = {:.0} kNm at x = {:.2} m (bottom tension);  M_{{hog}} = {:.0} kNm at x = {:.2} m (top tension)", m_sag, x_sag, m_hog, x_hog), "Peak moments are taken at the column centre lines (no reduction to the column face): conservative.");
     // shear at d from column faces
-    let d_bot = h - cover - phi / 2.0; let d_top = d_bot; let dm = d_bot / 1e3;
+    let d_bot = h - cover - phi / 2.0; let dm = d_bot / 1e3;
     let mut v_max = 0.0f64;
     for &xi in &xs { for sgn in [-1.0, 1.0] { let xx = xi + sgn * (cx / 2000.0 + dm); if xx > 0.0 && xx < l { v_max = v_max.max(v_at(xx).abs()); } } }
     t.step(s3, "Design shear at distance d from the column faces", "EN 1992-1-1 cl. 6.2.1(8)", "V_{Ed} = max |V(x)| at x_i ± (c_x/2 + d)", &format!("d = {:.1} mm", d_bot), &format!("V_{{Ed}} = {:.0} kN on the strip = {:.1} kN/m", v_max, v_max / wm), "");
@@ -59,7 +59,6 @@ pub fn run(v: &Value) -> ModResult {
     let m_bot = m_sag / wm; let m_top = m_hog / wm; let v_m = v_max / wm;
     let (as_b, s_b, _) = match slab_member(&mut t, s4, "Bottom steel (at columns)", m_bot, v_m, h, cover, phi, fck, fcd, fyd, fyk, ps.gamma_c, &mut checks) { Ok(r) => r, Err(e) => return fail(vec![e]) };
     let (as_t, s_t, _) = match slab_member(&mut t, s4, "Top steel (between columns)", m_top, v_m, h, cover, phi, fck, fcd, fyd, fyk, ps.gamma_c, &mut checks) { Ok(r) => r, Err(e) => return fail(vec![e]) };
-    let _ = d_top;
     // punching at interior columns
     let nu = 0.6 * (1.0 - fck / 250.0);
     let rho = (as_b / (1000.0 * d_bot)).min(0.02).max(as_t / (1000.0 * d_bot)).min(0.02);

@@ -58,12 +58,6 @@ pub fn order(p: &Project) -> Result<Vec<usize>, Vec<String>> {
     if out.len() == n { Ok(out) } else { Err((0..n).filter(|i| !out.contains(i)).map(|i| p.nodes[i].id.clone()).collect()) }
 }
 
-fn downstream(p: &Project, starts: &[String]) -> HashSet<String> {
-    let mut set: HashSet<String> = HashSet::new(); let mut stack: Vec<String> = starts.to_vec();
-    while let Some(cur) = stack.pop() { for n in &p.nodes { if n.links.iter().any(|l| l.from == cur) && set.insert(n.id.clone()) { stack.push(n.id.clone()); } } }
-    set
-}
-
 pub fn analyse(p: &Project, prev: Option<&Vec<NodeResult>>) -> ProjectResult {
     let mut res = ProjectResult { engine_version: crate::ENGINE_VERSION.into(), ..Default::default() };
     let mut ids = HashSet::new();
@@ -119,9 +113,7 @@ pub fn analyse(p: &Project, prev: Option<&Vec<NodeResult>>) -> ProjectResult {
             }
         }
         for o in prev { if !res.nodes.iter().any(|n| n.id == o.id) { im.removed.push(o.id.clone()); } }
-        let reach = downstream(p, &im.edited);
         im.affected.retain(|a| !im.edited.contains(a));
-        let _ = reach;
         im.review_required = !im.newly_failing.is_empty() || !im.edited.is_empty() || !im.affected.is_empty();
         im.summary = format!("{} edited, {} affected downstream, {} newly failing, {} newly passing, {} added, {} removed.", im.edited.len(), im.affected.len(), im.newly_failing.len(), im.newly_passing.len(), im.added.len(), im.removed.len());
     }

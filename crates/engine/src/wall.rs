@@ -27,7 +27,7 @@ pub fn run(v: &Value) -> ModResult {
     let mut v2 = v.clone(); v2["m01"] = 1.0.into(); v2["phi_ef"] = 1.0.into();
     let x = match require(&v2, &d0, check) { Ok(x) => x, Err(e) => return fail(e) };
     let (h, len, beta, cover, phi, hdia, fck, fyk, n_ed, m02, s_in) = (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[9], x[10], x[12]);
-    if fck > 50.0 || fck < 12.0 { return fail(vec!["fck must be within 12-50 MPa for this release".into()]); }
+    if !(12.0..=50.0).contains(&fck) { return fail(vec!["fck must be within 12-50 MPa for this release".into()]); }
     if m01.abs() > m02 { return fail(vec!["|M01| must not exceed M02 (M02 is the larger end moment)".into()]); }
     let b = 1000.0; let ac = b * h;
     let fcd = ps.alpha_cc * fck / ps.gamma_c; let fyd = fyk / ps.gamma_s;

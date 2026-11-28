@@ -75,11 +75,10 @@ pub fn finish(mut t: Trace, checks: Vec<Check>, param_status: &str, summary: Vec
 }
 
 /// Singly-reinforced rectangular flexure per EN 1992-1-1 6.1. Returns (As_req, z, mu).
-pub fn flex_single(t: &mut Trace, sec: &str, b: f64, d: f64, fck: f64, fcd: f64, fyd: f64, m_nmm: f64, label: &str) -> Result<(f64, f64, f64), String> {
+pub fn flex_single(t: &mut Trace, sec: &str, b: f64, d: f64, _fck: f64, fcd: f64, fyd: f64, m_nmm: f64, label: &str) -> Result<(f64, f64, f64), String> {
     let mu = m_nmm / (b * d * d * fcd);
     let mu_lim = 0.8 * 0.45 * (1.0 - 0.4 * 0.45);
     t.step(sec, &format!("Normalised moment{}", label), "EN 1992-1-1 cl. 3.1.7, 6.1", "μ = M_{Ed} / (b·d^{2}·f_{cd})", &format!("= {:.2}×10^{{6}} / ({} × {:.1}^{{2}} × {:.2})", m_nmm / 1e6, b, d, fcd), &format!("μ = {:.4}  ({} μ_{{lim}} = {:.4})", mu, if mu <= mu_lim { "≤" } else { ">" }, mu_lim), "Limit from x/d ≤ 0.45, cl. 5.5(4).");
-    let _ = fck;
     if mu > mu_lim { return Err("Section too shallow for singly reinforced design (μ > μ_lim): increase thickness".into()); }
     let z = (d / 2.0 * (1.0 + (1.0 - 2.0 * mu).sqrt())).min(0.95 * d);
     let as_req = m_nmm / (fyd * z);

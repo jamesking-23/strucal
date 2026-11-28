@@ -21,7 +21,7 @@ pub fn run(v: &Value) -> ModResult {
     let ps = match v.get("param_set").and_then(|p| p.as_str()).and_then(params::get) { Some(p) => p, None => return fail(vec!["Unknown or unavailable parameter set - select one explicitly".into()]) };
     let x = match require(v, &d0, check) { Ok(x) => x, Err(e) => return fail(e) };
     let (n_ed, n_k, q_allow, cx, cy, h, cover, phi, fck, fyk, bx_in, by_in, s_in) = (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11], x[12]);
-    if fck > 50.0 || fck < 12.0 { return fail(vec!["fck must be within 12-50 MPa for this release".into()]); }
+    if !(12.0..=50.0).contains(&fck) { return fail(vec!["fck must be within 12-50 MPa for this release".into()]); }
     let mut t = Trace::new();
     let (s1, s2, s3, s4, s5) = ("1. Design data", "2. Plan size and bearing", "3. Flexural design", "4. One-way shear", "5. Punching shear");
     t.step(s1, "Loads and ground", "", "", &format!("N_{{Ed}} = {} kN (ULS);  N_{{k}} = {} kN (SLS);  allowable bearing pressure q_{{allow}} = {} kPa", n_ed, n_k, q_allow), "", "q_allow is supplied by the geotechnical engineer. StruCal does not derive it from soil data.");
@@ -32,7 +32,7 @@ pub fn run(v: &Value) -> ModResult {
     let (bx, by) = if check { (bx_in, by_in) } else {
         let mut b = ((n_k / q_allow).sqrt() * 1000.0 / 50.0).ceil() * 50.0;
         while (n_k + sw_of(b, b)) / ((b / 1e3) * (b / 1e3)) > q_allow && b < 20000.0 { b += 50.0; }
-        t.step(s2, "Plan size from service bearing pressure", "EN 1997-1 cl. 6.5.2 (allowable pressure approach)", "(N_k + G_{ftg}) / (B·L) ≤ q_{allow};   G_{ftg} = 25·B·L·h", &format!("Square footing, B increased in 50 mm steps from √(N_k/q_allow) until the condition is met"), &format!("B = L = {:.0} mm", b), "");
+        t.step(s2, "Plan size from service bearing pressure", "EN 1997-1 cl. 6.5.2 (allowable pressure approach)", "(N_k + G_{ftg}) / (B·L) ≤ q_{allow};   G_{ftg} = 25·B·L·h", &"Square footing, B increased in 50 mm steps from √(N_k/q_allow) until the condition is met".to_string(), &format!("B = L = {:.0} mm", b), "");
         (b, b)
     };
     if bx < cx || by < cy { return fail(vec!["Footing must be larger than the column".into()]); }

@@ -178,7 +178,7 @@ impl Acct {
                     let role = self.role(); let me = cl.user_id.clone();
                     for r in self.revs.clone() {
                         let rid = s(&r, "id"); let st = s(&r, "status"); let mine = s(&r, "created_by") == me;
-                        egui::Frame::new().stroke(Stroke::new(1.0, LINE)).inner_margin(egui::Margin::same(8)).show(ui, |ui| {
+                        egui::Frame::new().stroke(Stroke::new(1.0_f32, LINE)).inner_margin(egui::Margin::same(8)).show(ui, |ui| {
                             ui.set_width(ui.available_width());
                             ui.horizontal(|ui| {
                                 ui.label(RichText::new(s(&r, "name")).strong());

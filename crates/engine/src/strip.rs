@@ -21,7 +21,7 @@ pub fn run(v: &Value) -> ModResult {
     let ps = match v.get("param_set").and_then(|p| p.as_str()).and_then(params::get) { Some(p) => p, None => return fail(vec!["Unknown or unavailable parameter set - select one explicitly".into()]) };
     let x = match require(v, &d0, check) { Ok(x) => x, Err(e) => return fail(e) };
     let (n_ed, n_k, q_allow, wt, h, cover, phi, fck, fyk, w_in, s_in) = (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10]);
-    if fck > 50.0 || fck < 12.0 { return fail(vec!["fck must be within 12-50 MPa for this release".into()]); }
+    if !(12.0..=50.0).contains(&fck) { return fail(vec!["fck must be within 12-50 MPa for this release".into()]); }
     let mut t = Trace::new();
     let (s1, s2, s3, s4) = ("1. Design data", "2. Width and bearing", "3. Flexural design (transverse)", "4. One-way shear");
     t.step(s1, "Loads and ground", "", "", &format!("N_{{Ed}} = {} kN/m (ULS);  N_{{k}} = {} kN/m (SLS);  q_{{allow}} = {} kPa", n_ed, n_k, q_allow), "", "q_allow is supplied by the geotechnical engineer.");

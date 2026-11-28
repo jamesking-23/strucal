@@ -133,7 +133,7 @@ impl Pj {
                 if let Some((id, _)) = self.cloud.clone() { let (nodes, ver) = (self.nodes.clone(), self.ver); self.dirty = None; self.msg = "Saving…".into(); self.spawn(cl, move |c| CloudDone::Flushed(flush(c, &id, &nodes, ver))); }
             } else { ctx.request_repaint_after(std::time::Duration::from_millis(300)); }
         }
-        egui::TopBottomPanel::top("pjtools").exact_height(44.0).frame(egui::Frame::new().fill(RIBBON).stroke(Stroke::new(1.0, LINE)).inner_margin(egui::Margin::symmetric(8, 8))).show(ctx, |ui| {
+        egui::TopBottomPanel::top("pjtools").exact_height(44.0).frame(egui::Frame::new().fill(RIBBON).stroke(Stroke::new(1.0_f32, LINE)).inner_margin(egui::Margin::symmetric(8, 8))).show(ctx, |ui| {
             ui.horizontal(|ui| {
                 egui::ComboBox::from_id_salt("pjadd").selected_text(defs[self.add].name).show_ui(ui, |ui| { for (i, d) in defs.iter().enumerate() { ui.selectable_value(&mut self.add, i, d.name); } });
                 if ui.add(egui::Button::new(RichText::new("+ Add calculation").color(Color32::WHITE)).fill(BLUE)).clicked() {
@@ -165,7 +165,7 @@ impl Pj {
 
         let names: Vec<(String, String)> = self.nodes.iter().map(|n| (Self::s(n, "id"), Self::s(n, "name"))).collect();
         let name_of = |id: &str| names.iter().find(|(i, _)| i == id).map(|(_, n)| n.clone()).unwrap_or(id.to_string());
-        egui::SidePanel::right("pjside").exact_width(330.0).frame(egui::Frame::new().fill(Color32::WHITE).stroke(Stroke::new(1.0, LINE)).inner_margin(egui::Margin::same(10))).show(ctx, |ui| {
+        egui::SidePanel::right("pjside").exact_width(330.0).frame(egui::Frame::new().fill(Color32::WHITE).stroke(Stroke::new(1.0_f32, LINE)).inner_margin(egui::Margin::same(10))).show(ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 heading(ui, "PROJECT STATUS");
                 match &self.res {

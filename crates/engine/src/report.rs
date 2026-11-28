@@ -41,12 +41,11 @@ fn drawing_svg(d: &Drawing) -> String {
             while x < ox + w { s += &format!("<circle cx='{x}' cy='{yb}' r='{}' fill='#111'/>", (bar_dia * sc / 2.0).max(2.0)); x += spacing * sc; }
             s + &format!("<text x='{}' y='{}' font-size='10' text-anchor='middle'>h = {} / T{} @ {}</text></svg>", ox + w / 2.0, oy + hh + 18.0, h, bar_dia, spacing)
         }
-        Drawing::Bolts { w, n1, n2, e1, p1, e2, p2, d } => {
+        Drawing::Bolts { w, n1, n2, e1, p1, e2: _, p2, d } => {
             let len = 2.0 * e1 + (*n1 as f64 - 1.0) * p1; let sc = 180.0 / len.max(*w); let (ox, oy) = (20.0, 10.0);
             let mut s = format!("<svg width='{}' height='{}' xmlns='http://www.w3.org/2000/svg'><rect x='{ox}' y='{oy}' width='{}' height='{}' fill='#f4f5f7' stroke='#222' stroke-width='1.5'/>", len * sc + 40.0, w * sc + 30.0, len * sc, w * sc);
             let y0 = oy + (w - (*n2 as f64 - 1.0) * p2) / 2.0 * sc;
             for i in 0..*n1 { for j in 0..*n2 { s += &format!("<circle cx='{}' cy='{}' r='{}' fill='#fff' stroke='#111' stroke-width='1.5'/>", ox + (e1 + i as f64 * p1) * sc, y0 + j as f64 * p2 * sc, (d * sc / 2.0).max(3.0)); } }
-            let _ = e2;
             s + &format!("<text x='{}' y='{}' font-size='10' text-anchor='middle'>{} × {} bolts</text></svg>", ox + len * sc / 2.0, oy + w * sc + 18.0, n1, n2)
         }
         Drawing::Weld { lw, a } => {

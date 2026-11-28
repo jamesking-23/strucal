@@ -57,7 +57,7 @@ impl App {
         egui::Window::new("StruCal Assistant").open(&mut open).anchor(egui::Align2::RIGHT_BOTTOM, [-14.0, -34.0]).default_width(380.0).resizable(true).show(ctx, |ui| {
             ui.label(RichText::new("The assistant explains the calculation shown. It never calculates or changes results, and cannot approve a design. All numbers come from the deterministic engine.").size(11.5).color(MUTE));
             if !self.cl.signed_in() { ui.colored_label(AMBER, "Sign in on the Account tab to use the assistant."); return; }
-            let ok = self.result.as_ref().map_or(false, |r| r.ok);
+            let ok = self.result.as_ref().is_some_and(|r| r.ok);
             ui.horizontal_wrapped(|ui| { for (t, l) in [("summarise", "Summarise result"), ("governing", "Why does this check govern?"), ("explain", "Explain the working"), ("missing", "What might be missing?")] { if ui.add_enabled(!self.asst.busy && ok, egui::Button::new(l)).clicked() { call = Some((t, String::new())); } } });
             if let Some(r) = &self.result { if r.ok { ui.horizontal(|ui| {
                 ui.label("Explain one step:");

@@ -33,10 +33,10 @@ struct App {
 }
 
 fn card<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
-    egui::Frame::new().fill(Color32::WHITE).stroke(Stroke::new(1.0, LINE)).corner_radius(CornerRadius::ZERO).inner_margin(egui::Margin::same(0)).show(ui, add).inner
+    egui::Frame::new().fill(Color32::WHITE).stroke(Stroke::new(1.0_f32, LINE)).corner_radius(CornerRadius::ZERO).inner_margin(egui::Margin::same(0)).show(ui, add).inner
 }
 fn panel_header(ui: &mut egui::Ui, t: &str) {
-    egui::Frame::new().fill(HEAD).stroke(Stroke::new(1.0, LINE)).inner_margin(egui::Margin::symmetric(7, 2)).show(ui, |ui| { ui.set_width(ui.available_width()); ui.label(RichText::new(t).size(11.5).color(Color32::from_rgb(51, 51, 51))); });
+    egui::Frame::new().fill(HEAD).stroke(Stroke::new(1.0_f32, LINE)).inner_margin(egui::Margin::symmetric(7, 2)).show(ui, |ui| { ui.set_width(ui.available_width()); ui.label(RichText::new(t).size(11.5).color(Color32::from_rgb(51, 51, 51))); });
     ui.add_space(4.0);
 }
 fn group(ui: &mut egui::Ui, label: &str, add: impl FnOnce(&mut egui::Ui)) {
@@ -52,7 +52,7 @@ impl App {
     fn new(cc: &eframe::CreationContext<'_>) -> Self {
         let mut v = egui::Visuals::light();
         v.panel_fill = BG; v.window_fill = Color32::WHITE;
-        v.widgets.inactive.bg_stroke = Stroke::new(1.0, Color32::from_rgb(207, 216, 227));
+        v.widgets.inactive.bg_stroke = Stroke::new(1.0_f32, Color32::from_rgb(207, 216, 227));
         v.selection.bg_fill = BLUE;
         v.window_corner_radius = CornerRadius::ZERO; v.menu_corner_radius = CornerRadius::ZERO;
         for w in [&mut v.widgets.noninteractive, &mut v.widgets.inactive, &mut v.widgets.hovered, &mut v.widgets.active, &mut v.widgets.open] { w.corner_radius = CornerRadius::ZERO; }
@@ -111,8 +111,8 @@ impl App {
                 let (w, hh) = (*b as f32 * sc, *h as f32 * sc);
                 let o = egui::pos2(rect.center().x - w / 2.0, rect.center().y - hh / 2.0 - 8.0);
                 let outer = egui::Rect::from_min_size(o, egui::vec2(w, hh));
-                p.rect_filled(outer, 0.0, Color32::WHITE); p.rect_stroke(outer, 0.0, Stroke::new(2.0, TX), StrokeKind::Inside);
-                p.rect_stroke(outer.shrink(((cover + link_dia / 2.0) as f32) * sc), 0.0, Stroke::new(1.2, Color32::from_rgb(51, 65, 85)), StrokeKind::Inside);
+                p.rect_filled(outer, 0.0, Color32::WHITE); p.rect_stroke(outer, 0.0, Stroke::new(2.0_f32, TX), StrokeKind::Inside);
+                p.rect_stroke(outer.shrink(((cover + link_dia / 2.0) as f32) * sc), 0.0, Stroke::new(1.2_f32, Color32::from_rgb(51, 65, 85)), StrokeKind::Inside);
                 let ed = ((cover + link_dia + bar_dia / 2.0) as f32) * sc; let n = (*n_bars).max(2);
                 let br = ((*bar_dia as f32 * sc) / 2.0).max(2.4);
                 for k in 0..n { p.circle_filled(egui::pos2(o.x + ed + (w - 2.0 * ed) * k as f32 / (n - 1) as f32, o.y + hh - ed), br, TX); }
@@ -125,8 +125,8 @@ impl App {
                 let (w, hh) = (*b as f32 * sc, *h as f32 * sc);
                 let o = egui::pos2(rect.center().x - w / 2.0, rect.center().y - hh / 2.0 - 8.0);
                 let outer = egui::Rect::from_min_size(o, egui::vec2(w, hh));
-                p.rect_filled(outer, 0.0, Color32::WHITE); p.rect_stroke(outer, 0.0, Stroke::new(2.0, TX), StrokeKind::Inside);
-                p.rect_stroke(outer.shrink(((cover + link_dia / 2.0) as f32) * sc), 0.0, Stroke::new(1.2, Color32::from_rgb(51, 65, 85)), StrokeKind::Inside);
+                p.rect_filled(outer, 0.0, Color32::WHITE); p.rect_stroke(outer, 0.0, Stroke::new(2.0_f32, TX), StrokeKind::Inside);
+                p.rect_stroke(outer.shrink(((cover + link_dia / 2.0) as f32) * sc), 0.0, Stroke::new(1.2_f32, Color32::from_rgb(51, 65, 85)), StrokeKind::Inside);
                 let ed = ((cover + link_dia + bar_dia / 2.0) as f32) * sc; let n = (*n_face).max(2);
                 let br = ((*bar_dia as f32 * sc) / 2.0).max(2.4);
                 for y in [o.y + ed, o.y + hh - ed] { for k in 0..n { p.circle_filled(egui::pos2(o.x + ed + (w - 2.0 * ed) * k as f32 / (n - 1) as f32, y), br, TX); } }
@@ -136,9 +136,9 @@ impl App {
                 let len = 2.0 * e1 + (*n1 as f64 - 1.0) * p1; let sc = (200.0 / len.max(*w)) as f32; let (ww, hh) = (len as f32 * sc, *w as f32 * sc);
                 let o = egui::pos2(rect.center().x - ww / 2.0, rect.center().y - hh / 2.0 - 8.0);
                 let outer = egui::Rect::from_min_size(o, egui::vec2(ww, hh));
-                p.rect_filled(outer, 0.0, Color32::WHITE); p.rect_stroke(outer, 0.0, Stroke::new(2.0, TX), StrokeKind::Inside);
+                p.rect_filled(outer, 0.0, Color32::WHITE); p.rect_stroke(outer, 0.0, Stroke::new(2.0_f32, TX), StrokeKind::Inside);
                 let y0 = o.y + (((*w - (*n2 as f64 - 1.0) * p2) / 2.0) as f32) * sc;
-                for i in 0..*n1 { for j in 0..*n2 { let c = egui::pos2(o.x + ((e1 + i as f64 * p1) as f32) * sc, y0 + (j as f64 * p2) as f32 * sc); p.circle_filled(c, ((*d as f32 * sc) / 2.0).max(3.0), Color32::WHITE); p.circle_stroke(c, ((*d as f32 * sc) / 2.0).max(3.0), Stroke::new(1.6, TX)); } }
+                for i in 0..*n1 { for j in 0..*n2 { let c = egui::pos2(o.x + ((e1 + i as f64 * p1) as f32) * sc, y0 + (j as f64 * p2) as f32 * sc); p.circle_filled(c, ((*d as f32 * sc) / 2.0).max(3.0), Color32::WHITE); p.circle_stroke(c, ((*d as f32 * sc) / 2.0).max(3.0), Stroke::new(1.6_f32, TX)); } }
                 lab(&p, egui::pos2(rect.center().x, o.y + hh + 16.0), format!("{n1} × {n2} bolts, plate {w} wide"));
             }
             Drawing::Weld { lw, a } => {
@@ -152,7 +152,7 @@ impl App {
                 let sc = (200.0 / l.max(*w)) as f32; let (ww, hh) = (*l as f32 * sc, *w as f32 * sc);
                 let o = egui::pos2(rect.center().x - ww / 2.0, rect.center().y - hh / 2.0 - 8.0);
                 let outer = egui::Rect::from_min_size(o, egui::vec2(ww, hh));
-                p.rect_filled(outer, 0.0, Color32::WHITE); p.rect_stroke(outer, 0.0, Stroke::new(2.0, TX), StrokeKind::Inside);
+                p.rect_filled(outer, 0.0, Color32::WHITE); p.rect_stroke(outer, 0.0, Stroke::new(2.0_f32, TX), StrokeKind::Inside);
                 for i in 0..*n { p.rect_filled(egui::Rect::from_center_size(egui::pos2(o.x + ((edge + i as f64 * spacing) as f32) * sc, o.y + hh / 2.0), egui::vec2(10.0, 10.0)), 0.0, Color32::from_rgb(51, 65, 85)); }
                 lab(&p, egui::pos2(rect.center().x, o.y + hh + 16.0), format!("L = {:.0} / w = {w} (plan)", l));
             }
@@ -168,7 +168,7 @@ impl App {
             Drawing::Rect { b, h } => {
                 let sc = (150.0 / b).min(250.0 / h) as f32; let (w, hh) = (*b as f32 * sc, *h as f32 * sc);
                 let o = egui::pos2(rect.center().x - w / 2.0, rect.center().y - hh / 2.0 - 8.0); let outer = egui::Rect::from_min_size(o, egui::vec2(w, hh));
-                p.rect_filled(outer, 0.0, Color32::from_rgb(232, 216, 189)); p.rect_stroke(outer, 0.0, Stroke::new(2.0, TX), StrokeKind::Inside);
+                p.rect_filled(outer, 0.0, Color32::from_rgb(232, 216, 189)); p.rect_stroke(outer, 0.0, Stroke::new(2.0_f32, TX), StrokeKind::Inside);
                 lab(&p, egui::pos2(rect.center().x, o.y + hh + 16.0), format!("{b} × {h}"));
             }
             Drawing::ISection { h, b, tw, tf } => {
@@ -183,7 +183,7 @@ impl App {
                 let sc = (120.0 / h).min(1.0) as f32; let (w, hh) = (*h as f32 * sc, 260.0f32);
                 let o = egui::pos2(rect.center().x - w / 2.0, rect.center().y - hh / 2.0 - 8.0);
                 let outer = egui::Rect::from_min_size(o, egui::vec2(w, hh));
-                p.rect_filled(outer, 0.0, Color32::WHITE); p.rect_stroke(outer, 0.0, Stroke::new(2.0, TX), StrokeKind::Inside);
+                p.rect_filled(outer, 0.0, Color32::WHITE); p.rect_stroke(outer, 0.0, Stroke::new(2.0_f32, TX), StrokeKind::Inside);
                 let mut y = *spacing as f32 / 2.0;
                 while y < 400.0 { for xx in [o.x + ((cover + 10.0) as f32) * sc, o.x + w - ((cover + 10.0) as f32) * sc] { p.circle_filled(egui::pos2(xx, o.y + y / 400.0 * hh), ((*bar_dia as f32 * sc) / 2.0).max(2.2), TX); } y += *spacing as f32; }
                 lab(&p, egui::pos2(rect.center().x, o.y + hh + 16.0), format!("h = {h}, T{bar_dia} @ {spacing}"));
@@ -193,15 +193,15 @@ impl App {
                 let o = egui::pos2(rect.center().x - w / 2.0, rect.center().y - hh / 2.0 - 8.0);
                 p.rect_filled(egui::Rect::from_min_size(egui::pos2(o.x + (w - tw) / 2.0, o.y - 50.0), egui::vec2(tw, 50.0)), 0.0, Color32::from_rgb(51, 65, 85));
                 let outer = egui::Rect::from_min_size(o, egui::vec2(w, hh));
-                p.rect_filled(outer, 0.0, Color32::WHITE); p.rect_stroke(outer, 0.0, Stroke::new(2.0, TX), StrokeKind::Inside);
-                p.line_segment([egui::pos2(o.x + 8.0, o.y + hh - 8.0), egui::pos2(o.x + w - 8.0, o.y + hh - 8.0)], Stroke::new(2.5, TX));
+                p.rect_filled(outer, 0.0, Color32::WHITE); p.rect_stroke(outer, 0.0, Stroke::new(2.0_f32, TX), StrokeKind::Inside);
+                p.line_segment([egui::pos2(o.x + 8.0, o.y + hh - 8.0), egui::pos2(o.x + w - 8.0, o.y + hh - 8.0)], Stroke::new(2.5_f32, TX));
                 lab(&p, egui::pos2(rect.center().x, o.y + hh + 16.0), format!("B = {width}, h = {h}"));
             }
             Drawing::Slab { h, cover, bar_dia, spacing } => {
                 let sc = 0.5f32; let (w, hh) = (400.0 * sc, *h as f32 * sc);
                 let o = egui::pos2(rect.center().x - w / 2.0, rect.center().y - hh / 2.0 - 8.0);
                 let outer = egui::Rect::from_min_size(o, egui::vec2(w, hh));
-                p.rect_filled(outer, 0.0, Color32::WHITE); p.rect_stroke(outer, 0.0, Stroke::new(2.0, TX), StrokeKind::Inside);
+                p.rect_filled(outer, 0.0, Color32::WHITE); p.rect_stroke(outer, 0.0, Stroke::new(2.0_f32, TX), StrokeKind::Inside);
                 let mut x = *spacing as f32 / 2.0;
                 while x < 400.0 { p.circle_filled(egui::pos2(o.x + x * sc, o.y + hh - ((cover + bar_dia / 2.0) as f32) * sc), ((*bar_dia as f32 * sc) / 2.0).max(2.2), TX); x += *spacing as f32; }
                 lab(&p, egui::pos2(rect.center().x, o.y + hh + 16.0), format!("T{} @ {}", bar_dia, spacing));
@@ -211,8 +211,8 @@ impl App {
                 let sc = (170.0 / bx.max(*by)) as f32; let (w, hh) = (*bx as f32 * sc, *by as f32 * sc);
                 let o = egui::pos2(rect.center().x - w / 2.0, rect.center().y - hh / 2.0 - 8.0);
                 let outer = egui::Rect::from_min_size(o, egui::vec2(w, hh));
-                p.rect_filled(outer, 0.0, Color32::WHITE); p.rect_stroke(outer, 0.0, Stroke::new(2.0, TX), StrokeKind::Inside);
-                for i in 1..7 { let y = o.y + hh * i as f32 / 7.0; p.line_segment([egui::pos2(o.x + 6.0, y), egui::pos2(o.x + w - 6.0, y)], Stroke::new(1.0, Color32::from_rgb(148, 163, 184))); }
+                p.rect_filled(outer, 0.0, Color32::WHITE); p.rect_stroke(outer, 0.0, Stroke::new(2.0_f32, TX), StrokeKind::Inside);
+                for i in 1..7 { let y = o.y + hh * i as f32 / 7.0; p.line_segment([egui::pos2(o.x + 6.0, y), egui::pos2(o.x + w - 6.0, y)], Stroke::new(1.0_f32, Color32::from_rgb(148, 163, 184))); }
                 p.rect_filled(egui::Rect::from_center_size(outer.center(), egui::vec2(*cx as f32 * sc, *cy as f32 * sc)), 0.0, Color32::from_rgb(51, 65, 85));
                 lab(&p, egui::pos2(rect.center().x, o.y + hh + 16.0), format!("{bx} × {by}, h = {h}"));
             }
@@ -238,14 +238,14 @@ impl eframe::App for App {
                     let (r, resp) = ui.allocate_exact_size(egui::vec2(96.0, 26.0), egui::Sense::click());
                     if resp.hovered() { ui.painter().rect_filled(r, 0.0, Color32::from_rgb(219, 232, 246)); }
                     ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, n, FontId::proportional(12.0), if on { BLUE } else { Color32::from_rgb(51, 51, 51) });
-                    if on { ui.painter().line_segment([egui::pos2(r.left(), r.bottom() - 1.0), egui::pos2(r.right(), r.bottom() - 1.0)], Stroke::new(2.0, BLUE)); }
+                    if on { ui.painter().line_segment([egui::pos2(r.left(), r.bottom() - 1.0), egui::pos2(r.right(), r.bottom() - 1.0)], Stroke::new(2.0_f32, BLUE)); }
                     if resp.clicked() { self.page = p; }
                 }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| { ui.add_space(10.0); ui.label(RichText::new(format!("StruCal v{}", update::CURRENT)).color(MUTE).size(11.0)); });
             });
         });
         if self.page == Page::Workspace {
-            egui::TopBottomPanel::top("ribbon").exact_height(86.0).frame(egui::Frame::new().fill(RIBBON).stroke(Stroke::new(1.0, LINE)).inner_margin(egui::Margin::symmetric(6, 4))).show(ctx, |ui| {
+            egui::TopBottomPanel::top("ribbon").exact_height(86.0).frame(egui::Frame::new().fill(RIBBON).stroke(Stroke::new(1.0_f32, LINE)).inner_margin(egui::Margin::symmetric(6, 4))).show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     group(ui, "Document", |ui| {
                         if rbtn(ui, "Reset", false).on_hover_text("Reset this module's inputs to their defaults").clicked() { let d = &self.defs[self.mi]; self.st[self.mi].vals = d.fields.iter().map(|f| f.default).collect(); self.saved.clear(); mode_changed = true; }
@@ -289,7 +289,7 @@ impl eframe::App for App {
             Page::Workspace => {
                 self.assistant_ui(ctx);
                 let mut ch = false;
-                egui::SidePanel::left("in").exact_width(280.0).frame(egui::Frame::new().fill(Color32::WHITE).stroke(Stroke::new(1.0, LINE)).inner_margin(egui::Margin::same(8))).show(ctx, |ui| {
+                egui::SidePanel::left("in").exact_width(280.0).frame(egui::Frame::new().fill(Color32::WHITE).stroke(Stroke::new(1.0_f32, LINE)).inner_margin(egui::Margin::same(8))).show(ctx, |ui| {
                     egui::ScrollArea::vertical().show(ui, |ui| {
                         panel_header(ui, if self.st[self.mi].mode == "check" { "Input data - Check" } else { "Input data - Design" });
                         let stt = &mut self.st[self.mi];
@@ -307,12 +307,12 @@ impl eframe::App for App {
                 });
                 if ch { self.run(); }
 
-                egui::SidePanel::right("out").exact_width(320.0).frame(egui::Frame::new().fill(Color32::WHITE).stroke(Stroke::new(1.0, LINE)).inner_margin(egui::Margin::same(8))).show(ctx, |ui| {
+                egui::SidePanel::right("out").exact_width(320.0).frame(egui::Frame::new().fill(Color32::WHITE).stroke(Stroke::new(1.0_f32, LINE)).inner_margin(egui::Margin::same(8))).show(ctx, |ui| {
                     egui::ScrollArea::vertical().show(ui, |ui| {
                         panel_header(ui, "Verification");
                         if let Some(r) = &self.result { if r.ok {
                             let (t, c, bg) = if r.checks.is_empty() { ("RESULTS", BLUE, Color32::from_rgb(232, 240, 253)) } else if r.overall_pass { ("PASS", GREEN, GREEN_BG) } else { ("FAIL", RED, RED_BG) };
-                            egui::Frame::new().fill(bg).stroke(Stroke::new(1.0, c.gamma_multiply(0.45))).corner_radius(CornerRadius::ZERO).inner_margin(egui::Margin::same(14)).show(ui, |ui| {
+                            egui::Frame::new().fill(bg).stroke(Stroke::new(1.0_f32, c.gamma_multiply(0.45))).corner_radius(CornerRadius::ZERO).inner_margin(egui::Margin::same(14)).show(ui, |ui| {
                                 ui.set_width(ui.available_width());
                                 ui.horizontal(|ui| { ui.label(RichText::new(t).font(FontId::monospace(22.0)).strong().color(c)); ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| ui.label(RichText::new(if r.checks.is_empty() { String::new() } else { format!("Max {:.0}%", r.max_util * 100.0) }).strong().color(c))); });
                                 ui.label(RichText::new(if r.checks.is_empty() { "Combined action effects. Design values only, no PASS/FAIL verdict.".to_string() } else { format!("{}/{} checks satisfied. Implemented checks only; not an engineer's approval.", r.checks.iter().filter(|k| k.pass).count(), r.checks.len()) }).size(12.0).color(c));
@@ -328,7 +328,7 @@ impl eframe::App for App {
                             heading(ui, &format!("Observations ({} open)", r.observations.len()));
                             for o in &r.observations {
                                 let c = match o.level.as_str() { "RED" => RED, "AMBER" => AMBER, _ => BLUE };
-                                egui::Frame::new().stroke(Stroke::new(1.0, LINE)).corner_radius(CornerRadius::ZERO).inner_margin(egui::Margin::same(10)).show(ui, |ui| {
+                                egui::Frame::new().stroke(Stroke::new(1.0_f32, LINE)).corner_radius(CornerRadius::ZERO).inner_margin(egui::Margin::same(10)).show(ui, |ui| {
                                     ui.set_width(ui.available_width());
                                     ui.horizontal(|ui| { ui.label(RichText::new(&o.id).font(FontId::monospace(11.0)).strong()); ui.label(RichText::new(&o.level).font(FontId::monospace(10.0)).strong().color(c)); });
                                     ui.label(RichText::new(&o.text).size(12.0).color(Color32::from_rgb(51, 65, 85)));
@@ -348,7 +348,7 @@ impl eframe::App for App {
                             for e in &r.errors { ui.colored_label(RED, e); }
                             if r.ok {
                                 if r.param_status.contains("NOT") {
-                                    egui::Frame::new().fill(Color32::from_rgb(255, 247, 224)).stroke(Stroke::new(1.0, Color32::from_rgb(241, 211, 138))).corner_radius(CornerRadius::ZERO).inner_margin(egui::Margin::same(11)).show(ui, |ui| { ui.set_width(ui.available_width()); ui.label(RichText::new(format!("Parameter set: {}. Confirm the governing National Annex before issue for construction.", r.param_status)).size(12.5).color(Color32::from_rgb(91, 65, 8))); });
+                                    egui::Frame::new().fill(Color32::from_rgb(255, 247, 224)).stroke(Stroke::new(1.0_f32, Color32::from_rgb(241, 211, 138))).corner_radius(CornerRadius::ZERO).inner_margin(egui::Margin::same(11)).show(ui, |ui| { ui.set_width(ui.available_width()); ui.label(RichText::new(format!("Parameter set: {}. Confirm the governing National Annex before issue for construction.", r.param_status)).size(12.5).color(Color32::from_rgb(91, 65, 8))); });
                                     ui.add_space(10.0);
                                 }
                                 for w in &r.warnings { ui.colored_label(AMBER, w); }
