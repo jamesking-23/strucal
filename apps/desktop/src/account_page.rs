@@ -462,12 +462,7 @@ impl Acct {
                 Act::Export => {
                     let r = cl.rpc("export_organisation", &json!({"p_org": org}));
                     if let Some(v) = self.ok(r, "") {
-                        let dir = std::env::var("USERPROFILE")
-                            .or_else(|_| std::env::var("HOME"))
-                            .map(std::path::PathBuf::from)
-                            .unwrap_or_default()
-                            .join("Downloads");
-                        let _ = std::fs::create_dir_all(&dir);
+                        let dir = user_dir(&["Downloads"]);
                         let name = self.orgs.get(self.org).map(|o| o.1.clone()).unwrap_or("organisation".into());
                         let p = dir.join(format!("strucal-{}-export.json", name.replace(|c: char| !c.is_alphanumeric(), "-")));
                         match std::fs::write(&p, serde_json::to_string_pretty(&v).unwrap_or_default()) {

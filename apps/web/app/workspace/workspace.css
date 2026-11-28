@@ -82,3 +82,4 @@ table.wk-t{width:100%;border-collapse:collapse;font-size:12px}.wk-t th{backgroun
 .sd-timber{fill:#e8d8bd}.sd-grain{fill:none;stroke:#a98a5a}.sd-hatch{stroke:#94a3b8;stroke-width:1}.sd-rebar{stroke:#0f172a;stroke-width:2.5}
 .sd-dim{font:10px "IBM Plex Mono",monospace;fill:#2563eb}
 .wk-f.bad .wk-in{border-color:#b42318}.wk-f .fe{color:#b42318;font-size:10.5px}
+.wk-nav{display:flex;gap:2px}.wk-nav a{padding:0 10px;line-height:24px;color:#333;text-decoration:none}.wk-nav a.on{color:var(--blue,#0b5cad);box-shadow:inset 0 -2px 0 currentColor}

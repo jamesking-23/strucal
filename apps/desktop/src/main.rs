@@ -97,6 +97,15 @@ fn rbtn(ui: &mut egui::Ui, t: &str, on: bool) -> egui::Response {
             .corner_radius(CornerRadius::ZERO),
     )
 }
+/// A folder under the user's home (Windows: %USERPROFILE%), created if missing.
+pub(crate) fn user_dir(parts: &[&str]) -> std::path::PathBuf {
+    let mut p = std::env::var("USERPROFILE").or_else(|_| std::env::var("HOME")).map(std::path::PathBuf::from).unwrap_or_default();
+    for x in parts {
+        p.push(x);
+    }
+    let _ = std::fs::create_dir_all(&p);
+    p
+}
 fn heading(ui: &mut egui::Ui, t: &str) {
     ui.add_space(6.0);
     ui.label(RichText::new(t).size(11.0).strong().color(BLUE));
@@ -189,9 +198,7 @@ impl App {
         if !r.ok {
             return;
         }
-        let home = std::env::var("USERPROFILE").or_else(|_| std::env::var("HOME")).map(std::path::PathBuf::from).unwrap_or_default();
-        let dir = home.join("Downloads");
-        let _ = std::fs::create_dir_all(&dir);
+        let dir = user_dir(&["Downloads"]);
         let def = &self.defs[self.mi];
         let html = report::generic(def, &self.json(), r);
         let stem = format!("StruCal-{}-{}", def.id, &r.trace_hash[..8]);

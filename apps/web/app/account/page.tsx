@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import TopBar from "../components/TopBar";
 import { supabase, ROLES, ROLE_LABEL, STATUS_LABEL } from "../../lib/supabase";
 import { downloadText } from "../../lib/download";
 import "../workspace/workspace.css";
@@ -131,8 +132,7 @@ export default function Account() {
   if (!ready) return <div className="pj"><div className="pj-empty" role="status">Loading…</div></div>;
   return (
     <div className="pj">
-      <div className="wk-title"><Link href="/" className="wk-logo" aria-label="StruCal home">S</Link><div className="wk-wt">StruCal — Account and teams</div></div>
-      <div className="wk-tabs"><span className="file">ACCOUNT</span><Link href="/workspace" style={{ padding: "0 14px", lineHeight: "24px" }}>Workspace</Link><Link href="/project" style={{ padding: "0 14px", lineHeight: "24px" }}>Project</Link></div>
+      <TopBar section="account" context={"Account and teams"} />
       <div style={{ padding: 8, display: "grid", gap: 8, maxWidth: 1100, width: "100%", margin: "0 auto" }}>
         {err && <div className="pj-err" role="alert">{err}</div>}{note && <div className="pj-warn" role="status">{note}</div>}
         {!session && (

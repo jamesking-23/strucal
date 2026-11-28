@@ -1,6 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
-import Link from "next/link";
+import TopBar from "../components/TopBar";
 import { useEngine } from "../../lib/useEngine";
 import "../workspace/workspace.css";
 import "../project/project.css";
@@ -15,8 +15,7 @@ export default function Standards() {
 
   return (
     <div className="pj">
-      <div className="wk-title"><Link href="/" className="wk-logo" aria-label="StruCal home">S</Link><div className="wk-wt">StruCal — Standards and formula registry</div></div>
-      <div className="wk-tabs"><span className="file">STANDARDS</span><Link href="/workspace" style={{ padding: "0 14px", lineHeight: "24px" }}>Workspace</Link><Link href="/project" style={{ padding: "0 14px", lineHeight: "24px" }}>Project</Link></div>
+      <TopBar section="standards" context={"Formula registry and parameter sets"} />
       <div style={{ padding: 8, display: "grid", gap: 8, maxWidth: 1100, width: "100%", margin: "0 auto" }}>
         {!eng && (error ? <div className="pj-err">{error} <button className="pj-btn" onClick={retry}>Try again</button></div> : <div className="pj-empty">Loading calculation engine…</div>)}
         {eng && (<>

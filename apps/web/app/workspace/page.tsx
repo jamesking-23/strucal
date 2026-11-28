@@ -1,6 +1,6 @@
 "use client";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
+import TopBar from "../components/TopBar";
 import { failedResult } from "../../lib/engine";
 import { useEngine } from "../../lib/useEngine";
 import { DISCIPLINES, disciplineOf, entryErrors, fieldGroups, initialValues, mergeValues, standardOf, toPayload } from "../../lib/form";
@@ -106,7 +106,7 @@ export default function Workspace() {
   if (!eng || !def || !f) {
     return (
       <div className="wk">
-        <div className="wk-title"><Link href="/" className="wk-logo" aria-label="StruCal home">S</Link></div>
+        <TopBar section="workspace" />
         <div className="wk-splash" role="status" aria-live="polite">
           {loadErr ? (<><div>{loadErr}</div><button className="pj-btn" onClick={retry}>Try again</button></>) : (<><div className="wk-spin" /><div>Loading calculation engine…</div></>)}
         </div>
@@ -124,16 +124,12 @@ export default function Workspace() {
 
   return (
     <div className="wk">
-      <div className="wk-title">
-        <Link href="/" className="wk-logo" title="StruCal - back to home">S</Link>
+      <TopBar section="workspace" context={<>{def.name} — {standardOf(def)}</>}>
         <div className="qa"><button title="Reset inputs" aria-label="Reset inputs" onClick={reset}>↺</button><button title="Export" aria-label="Export" disabled={!ok} onClick={() => setMenu(!menu)}>⤓</button></div>
-        <div className="wk-wt">StruCal — {def.name} — {standardOf(def)}</div>
-      </div>
+      </TopBar>
       <div className="wk-tabs">
         <span className="file">FILE</span>
         {["HOME", "VIEW", "HELP"].map((t) => <button key={t} className={tab === t ? "on" : ""} onClick={() => setTab(t)}>{t}</button>)}
-        <Link href="/project" style={{ padding: "0 14px", lineHeight: "24px", color: "#333", textDecoration: "none" }}>PROJECT</Link>
-        <Link href="/account" style={{ padding: "0 14px", lineHeight: "24px", color: "#333", textDecoration: "none" }}>ACCOUNT</Link>
       </div>
       <div className="wk-ribbon">
         {tab === "HOME" && (<>

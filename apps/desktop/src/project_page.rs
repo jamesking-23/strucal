@@ -59,12 +59,7 @@ fn flush(cl: &mut Client, id: &str, nodes: &[Value], ver: i64) -> Result<Option<
 }
 
 fn docs_dir() -> std::path::PathBuf {
-    std::env::var("USERPROFILE")
-        .or_else(|_| std::env::var("HOME"))
-        .map(std::path::PathBuf::from)
-        .unwrap_or_default()
-        .join("Documents")
-        .join("StruCal")
+    user_dir(&["Documents", "StruCal"])
 }
 fn now_str() -> String {
     let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0) as i64;
@@ -227,7 +222,6 @@ impl Pj {
             return;
         }
         let dir = docs_dir();
-        let _ = std::fs::create_dir_all(&dir);
         let body = json!({"nodes": self.nodes, "revisions": self.revs, "baseline": self.base});
         if std::fs::write(dir.join("project.json"), serde_json::to_string_pretty(&body).unwrap_or_default()).is_err() {
             self.msg = "Could not save the project file".into();
@@ -304,7 +298,7 @@ impl Pj {
                 });
                 if ui.add_enabled(self.base.is_some(), egui::Button::new("Restore baseline inputs")).clicked() { if let Some(b) = self.base { self.nodes = self.revs[b]["project"].as_array().cloned().unwrap_or_default(); changed = true; } }
                 if ui.add_enabled(!self.nodes.is_empty(), egui::Button::new("Export project")).clicked() {
-                    let dir = std::env::var("USERPROFILE").or_else(|_| std::env::var("HOME")).map(std::path::PathBuf::from).unwrap_or_default().join("Downloads"); let _ = std::fs::create_dir_all(&dir);
+                    let dir = user_dir(&["Downloads"]);
                     let p = dir.join("strucal-project.json");
                     self.msg = match std::fs::write(&p, serde_json::to_string_pretty(&json!({"nodes": self.nodes, "revisions": self.revs})).unwrap_or_default()) { Ok(_) => "Project exported to Downloads: strucal-project.json".into(), Err(e) => format!("Export failed: {e}") };
                 }

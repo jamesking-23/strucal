@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
+import TopBar from "../components/TopBar";
 import { DEFAULT_PARAM_SET } from "../../lib/engine";
 import { useEngine } from "../../lib/useEngine";
 import { supabase } from "../../lib/supabase";
@@ -174,11 +174,10 @@ export default function ProjectPage() {
   const rOf = (id: string) => res?.nodes.find((n) => n.id === id);
   const imp = res?.impact;
 
-  if (!eng) return <div className="pj"><div className="wk-title"><Link href="/" className="wk-logo" aria-label="StruCal home">S</Link><div className="wk-wt">StruCal — Project</div></div><div className="pj-empty" role="status">{loadErr ? <>{loadErr} <button className="pj-btn" onClick={retry}>Try again</button></> : "Loading calculation engine…"}</div></div>;
+  if (!eng) return <div className="pj"><TopBar section="project" /><div className="pj-empty" role="status">{loadErr ? <>{loadErr} <button className="pj-btn" onClick={retry}>Try again</button></> : "Loading calculation engine…"}</div></div>;
   return (
     <div className="pj">
-      <div className="wk-title"><Link href="/" className="wk-logo" title="StruCal - home">S</Link><div className="wk-wt">StruCal — Project dependencies{cloud ? ` — ${cloudName || "cloud project"}` : ""} — {nodes.length} calculation(s){cloud && sync ? ` — ${sync}` : ""}</div></div>
-      <div className="wk-tabs"><span className="file">PROJECT</span><Link href="/workspace" style={{ padding: "0 14px", lineHeight: "24px" }}>Back to workspace</Link><Link href="/account" style={{ padding: "0 14px", lineHeight: "24px" }}>Account and teams</Link></div>
+      <TopBar section="project" context={`Project dependencies${cloud ? ` — ${cloudName || "cloud project"}` : ""} — ${nodes.length} calculation(s)${cloud && sync ? ` — ${sync}` : ""}`} />
       <div className="wk-ribbon" style={{ height: 62, alignItems: "center", gap: 10, padding: "0 10px", flexWrap: "wrap" }}>
         <select className="pj-btn" value={add} onChange={(e) => setAdd(e.target.value)} style={{ height: 26 }} aria-label="Module to add">{defs.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select>
         <button className="pj-btn pri" onClick={addNode}>+ Add calculation</button>
