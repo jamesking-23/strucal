@@ -1,10 +1,11 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import TopBar from "../components/TopBar";
+import AppShell from "../shell/AppShell";
+import { useSession } from "../../lib/session";
 import { supabase, ROLES, ROLE_LABEL, STATUS_LABEL } from "../../lib/supabase";
 import { downloadText } from "../../lib/download";
-import { Button, Notice, StatusBadge } from "../ui/primitives";
+import { Button, Notice, Segmented, Spinner, StatusBadge } from "../ui/primitives";
 import "./account.css";
 
 type Org = { id: string; name: string; role: string; mfa: boolean };
@@ -22,8 +23,9 @@ const msg = (e: unknown) => String((e as { message?: string })?.message ?? e).re
 const when = (s: string) => new Date(s).toLocaleString();
 
 export default function Account() {
-  const [session, setSession] = useState<Awaited<ReturnType<typeof supabase.auth.getSession>>["data"]["session"]>(null);
-  const [ready, setReady] = useState(false);
+  const auth = useSession();
+  const session = auth.session;
+  const ready = auth.status !== "loading";
   const [busy, setBusy] = useState("");
   const [mode, setMode] = useState<"in" | "up">("in");
   const [email, setEmail] = useState(""); const [pw, setPw] = useState(""); const [dn, setDn] = useState("");
@@ -42,11 +44,12 @@ export default function Account() {
   const canAudit = isAdmin || myRole === "auditor";
   const names: Record<string, string> = Object.fromEntries(members.map((m) => [m.user_id, m.display_name || m.email]));
 
+  // A different user (sign-out, or another account signing in from any tab) must never see the previous user's data.
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => { setSession(data.session); setReady(true); }).catch((e) => { setErr(`Could not reach the account service: ${msg(e)}`); setReady(true); });
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
-    return () => sub.subscription.unsubscribe();
-  }, []);
+    setOrgs([]); setOrg(""); setMembers([]); setProjects([]); setProj(""); setRevs([]); setReviews([]);
+    setAudit([]); setChain(""); setFactors([]); setAal(null); setEnroll(null); setCode(""); setStepCode(""); setComment("");
+    setAddEmail(""); setNewOrg(""); setNewProj(""); setErr(""); setNote(""); setPw("");
+  }, [uid]);
 
   /** Runs an action with a busy marker, shows its error or success note. Returns the result, or null on error. */
   const run = async <T extends Result>(key: string, fn: () => Promise<T>, ok = ""): Promise<T | null> => {
@@ -129,14 +132,14 @@ export default function Account() {
     run(key, async () => { const r = await supabase.rpc(name, args); if (!r.error) after(); return r; }, ok);
   const required = (v: string, what: string) => { if (!v.trim()) { fail(`Enter ${what}.`); return false; } return true; };
 
-  if (!ready) return <div className="app"><TopBar section="account" /><div className="loading" role="status"><span className="spinner" />Checking your session…</div></div>;
+  if (!ready) return <AppShell section="account" crumbs={["Account"]}><div className="boot" role="status"><div className="row"><Spinner /><span className="muted">Checking your session…</span></div></div></AppShell>;
 
   const banner = (<>{err && <Notice tone="error" onDismiss={() => setErr("")}>{err}</Notice>}{note && <Notice tone="ok">{note}</Notice>}</>);
 
   if (!session) return (
-    <div className="app">
-      <TopBar section="account" context="Cloud projects, approvals and the assistant require an account" />
-      <main className="auth">
+    <AppShell section="account" crumbs={["Account", mode === "in" ? "Sign in" : "Create account"]} scroll
+      status={<><span>Cloud projects, approvals and the assistant require an account</span><span className="grow" /><span>session · this browser</span></>}>
+      <div className="auth">
         <div className="auth-grid">
           <section className="auth-copy">
             <span className="eyebrow">StruCal account</span>
@@ -149,21 +152,18 @@ export default function Account() {
             <p className="faint small">The workbench works without an account; inputs stay in this browser.</p>
           </section>
           <form className="auth-form" onSubmit={(e) => { e.preventDefault(); signIn(); }} noValidate aria-labelledby="auth-h">
-            <div className="seg full" role="tablist" aria-label="Sign in or create account">
-              <button type="button" role="tab" aria-selected={mode === "in"} onClick={() => { setMode("in"); setErr(""); setNote(""); }}>Sign in</button>
-              <button type="button" role="tab" aria-selected={mode === "up"} onClick={() => { setMode("up"); setErr(""); setNote(""); }}>Create account</button>
-            </div>
+            <Segmented block label="Sign in or create account" value={mode} onChange={(m) => { setMode(m); setErr(""); setNote(""); }} options={[{ value: "in", label: "Sign in" }, { value: "up", label: "Create account" }]} />
             <h2 id="auth-h" className="sr-only">{mode === "in" ? "Sign in" : "Create account"}</h2>
             {banner}
             {mode === "up" && <div className="field"><label htmlFor="ac-dn">Display name · shown on reviews and approvals</label><input id="ac-dn" className="input" autoComplete="name" value={dn} onChange={(e) => setDn(e.target.value)} /></div>}
             <div className="field"><label htmlFor="ac-em">Email</label><input id="ac-em" className="input" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} /></div>
             <div className="field"><label htmlFor="ac-pw">Password · at least 8 characters</label><input id="ac-pw" className="input" type="password" autoComplete={mode === "in" ? "current-password" : "new-password"} value={pw} onChange={(e) => setPw(e.target.value)} /></div>
-            <button type="submit" className="btn btn-primary btn-lg" disabled={!!busy}>{busy === "auth" ? "Please wait…" : mode === "in" ? "Sign in" : "Create account"}</button>
+            <button type="submit" className="btn primary lg" disabled={!!busy}>{busy === "auth" ? "Please wait…" : mode === "in" ? "Sign in" : "Create account"}</button>
             <p className="faint small">Preview backend: single sign-on (SAML) is not enabled; data is held in a development database with no uptime guarantee.</p>
           </form>
         </div>
-      </main>
-    </div>
+      </div>
+    </AppShell>
   );
 
   const orgName = orgs.find((o) => o.id === org)?.name ?? "";
@@ -176,8 +176,9 @@ export default function Account() {
   const mfaOn = factors.some((f) => f.status === "verified");
 
   return (
-    <div className="app">
-      <TopBar section="account" context={orgName ? `${orgName} · ${ROLE_LABEL[myRole ?? ""] ?? ""}` : session.user.email} />
+    <AppShell section="account" crumbs={["Account", orgName || "Settings"]} scroll
+      actions={<Button size="sm" onClick={() => supabase.auth.signOut()}>Sign out</Button>}
+      status={<><span className="st"><span className={`dot ${mfaOn ? "pass" : ""}`} />{mfaOn ? "2FA on" : "2FA off"}</span><span>{session.user.email}</span><span className="grow" /><span>{orgName ? `${orgName} · ${ROLE_LABEL[myRole ?? ""] ?? ""}` : "no organisation"}</span></>}>
       <div className="ac-grid">
         <nav className="ac-nav" aria-label="Account sections">
           <div className="ac-who"><b>{session.user.user_metadata?.display_name || session.user.email}</b><span className="mono">{session.user.email}</span><Button size="sm" onClick={() => supabase.auth.signOut()}>Sign out</Button></div>
@@ -188,17 +189,16 @@ export default function Account() {
           {banner}
 
           {needStepUp && (
-            <div className="alert warn"><div className="grow"><b>Two-factor verification required</b> to check or approve revisions in this session.</div>
-              <div className="ac-inline"><input className="input num" style={{ width: 120 }} inputMode="numeric" autoComplete="one-time-code" maxLength={6} aria-label="6-digit code" placeholder="000000" value={stepCode} onChange={(e) => setStepCode(e.target.value)} onKeyDown={(e) => e.key === "Enter" && stepUp()} /><Button variant="primary" disabled={!!busy} onClick={stepUp}>Verify</Button></div>
-            </div>
+            <Notice tone="warn" title="Two-factor verification required to check or approve revisions in this session." action={
+              <div className="ac-inline"><input className="input num" style={{ width: 120 }} inputMode="numeric" autoComplete="one-time-code" maxLength={6} aria-label="6-digit code" placeholder="000000" value={stepCode} onChange={(e) => setStepCode(e.target.value)} onKeyDown={(e) => e.key === "Enter" && stepUp()} /><Button variant="primary" disabled={!!busy} onClick={stepUp}>Verify</Button></div>} />
           )}
 
           <section className="ac-sec" id="ac-profile" aria-labelledby="h-profile">
-            <header><h2 id="h-profile">Profile and security</h2><StatusBadge status={mfaOn ? "ok" : "none"}>{mfaOn ? "2FA on" : "2FA off"}</StatusBadge></header>
+            <header><h2 id="h-profile">Profile and security</h2><StatusBadge status={mfaOn ? "pass" : "none"}>{mfaOn ? "2FA on" : "2FA off"}</StatusBadge></header>
             <div className="ac-body">
               <dl className="kv"><div><dt>Display name</dt><dd>{session.user.user_metadata?.display_name || "—"}</dd></div><div><dt>Email</dt><dd>{session.user.email}</dd></div></dl>
               {mfaOn ? (
-                <div className="row-actions"><span className="muted small">An authenticator app protects checks and approvals.</span><span className="spacer" /><Button size="sm" variant="danger" disabled={!!busy} onClick={() => { if (confirm("Remove two-factor authentication? You will not be able to check or approve revisions in organisations that require it.")) run("unenroll", async () => { for (const f of factors) { const r = await supabase.auth.mfa.unenroll({ factorId: f.id }); if (r.error) return r; } await loadFactors(); await loadAal(); return {}; }, "Two-factor authentication removed."); }}>Remove 2FA</Button></div>
+                <div className="row-actions"><span className="muted small">An authenticator app protects checks and approvals.</span><span className="grow" /><Button size="sm" variant="danger" disabled={!!busy} onClick={() => { if (confirm("Remove two-factor authentication? You will not be able to check or approve revisions in organisations that require it.")) run("unenroll", async () => { for (const f of factors) { const r = await supabase.auth.mfa.unenroll({ factorId: f.id }); if (r.error) return r; } await loadFactors(); await loadAal(); return {}; }, "Two-factor authentication removed."); }}>Remove 2FA</Button></div>
               ) : enroll ? (
                 <div className="ac-enroll">
                   <div className="qr" dangerouslySetInnerHTML={{ __html: enroll.qr }} role="img" aria-label="QR code for your authenticator app" />
@@ -209,7 +209,7 @@ export default function Account() {
                   </div>
                 </div>
               ) : (
-                <div className="row-actions"><span className="muted small">Organisations can require two-factor authentication before anyone checks or approves a revision.</span><span className="spacer" /><Button disabled={!!busy} onClick={() => run("startenroll", async () => { const r = await supabase.auth.mfa.enroll({ factorType: "totp" }); if (!r.error) setEnroll({ id: r.data.id, qr: r.data.totp.qr_code, secret: r.data.totp.secret }); return r; })}>Set up authenticator app</Button></div>
+                <div className="row-actions"><span className="muted small">Organisations can require two-factor authentication before anyone checks or approves a revision.</span><span className="grow" /><Button disabled={!!busy} onClick={() => run("startenroll", async () => { const r = await supabase.auth.mfa.enroll({ factorType: "totp" }); if (!r.error) setEnroll({ id: r.data.id, qr: r.data.totp.qr_code, secret: r.data.totp.secret }); return r; })}>Set up authenticator app</Button></div>
               )}
             </div>
           </section>
@@ -244,7 +244,7 @@ export default function Account() {
             </section>
 
             <section className="ac-sec" id="ac-projects" aria-labelledby="h-prj">
-              <header><h2 id="h-prj">Projects and approval</h2>{projects.length > 0 && <><select className="select ac-pick" value={proj} aria-label="Project" onChange={(e) => setProj(e.target.value)}>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>{proj && <Link className="btn btn-primary btn-sm" href={`/project?p=${proj}`}>Open project</Link>}</>}</header>
+              <header><h2 id="h-prj">Projects and approval</h2>{projects.length > 0 && <><select className="select ac-pick" value={proj} aria-label="Project" onChange={(e) => setProj(e.target.value)}>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>{proj && <Link className="btn primary sm" href={`/project?p=${proj}`}>Open project</Link>}</>}</header>
               <div className="ac-body">
                 <div className="ac-inline"><label className="sr-only" htmlFor="new-proj">New project</label><input id="new-proj" className="input" placeholder="New project name" value={newProj} onChange={(e) => setNewProj(e.target.value)} /><Button disabled={!!busy} onClick={() => required(newProj, "a project name") && rpc("proj", "create_project", { p_org: org, p_name: newProj.trim(), p_description: "" }, "Project created.", () => { setNewProj(""); loadOrg(); })}>Create</Button></div>
                 {projects.length === 0 && <p className="muted small">No projects yet.</p>}
@@ -265,7 +265,7 @@ export default function Account() {
                     return (
                       <article className="rev" key={r.id}>
                         <div className="rev-h">
-                          <h4>{r.name}</h4>{flow(r.status)}<span className="spacer" />
+                          <h4>{r.name}</h4>{flow(r.status)}<span className="grow" />
                           <span className="code-id faint" title={r.content_hash}>{r.content_hash.slice(0, 10)}</span>
                           {canSubmit && <Button size="sm" variant="primary" disabled={!!busy} onClick={() => rpc("rev", "submit_revision", { p_rev: r.id }, "Submitted for checking.", loadRevs)}>Submit for checking</Button>}
                         </div>
@@ -305,7 +305,7 @@ export default function Account() {
 
             {canAudit && (
               <section className="ac-sec" id="ac-audit" aria-labelledby="h-aud">
-                <header><h2 id="h-aud">Audit trail</h2><span className="faint small">latest {audit.length}</span><span className="spacer" />{chain && <StatusBadge status={chain.startsWith("Chain intact") ? "ok" : "fail"}>{chain}</StatusBadge>}
+                <header><h2 id="h-aud">Audit trail</h2><span className="faint small">latest {audit.length}</span><span className="grow" />{chain && <StatusBadge status={chain.startsWith("Chain intact") ? "pass" : "fail"}>{chain}</StatusBadge>}
                   <Button size="sm" disabled={!!busy} onClick={() => run("chain", async () => { const r = await supabase.rpc("verify_audit_chain", { p_org: org }); const row = Array.isArray(r.data) ? r.data[0] : r.data; if (!r.error) setChain(row?.ok ? `Chain intact (${row.checked} events)` : `Tampering detected at event ${row?.broken_at}`); return r; })}>{busy === "chain" ? "Verifying…" : "Verify integrity"}</Button></header>
                 {audit.length === 0 ? <div className="ac-body"><p className="muted small">No events recorded yet.</p></div> : (
                   <div className="tbl-wrap"><table className="tbl audit"><thead><tr><th>When</th><th>Who</th><th>Action</th><th>Detail</th></tr></thead><tbody>
@@ -322,6 +322,6 @@ export default function Account() {
           <p className="faint small">Preview backend. Single sign-on (SAML) is not enabled. Data is held in a development database on a free plan with no uptime guarantee.</p>
         </main>
       </div>
-    </div>
+    </AppShell>
   );
 }
