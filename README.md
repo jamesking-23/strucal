@@ -34,13 +34,13 @@ npm ci
 npm run dev      # http://localhost:3000
 npm run build && npm start
 ```
-The design system (colour, type, spacing tokens, light and dark themes, shared components) lives in `apps/web/app/globals.css`. Inputs are kept in browser storage; local projects can be exported and imported as JSON.
+The workbench design system lives in `apps/web/app/globals.css` (tokens: surfaces, rules, ink, signal, verification status, drawing materials; light and dark) with React primitives in `apps/web/app/ui/` and the engineering components (inspector, module picker, dimensioned viewport, calculation sheet, verification rail) in `apps/web/app/workspace/`. Inputs are kept in browser storage; local projects can be exported and imported as JSON.
 
 ## Desktop app
 ```bash
 cargo run -p strucal-desktop
 ```
-Windows releases are built by `.github/workflows/desktop.yml`. The palette mirrors the web tokens in `apps/desktop/src/main.rs`.
+Windows releases are built by `.github/workflows/desktop.yml`. The desktop workbench (inspector, dimensioned viewport in `viewport.rs`, calculation sheet, verification rail) mirrors the web layout and palette.
 
 ## Checks before pushing
 ```bash
