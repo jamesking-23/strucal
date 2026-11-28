@@ -1,30 +1,30 @@
 //! StruCal deterministic calculation engine.
 //! Shared by the web app (compiled to WASM) and the native desktop app.
-pub mod units;
-pub mod trace;
-pub mod registry;
-pub mod params;
-pub mod rc_beam;
-pub mod report;
-pub mod module;
-pub mod slab;
-pub mod pad;
+pub mod bolted;
 pub mod column;
 pub mod combos;
+pub mod module;
+pub mod modules;
+pub mod pad;
+pub mod params;
+pub mod project;
+pub mod raft;
+pub mod rc_beam;
+pub mod registry;
+pub mod report;
+pub mod retaining;
+pub mod slab;
+pub mod stairs;
 pub mod steel_beam;
-pub mod timber_data;
+pub mod steel_column;
+pub mod strip;
 pub mod timber_beam;
 pub mod timber_col;
-pub mod retaining;
-pub mod raft;
-pub mod bolted;
-pub mod weld;
-pub mod steel_column;
+pub mod timber_data;
+pub mod trace;
+pub mod units;
 pub mod wall;
-pub mod stairs;
-pub mod strip;
-pub mod modules;
-pub mod project;
+pub mod weld;
 
 pub const ENGINE_VERSION: &str = env!("CARGO_PKG_VERSION");
 

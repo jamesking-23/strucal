@@ -8,16 +8,42 @@ use std::sync::mpsc::{channel, Receiver, TryRecvError};
 
 /// Result of cloud work done on a worker thread, returned with the (possibly refreshed) client session.
 enum CloudDone {
-    Opened { id: String, name: String, nodes: Vec<Value>, ver: i64, revs: Result<Vec<Value>, String> },
+    Opened {
+        id: String,
+        name: String,
+        nodes: Vec<Value>,
+        ver: i64,
+        revs: Result<Vec<Value>, String>,
+    },
     OpenFailed(String),
     /// Ok(Some(version)) saved; Ok(None) version conflict.
     Flushed(Result<Option<i64>, String>),
-    RevSaved { saved: Result<(), String>, flushed: Result<Option<i64>, String>, revs: Result<Vec<Value>, String> },
+    RevSaved {
+        saved: Result<(), String>,
+        flushed: Result<Option<i64>, String>,
+        revs: Result<Vec<Value>, String>,
+    },
 }
 
-pub struct Pj { nodes: Vec<Value>, revs: Vec<Value>, base: Option<usize>, add: usize, res: Option<ProjectResult>, msg: String, cloud: Option<(String, String)>, ver: i64, dirty: Option<std::time::Instant>, explain: String, ex_rx: Option<Receiver<Result<Value, String>>>, job: Option<Receiver<(CloudDone, Client)>>, confirm_remove: Option<usize> }
+pub struct Pj {
+    nodes: Vec<Value>,
+    revs: Vec<Value>,
+    base: Option<usize>,
+    add: usize,
+    res: Option<ProjectResult>,
+    msg: String,
+    cloud: Option<(String, String)>,
+    ver: i64,
+    dirty: Option<std::time::Instant>,
+    explain: String,
+    ex_rx: Option<Receiver<Result<Value, String>>>,
+    job: Option<Receiver<(CloudDone, Client)>>,
+    confirm_remove: Option<usize>,
+}
 
-fn s_of(v: &Value, k: &str) -> String { v[k].as_str().unwrap_or("").to_string() }
+fn s_of(v: &Value, k: &str) -> String {
+    v[k].as_str().unwrap_or("").to_string()
+}
 
 /// Loads a cloud project's revisions in the shape the page stores locally.
 fn fetch_revs(cl: &mut Client, id: &str) -> Result<Vec<Value>, String> {
@@ -32,106 +58,229 @@ fn flush(cl: &mut Client, id: &str, nodes: &[Value], ver: i64) -> Result<Option<
     Ok(v.as_array().and_then(|a| a.first()).map(|row| row["version"].as_i64().unwrap_or(ver + 1)))
 }
 
-fn docs_dir() -> std::path::PathBuf { std::env::var("USERPROFILE").or_else(|_| std::env::var("HOME")).map(std::path::PathBuf::from).unwrap_or_default().join("Documents").join("StruCal") }
+fn docs_dir() -> std::path::PathBuf {
+    std::env::var("USERPROFILE")
+        .or_else(|_| std::env::var("HOME"))
+        .map(std::path::PathBuf::from)
+        .unwrap_or_default()
+        .join("Documents")
+        .join("StruCal")
+}
 fn now_str() -> String {
     let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0) as i64;
     let (days, rem) = (secs.div_euclid(86400), secs.rem_euclid(86400));
-    let z = days + 719468; let era = z.div_euclid(146097); let doe = z.rem_euclid(146097);
-    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365; let y = yoe + era * 400;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100); let mp = (5 * doy + 2) / 153;
-    let d = doy - (153 * mp + 2) / 5 + 1; let m = if mp < 10 { mp + 3 } else { mp - 9 }; let y = if m <= 2 { y + 1 } else { y };
+    let z = days + 719468;
+    let era = z.div_euclid(146097);
+    let doe = z.rem_euclid(146097);
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = if m <= 2 { y + 1 } else { y };
     format!("{:04}-{:02}-{:02} {:02}:{:02} UTC", y, m, d, rem / 3600, (rem % 3600) / 60)
 }
 
 impl Pj {
     pub fn new() -> Self {
-        let mut pj = Pj { nodes: vec![], revs: vec![], base: None, add: 0, res: None, msg: String::new(), cloud: None, ver: 1, dirty: None, explain: String::new(), ex_rx: None, job: None, confirm_remove: None };
+        let mut pj = Pj {
+            nodes: vec![],
+            revs: vec![],
+            base: None,
+            add: 0,
+            res: None,
+            msg: String::new(),
+            cloud: None,
+            ver: 1,
+            dirty: None,
+            explain: String::new(),
+            ex_rx: None,
+            job: None,
+            confirm_remove: None,
+        };
         if let Ok(s) = std::fs::read_to_string(docs_dir().join("project.json")) {
             if let Ok(v) = serde_json::from_str::<Value>(&s) {
-                pj.nodes = v["nodes"].as_array().cloned().unwrap_or_default(); pj.revs = v["revisions"].as_array().cloned().unwrap_or_default();
+                pj.nodes = v["nodes"].as_array().cloned().unwrap_or_default();
+                pj.revs = v["revisions"].as_array().cloned().unwrap_or_default();
                 pj.base = v["baseline"].as_u64().map(|x| x as usize).filter(|&i| i < pj.revs.len());
             }
         }
-        pj.recompute(); pj
+        pj.recompute();
+        pj
     }
     /// Opens a cloud project in the background; the page shows a busy state until it arrives.
     pub fn open_cloud(&mut self, cl: &mut Client, id: String, name: String) {
-        if self.job.is_some() { self.msg = "Please wait for the current cloud operation to finish.".into(); return; }
+        if self.job.is_some() {
+            self.msg = "Please wait for the current cloud operation to finish.".into();
+            return;
+        }
         self.msg = format!("Opening {name}…");
         self.spawn(cl, move |c| match c.get(&format!("project_drafts?select=nodes,version&project_id=eq.{id}")) {
             Ok(v) => {
                 let d = v.as_array().and_then(|a| a.first()).cloned().unwrap_or(Value::Null);
                 let revs = fetch_revs(c, &id);
-                CloudDone::Opened { nodes: d["nodes"].as_array().cloned().unwrap_or_default(), ver: d["version"].as_i64().unwrap_or(1), revs, id, name }
+                CloudDone::Opened {
+                    nodes: d["nodes"].as_array().cloned().unwrap_or_default(),
+                    ver: d["version"].as_i64().unwrap_or(1),
+                    revs,
+                    id,
+                    name,
+                }
             }
             Err(e) => CloudDone::OpenFailed(e),
         });
     }
     fn spawn(&mut self, cl: &Client, work: impl FnOnce(&mut Client) -> CloudDone + Send + 'static) {
-        let (tx, rx) = channel(); self.job = Some(rx);
+        let (tx, rx) = channel();
+        self.job = Some(rx);
         let mut c = cl.clone();
-        std::thread::spawn(move || { let d = work(&mut c); let _ = tx.send((d, c)); });
+        std::thread::spawn(move || {
+            let d = work(&mut c);
+            let _ = tx.send((d, c));
+        });
     }
     fn flushed(&mut self, r: Result<Option<i64>, String>) {
         match r {
-            Ok(Some(v)) => { self.ver = v; self.msg = "Saved to cloud".into(); }
-            Ok(None) => { self.msg = "Conflict: someone else changed this project. Reopen it from the Account page before editing.".into(); }
+            Ok(Some(v)) => {
+                self.ver = v;
+                self.msg = "Saved to cloud".into();
+            }
+            Ok(None) => {
+                self.msg = "Conflict: someone else changed this project. Reopen it from the Account page before editing.".into();
+            }
             Err(e) => self.msg = format!("Not saved: {e}"),
         }
     }
     fn set_revs(&mut self, r: Result<Vec<Value>, String>) {
-        match r { Ok(v) => { self.revs = v; self.base = if self.revs.is_empty() { None } else { Some(self.revs.len() - 1) }; } Err(e) => self.msg = format!("Revisions could not be loaded: {e}") }
+        match r {
+            Ok(v) => {
+                self.revs = v;
+                self.base = if self.revs.is_empty() { None } else { Some(self.revs.len() - 1) };
+            }
+            Err(e) => self.msg = format!("Revisions could not be loaded: {e}"),
+        }
     }
     /// Applies a finished background job. Returns true when the page needs recomputing.
     fn poll_job(&mut self, ctx: &egui::Context, cl: &mut Client) -> bool {
         let Some(rx) = &self.job else { return false };
         let (done, c) = match rx.try_recv() {
             Ok(x) => x,
-            Err(TryRecvError::Empty) => { ctx.request_repaint_after(std::time::Duration::from_millis(100)); return false; }
-            Err(TryRecvError::Disconnected) => { self.job = None; self.msg = "The cloud request stopped unexpectedly. Try again.".into(); return false; }
+            Err(TryRecvError::Empty) => {
+                ctx.request_repaint_after(std::time::Duration::from_millis(100));
+                return false;
+            }
+            Err(TryRecvError::Disconnected) => {
+                self.job = None;
+                self.msg = "The cloud request stopped unexpectedly. Try again.".into();
+                return false;
+            }
         };
         self.job = None;
         // Keep a refreshed session; a sign-out in the meantime wins.
-        if cl.signed_in() { *cl = c; }
+        if cl.signed_in() {
+            *cl = c;
+        }
         match done {
             CloudDone::Opened { id, name, nodes, ver, revs } => {
-                self.nodes = nodes; self.ver = ver; self.cloud = Some((id, name)); self.dirty = None; self.revs.clear(); self.base = None;
+                self.nodes = nodes;
+                self.ver = ver;
+                self.cloud = Some((id, name));
+                self.dirty = None;
+                self.revs.clear();
+                self.base = None;
                 self.set_revs(revs);
-                if !self.msg.starts_with("Revisions") { self.msg = "Cloud project opened. Changes save automatically.".into(); }
+                if !self.msg.starts_with("Revisions") {
+                    self.msg = "Cloud project opened. Changes save automatically.".into();
+                }
                 true
             }
-            CloudDone::OpenFailed(e) => { self.msg = format!("Could not open the cloud project: {e}"); false }
-            CloudDone::Flushed(r) => { self.flushed(r); false }
+            CloudDone::OpenFailed(e) => {
+                self.msg = format!("Could not open the cloud project: {e}");
+                false
+            }
+            CloudDone::Flushed(r) => {
+                self.flushed(r);
+                false
+            }
             CloudDone::RevSaved { saved, flushed, revs } => {
-                match saved { Ok(()) => { self.flushed(flushed); self.set_revs(revs); if !self.msg.starts_with("Revisions") && !self.msg.starts_with("Conflict") { self.msg = "Revision saved to cloud".into(); } } Err(e) => self.msg = format!("Revision not saved: {e}") }
+                match saved {
+                    Ok(()) => {
+                        self.flushed(flushed);
+                        self.set_revs(revs);
+                        if !self.msg.starts_with("Revisions") && !self.msg.starts_with("Conflict") {
+                            self.msg = "Revision saved to cloud".into();
+                        }
+                    }
+                    Err(e) => self.msg = format!("Revision not saved: {e}"),
+                }
                 true
             }
         }
     }
-    fn close_cloud(&mut self) { let fresh = Pj::new(); *self = fresh; }
+    fn close_cloud(&mut self) {
+        let fresh = Pj::new();
+        *self = fresh;
+    }
     fn save(&mut self) {
-        if self.cloud.is_some() { return; }
-        let dir = docs_dir(); let _ = std::fs::create_dir_all(&dir);
+        if self.cloud.is_some() {
+            return;
+        }
+        let dir = docs_dir();
+        let _ = std::fs::create_dir_all(&dir);
         let body = json!({"nodes": self.nodes, "revisions": self.revs, "baseline": self.base});
-        if std::fs::write(dir.join("project.json"), serde_json::to_string_pretty(&body).unwrap_or_default()).is_err() { self.msg = "Could not save the project file".into(); }
+        if std::fs::write(dir.join("project.json"), serde_json::to_string_pretty(&body).unwrap_or_default()).is_err() {
+            self.msg = "Could not save the project file".into();
+        }
     }
     fn recompute(&mut self) {
-        if self.nodes.is_empty() { self.res = None; return; }
+        if self.nodes.is_empty() {
+            self.res = None;
+            return;
+        }
         let p: Result<Project, _> = serde_json::from_value(json!({"nodes": self.nodes}));
         let prev: Option<Vec<NodeResult>> = self.base.and_then(|b| serde_json::from_value(self.revs[b]["results"].clone()).ok());
         self.res = p.ok().map(|p| project::analyse(&p, prev.as_ref()));
     }
-    fn s(v: &Value, k: &str) -> String { v[k].as_str().unwrap_or("").to_string() }
+    fn s(v: &Value, k: &str) -> String {
+        v[k].as_str().unwrap_or("").to_string()
+    }
 
     pub fn ui(&mut self, ctx: &egui::Context, defs: &[ModDef], cl: &mut crate::cloud::Client) {
-        let mut changed = false; let mut cloud_rev = false; let mut leave_cloud = false; let mut want_explain = false;
-        if let Some(rx) = self.ex_rx.take() { match rx.try_recv() { Ok(r) => { self.explain = match r { Ok(v) => v["answer"].as_str().unwrap_or("").to_string(), Err(e) => format!("Assistant: {e}") }; } Err(std::sync::mpsc::TryRecvError::Empty) => { self.ex_rx = Some(rx); ctx.request_repaint_after(std::time::Duration::from_millis(250)); } Err(_) => {} } }
-        if self.poll_job(ctx, cl) { self.recompute(); }
+        let mut changed = false;
+        let mut cloud_rev = false;
+        let mut leave_cloud = false;
+        let mut want_explain = false;
+        if let Some(rx) = self.ex_rx.take() {
+            match rx.try_recv() {
+                Ok(r) => {
+                    self.explain = match r {
+                        Ok(v) => v["answer"].as_str().unwrap_or("").to_string(),
+                        Err(e) => format!("Assistant: {e}"),
+                    };
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => {
+                    self.ex_rx = Some(rx);
+                    ctx.request_repaint_after(std::time::Duration::from_millis(250));
+                }
+                Err(_) => {}
+            }
+        }
+        if self.poll_job(ctx, cl) {
+            self.recompute();
+        }
         let busy = self.job.is_some();
         if let (Some(t), false) = (self.dirty, busy) {
             if t.elapsed() >= std::time::Duration::from_millis(900) {
-                if let Some((id, _)) = self.cloud.clone() { let (nodes, ver) = (self.nodes.clone(), self.ver); self.dirty = None; self.msg = "Saving…".into(); self.spawn(cl, move |c| CloudDone::Flushed(flush(c, &id, &nodes, ver))); }
-            } else { ctx.request_repaint_after(std::time::Duration::from_millis(300)); }
+                if let Some((id, _)) = self.cloud.clone() {
+                    let (nodes, ver) = (self.nodes.clone(), self.ver);
+                    self.dirty = None;
+                    self.msg = "Saving…".into();
+                    self.spawn(cl, move |c| CloudDone::Flushed(flush(c, &id, &nodes, ver)));
+                }
+            } else {
+                ctx.request_repaint_after(std::time::Duration::from_millis(300));
+            }
         }
         egui::TopBottomPanel::top("pjtools").exact_height(44.0).frame(egui::Frame::new().fill(RIBBON).stroke(Stroke::new(1.0_f32, LINE)).inner_margin(egui::Margin::symmetric(8, 8))).show(ctx, |ui| {
             ui.horizontal(|ui| {
@@ -202,8 +351,23 @@ impl Pj {
         });
 
         // available outputs and resolved values from the last analysis
-        let avail: Vec<(String, String, String, String, String)> = self.res.as_ref().map(|r| r.nodes.iter().flat_map(|n| n.outputs.iter().map(move |o| (n.id.clone(), n.name.clone(), o.key.clone(), o.label.clone(), o.unit.clone()))).collect()).unwrap_or_default();
-        let resolved: Vec<(String, String, f64)> = self.res.as_ref().map(|r| r.nodes.iter().flat_map(|n| n.resolved.iter().map(move |x| (n.id.clone(), x.field.clone(), x.value))).collect()).unwrap_or_default();
+        let avail: Vec<(String, String, String, String, String)> = self
+            .res
+            .as_ref()
+            .map(|r| {
+                r.nodes
+                    .iter()
+                    .flat_map(|n| {
+                        n.outputs.iter().map(move |o| (n.id.clone(), n.name.clone(), o.key.clone(), o.label.clone(), o.unit.clone()))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        let resolved: Vec<(String, String, f64)> = self
+            .res
+            .as_ref()
+            .map(|r| r.nodes.iter().flat_map(|n| n.resolved.iter().map(move |x| (n.id.clone(), x.field.clone(), x.value))).collect())
+            .unwrap_or_default();
         let nres: Vec<NodeResult> = self.res.as_ref().map(|r| r.nodes.clone()).unwrap_or_default();
         let imp = self.res.as_ref().map(|r| (r.impact.edited.clone(), r.impact.affected.clone()));
         let mut remove: Option<usize> = None;
@@ -272,32 +436,77 @@ impl Pj {
         });
         if let Some(i) = self.confirm_remove {
             let name = self.nodes.get(i).map(|n| Self::s(n, "name")).unwrap_or_default();
-            egui::Window::new("Remove calculation").collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
-                ui.label(format!("Remove {name}? Inputs linked to its results become manual inputs."));
-                ui.horizontal(|ui| { if ui.add(egui::Button::new(RichText::new("Remove").color(Color32::WHITE)).fill(RED)).clicked() { remove = Some(i); self.confirm_remove = None; } if ui.button("Cancel").clicked() { self.confirm_remove = None; } });
-            });
+            egui::Window::new("Remove calculation")
+                .collapsible(false)
+                .resizable(false)
+                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+                .show(ctx, |ui| {
+                    ui.label(format!("Remove {name}? Inputs linked to its results become manual inputs."));
+                    ui.horizontal(|ui| {
+                        if ui.add(egui::Button::new(RichText::new("Remove").color(Color32::WHITE)).fill(RED)).clicked() {
+                            remove = Some(i);
+                            self.confirm_remove = None;
+                        }
+                        if ui.button("Cancel").clicked() {
+                            self.confirm_remove = None;
+                        }
+                    });
+                });
         }
-        if let Some(i) = remove.filter(|&i| i < self.nodes.len()) { let id = Self::s(&self.nodes[i], "id"); self.nodes.remove(i); for n in self.nodes.iter_mut() { if let Some(a) = n["links"].as_array_mut() { a.retain(|l| l["from"] != id.as_str()); } } changed = true; }
+        if let Some(i) = remove.filter(|&i| i < self.nodes.len()) {
+            let id = Self::s(&self.nodes[i], "id");
+            self.nodes.remove(i);
+            for n in self.nodes.iter_mut() {
+                if let Some(a) = n["links"].as_array_mut() {
+                    a.retain(|l| l["from"] != id.as_str());
+                }
+            }
+            changed = true;
+        }
         if want_explain {
             if let (Some(r), Some(b)) = (&self.res, self.base) {
-                let names: serde_json::Map<String, Value> = self.nodes.iter().map(|n| (Self::s(n, "id"), json!(format!("{} ({})", Self::s(n, "name"), Self::s(n, "module"))))).collect();
+                let names: serde_json::Map<String, Value> = self
+                    .nodes
+                    .iter()
+                    .map(|n| (Self::s(n, "id"), json!(format!("{} ({})", Self::s(n, "name"), Self::s(n, "module")))))
+                    .collect();
                 let ctxv = json!({"baseline": Self::s(&self.revs[b], "name"), "impact": {"edited": r.impact.edited, "affected": r.impact.affected, "newly_failing": r.impact.newly_failing, "newly_passing": r.impact.newly_passing, "added": r.impact.added, "removed": r.impact.removed, "diffs": r.impact.diffs.iter().map(|d| json!({"node": d.node, "output": d.output, "old": d.old, "new": d.new})).collect::<Vec<_>>()}, "calculations": names, "results": r.nodes.iter().map(|n| json!({"id": n.id, "name": n.name, "status": n.status, "pass": n.overall_pass, "max_util": n.max_util, "outputs": n.outputs})).collect::<Vec<_>>()});
-                let (tx, rx) = std::sync::mpsc::channel(); self.ex_rx = Some(rx); self.explain.clear();
+                let (tx, rx) = std::sync::mpsc::channel();
+                self.ex_rx = Some(rx);
+                self.explain.clear();
                 let mut c = cl.clone();
-                std::thread::spawn(move || { let _ = tx.send(c.function("assistant", &json!({"task": "compare", "question": "", "context": ctxv}))); });
+                std::thread::spawn(move || {
+                    let _ = tx.send(c.function("assistant", &json!({"task": "compare", "question": "", "context": ctxv})));
+                });
             }
         }
-        if leave_cloud { self.close_cloud(); return; }
+        if leave_cloud {
+            self.close_cloud();
+            return;
+        }
         if cloud_rev {
             if let (Some((id, _)), Some(r)) = (self.cloud.clone(), &self.res) {
                 let args = json!({"p_project": id, "p_name": format!("Rev {}", self.revs.len() + 1), "p_nodes": self.nodes, "p_results": r.nodes, "p_engine": r.engine_version});
-                let (nodes, ver) = (self.nodes.clone(), self.ver); self.dirty = None; self.msg = "Saving revision…".into();
+                let (nodes, ver) = (self.nodes.clone(), self.ver);
+                self.dirty = None;
+                self.msg = "Saving revision…".into();
                 self.spawn(cl, move |c| match c.rpc("save_revision", &args) {
-                    Ok(_) => { let flushed = flush(c, &id, &nodes, ver); let revs = fetch_revs(c, &id); CloudDone::RevSaved { saved: Ok(()), flushed, revs } }
+                    Ok(_) => {
+                        let flushed = flush(c, &id, &nodes, ver);
+                        let revs = fetch_revs(c, &id);
+                        CloudDone::RevSaved { saved: Ok(()), flushed, revs }
+                    }
                     Err(e) => CloudDone::RevSaved { saved: Err(e), flushed: Ok(None), revs: Ok(vec![]) },
                 });
             }
         }
-        if changed { self.recompute(); if self.cloud.is_some() { self.dirty = Some(std::time::Instant::now()); } else { self.save(); } }
+        if changed {
+            self.recompute();
+            if self.cloud.is_some() {
+                self.dirty = Some(std::time::Instant::now());
+            } else {
+                self.save();
+            }
+        }
     }
 }
